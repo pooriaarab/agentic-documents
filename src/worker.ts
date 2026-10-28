@@ -6,7 +6,10 @@ import type { ExportResult } from "./export.js";
 import { DocsService } from "./service.js";
 
 export interface WorkerEnv {
-  /** JSON object: bearer token to author, such as {"tok-1":"agent_of_human:scribe"}. Set it as a secret. */
+  /**
+   * JSON object: bearer token (32 bytes or more) to `kind:name`, or to `{ "as": "kind:name", "scopes": ["docs:accept"] }`.
+   * Set it as a secret. A short token or a bad entry refuses the whole config.
+   */
   AGENTIC_DOCS_TOKENS?: string;
 }
 
@@ -20,6 +23,9 @@ const STATUS: Partial<Record<DocErrorCode, number>> = {
   STALE_ANCHOR: 409,
   ALREADY_DECIDED: 409,
   DOCUMENT_EXISTS: 409,
+  CONFLICT: 409,
+  FORBIDDEN: 403,
+  LOCKED: 503,
 };
 
 function same(a: string, b: string): boolean {
@@ -28,20 +34,54 @@ function same(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** The author a token stands for. No tokens configured, or a bad config, means nobody gets in. */
-function principalFor(tokens: string | undefined, bearer: string): Principal | undefined {
-  let table: Record<string, unknown>;
+const MIN_TOKEN_BYTES = 32;
+const warned = new Set<string>();
+
+function refuse(reason: string): undefined {
+  if (!warned.has(reason)) {
+    warned.add(reason);
+    console.error(`AGENTIC_DOCS_TOKENS is refused: ${reason}`); // never the token or its value
+  }
+  return undefined;
+}
+
+/** One entry's principal: `"kind:name"`, or `{ "as": "kind:name", "scopes": ["docs:accept"] }`. */
+function principalOf(entry: unknown): Principal | undefined {
+  const object = typeof entry === "object" && entry !== null && !Array.isArray(entry) ? (entry as { as?: unknown; scopes?: unknown }) : undefined;
+  const who = typeof entry === "string" ? entry : object?.as;
+  const author = typeof who === "string" ? parseAuthor(who) : undefined;
+  if (!author || !PRINCIPAL_KINDS.includes(author.kind) || !author.name) return undefined;
+  if (object?.scopes === undefined) return author;
+  const scopes = object.scopes;
+  return Array.isArray(scopes) && scopes.every((s) => typeof s === "string" && s !== "") ? { ...author, scopes } : undefined;
+}
+
+/**
+ * The token table, or nothing. One bad entry (a token under 32 bytes, a value that is not a valid
+ * principal) refuses the whole config, so a typo never leaves a weak token live.
+ */
+function readTokens(raw: string | undefined): Map<string, Principal> | undefined {
+  let table: unknown;
   try {
-    table = JSON.parse(tokens ?? "{}");
+    table = JSON.parse(raw ?? "{}");
   } catch {
-    console.error("AGENTIC_DOCS_TOKENS is not valid JSON");
-    return undefined;
+    return refuse("not valid JSON");
   }
+  if (typeof table !== "object" || table === null || Array.isArray(table)) return refuse("not a JSON object");
+  const found = new Map<string, Principal>();
+  for (const [token, entry] of Object.entries(table)) {
+    if (new TextEncoder().encode(token).length < MIN_TOKEN_BYTES) return refuse(`a token is shorter than ${MIN_TOKEN_BYTES} bytes`);
+    const principal = principalOf(entry);
+    if (!principal) return refuse("an entry is not a valid kind:name or { as, scopes }");
+    found.set(token, principal);
+  }
+  return found;
+}
+
+/** The principal a bearer token stands for. The compare visits every entry. */
+function principalFor(tokens: string | undefined, bearer: string): Principal | undefined {
   let found: Principal | undefined;
-  for (const [token, who] of Object.entries(table)) {
-    const author = typeof who === "string" ? parseAuthor(who) : undefined;
-    if (same(token, bearer) && author && PRINCIPAL_KINDS.includes(author.kind) && author.name) found = author;
-  }
+  for (const [token, principal] of readTokens(tokens) ?? []) if (same(token, bearer)) found = principal;
   return found;
 }
 
@@ -69,7 +109,8 @@ export function createApp(service: DocsService): Hono<{ Bindings: WorkerEnv; Var
       const result = await command.run(service, input, c.get("author"));
       if (command.name === "export") {
         const { data, contentType } = result as ExportResult;
-        return c.body(data, 200, { "content-type": contentType, "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src https:; sandbox" });
+        const images = input.remoteImages === true || input.remoteImages === "true" ? "data: https:" : "data:";
+        return c.body(data, 200, { "content-type": contentType, "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; img-src ${images}; sandbox` });
       }
       if (typeof result === "string") return c.body(result, 200, { "content-type": "text/markdown; charset=utf-8" });
       return c.json(result);

@@ -73,13 +73,20 @@ curl -X POST $URL/api/v1/docs -H "authorization: Bearer $TOKEN" -d '{"id":"plan"
 curl "$URL/api/v1/docs/plan/outline" -H "authorization: Bearer $TOKEN"
 curl -X POST $URL/api/v1/docs/plan/replace -H "authorization: Bearer $TOKEN" -d '{"text":"Plan","content":"Roadmap"}'
 curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN"
+# add &remoteImages=true to keep web images; the default shows only images stored inside the document
 ```
 
 - Each token stands for one author. Set `AGENTIC_DOCS_TOKENS` as a secret:
-  `wrangler secret put AGENTIC_DOCS_TOKENS`, with a value like `{"tok-1":"agent_of_human:scribe"}`.
+  `wrangler secret put AGENTIC_DOCS_TOKENS`. The value is a JSON object from token to author:
+  `{"<32 or more random bytes>":"agent_of_human:scribe"}`. To give an agent the right to accept
+  suggestions, use `{"as":"agent_of_human:approver","scopes":["docs:accept"]}` as the value.
+  Make a token with `openssl rand -hex 32`.
+- A token under 32 bytes, a value that is not a valid author, or a value that is not a JSON
+  object makes the Worker refuse every request (401). It logs the reason once, never the token.
   A body cannot name its own author. With no tokens the API refuses every request.
 - Errors are `{ "error": { "code", "message", "matches" } }`. Status: 400 bad input, 401 no
-  valid token, 404 not found, 409 a conflict (ambiguous match, stale anchor, already decided).
+  valid token, 403 `FORBIDDEN` (for example an agent without `docs:accept` that accepts), 404 not
+  found, 409 a conflict (ambiguous match, stale anchor, already decided), 503 `LOCKED`.
 - `GET /health` needs no token. It reveals nothing else.
 - Run it locally with `npx wrangler dev`. Set `WRANGLER_SEND_METRICS=false` to turn off wrangler telemetry.
 
@@ -103,7 +110,10 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - Two replicas can accept one suggestion before they meet. After the merge every replica keeps
   one application and undoes the other, so the text and the edit log hold it once. An accept
   beats a reject made at the same moment.
-- Export to Markdown and to self-contained HTML. The HTML loads nothing from other hosts.
+- Export to Markdown and to self-contained HTML. The HTML loads nothing from other hosts. An image
+  stored in the document as a `data:` URI (PNG, JPEG, GIF, or WebP) shows. Any other image becomes
+  its alt text, because a remote image tells its host who opened the file. `remoteImages` turns
+  that back on.
 - Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
   agent work stays labeled. The log holds no content.
 
@@ -117,7 +127,9 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 ## Limits
 
 - No web UI yet.
-- The Worker keeps documents in memory. They are lost when the isolate restarts. A durable
+- The Worker keeps documents in memory, one store for each isolate. Cloudflare runs several isolates, so a
+  document made in one can be missing in the next, and two isolates can hold different versions. A restart
+  loses them. A durable
   adapter (R2 or Durable Objects) comes with `agentic-identity` and `agentic-sync`.
 - Token auth is a stopgap until the `Auth` port exists. There is no per-document sharing or role yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a

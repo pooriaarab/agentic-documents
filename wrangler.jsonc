@@ -1,7 +1,8 @@
 {
   // Set tokens as a secret, never in this file:
   //   wrangler secret put AGENTIC_DOCS_TOKENS
-  // The value is JSON, for example {"tok-1":"agent_of_human:scribe"}.
+  // The value is JSON from a token of 32 bytes or more to an author, for example
+  // {"<output of openssl rand -hex 32>":"agent_of_human:scribe"}. A shorter token refuses the whole config.
   "name": "agentic-documents",
   "main": "src/worker.ts",
   "compatibility_date": "2026-01-01"
