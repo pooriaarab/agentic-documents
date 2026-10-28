@@ -129,6 +129,18 @@ describe("cli flow", () => {
   });
 });
 
+describe("preamble through the CLI", () => {
+  test("the outline lists the text before the first heading, and a section target edits it", () => {
+    cli(["new", "pre", "--markdown", "Intro text\n\n# Plan\n\nBody"]);
+    const [pre, plan] = json(["outline", "pre"]);
+    expect(pre).toMatchObject({ id: "preamble", level: 0 });
+    expect(plan.title).toBe("Plan");
+    expect(cli(["read", "pre", "--section", "preamble"]).out).toBe("Intro text\n");
+    expect(cli(["replace", "pre", "--section", "preamble", "--content", "New intro"]).code).toBe(0);
+    expect(cli(["read", "pre"]).out).toBe("New intro\n\n# Plan\n\nBody\n");
+  });
+});
+
 describe("parallel writers", () => {
   test("twelve processes append to one document and every line lands", async () => {
     cli(["new", "race", "--markdown", "start"]);

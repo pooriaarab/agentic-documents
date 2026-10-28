@@ -7,6 +7,8 @@ import { APPLIED, settle } from "./settle.js";
 
 export { DocError, type DocErrorCode } from "./errors.js";
 
+/** The id of the blocks before the first heading. Heading ids start with `s`, so they never match. */
+export const PREAMBLE = "preamble";
 const FRAGMENT = "default";
 const CONTEXT_CHARS = 20;
 
@@ -196,12 +198,16 @@ export class AgenticDoc {
     return blocksToMarkdown(this.toJSON().content ?? []);
   }
 
+  /** Sections in order. Blocks before the first heading come first, as the `preamble` section at level 0. */
   outline(): Section[] {
-    return this.headings().map(({ el }) => ({
+    const headings = this.headings();
+    const sections = headings.map(({ el }) => ({
       id: sectionId(el),
       level: Number(el.getAttribute("level") ?? 1),
       title: unitsOf(el).map(unitText).join(""),
     }));
+    const before = headings.length ? headings[0].index : this.fragment.length;
+    return before > 0 ? [{ id: PREAMBLE, level: 0, title: "Preamble" }, ...sections] : sections;
   }
 
   readSection(id: string): string {
@@ -215,14 +221,18 @@ export class AgenticDoc {
       .flatMap((el, index) => (el instanceof Y.XmlElement && el.nodeName === "heading" ? [{ el, index }] : []));
   }
 
-  /** A section runs from its heading to the next heading of the same or a higher level. */
-  private range(id: string): { start: number; end: number } {
+  /**
+   * A section runs from its heading to the next heading of the same or a higher level. The preamble
+   * has no heading and runs to the first heading. It is always a valid target, even when empty.
+   */
+  private range(id: string): { start: number; end: number; headed: boolean } {
     const all = this.headings();
+    if (id === PREAMBLE) return { start: 0, end: all.length ? all[0].index : this.fragment.length, headed: false };
     const at = all.findIndex(({ el }) => sectionId(el) === id);
     if (at < 0) throw new DocError("NO_SECTION", `no section with id "${id}"`);
     const level = Number(all[at].el.getAttribute("level") ?? 1);
     const next = all.slice(at + 1).find(({ el }) => Number(el.getAttribute("level") ?? 1) <= level);
-    return { start: all[at].index, end: next ? next.index : this.fragment.length };
+    return { start: all[at].index, end: next ? next.index : this.fragment.length, headed: true };
   }
 
   private find(text: string): Range[] {
@@ -305,12 +315,13 @@ export class AgenticDoc {
 
   private editSection(op: "insert" | "replace" | "delete", target: SectionTarget, markdown: string, author: Principal): void {
     const who = checkAuthor(author);
-    const { start, end } = this.range(target.section);
+    const { start, end, headed } = this.range(target.section);
+    const body = headed ? start + 1 : start;
     const content = op === "delete" ? [] : markdownToBlocks(markdown);
     this.change(op, who, () => {
-      const deleted = op === "insert" ? 0 : op === "delete" ? end - start : end - start - 1;
-      const from = op === "delete" ? start : op === "replace" || target.at === "start" ? start + 1 : end;
-      if (op === "replace") this.fragment.delete(start + 1, end - start - 1);
+      const deleted = op === "insert" ? 0 : op === "delete" ? end - start : end - body;
+      const from = op === "delete" ? start : op === "replace" || target.at === "start" ? body : end;
+      if (op === "replace") this.fragment.delete(body, end - body);
       if (op === "delete") this.fragment.delete(start, end - start);
       if (content.length) this.fragment.insert(from, toYBlocks(content));
       return { inserted: content.length, deleted, section: target.section };

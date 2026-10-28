@@ -17,7 +17,7 @@ import { AgenticDoc } from "agentic-documents";
 | --- | --- |
 | `AgenticDoc.fromMarkdown(md, author)` | Make a document. |
 | `doc.toMarkdown()` | Read the whole document. |
-| `doc.outline()` | List sections: `id`, `level`, `title`. |
+| `doc.outline()` | List sections: `id`, `level`, `title`. The `preamble` section (level 0) holds text before the first heading. |
 | `doc.readSection(id)` | Read one section. |
 | `doc.insert / replace / delete(target, ...)` | Change a section or matched text. |
 | `doc.append(md, author)` | Add blocks at the end. |
@@ -64,5 +64,5 @@ and `POST /api/v1/docs` for `new`. Send `authorization: Bearer <token>`. The tok
 - Prefer a suggestion over a direct edit when a person owns the text.
 - Only a person accepts a suggestion, or an agent that holds the `docs:accept` scope. Never accept or reject your own. `FORBIDDEN` means you may not.
 - A stale suggestion stays pending. Reject it or make a new one.
-- A section replace keeps the heading and removes the subsections.
+- A section replace keeps the heading and removes the subsections. Text before the first heading is the `preamble` section (level 0, id `preamble`).
 - Report errors as errors. Never present them as success.

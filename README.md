@@ -95,7 +95,9 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - A Yjs document that a Tiptap editor can open. It uses the y-prosemirror layout.
 - Headings, paragraphs, lists, task lists, tables, code, images, links, and marks.
 - Markdown in and out.
-- An outline. Each section has an id that stays the same when people edit around it.
+- An outline. Each section has an id that stays the same when people edit around it. Blocks before the
+  first heading are the `preamble` section (level 0). It is listed when they exist, and it is always a
+  valid target. A replace or delete on it has no heading to keep.
 - Insert, replace, and delete by section id or by exact text. Append to the end.
 - Text anchors that follow their text when other replicas edit.
 - Clear errors: `NO_MATCH`, `AMBIGUOUS_MATCH`, `STALE_ANCHOR`, `NO_SECTION`, `FORBIDDEN`.
@@ -145,7 +147,6 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
 - Export covers Markdown and HTML. DOCX and ODT (.odt) exports, and ODT import, are planned.
-- Text before the first heading has no section id. Use `append` or a text match.
 - Markdown with footnotes, or any syntax the model has no place for, is refused with
   `INVALID_INPUT`. Nothing is stored. Reference links and image references are resolved to
   their URL. An unused reference definition is dropped.
