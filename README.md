@@ -54,7 +54,8 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
   An accepted edit is logged with the accepter as editor and the suggester as origin.
 - Who may decide: a `human` or a `user_token` who is not the suggester. An agent cannot accept
   unless its principal carries the `docs:accept` scope. Nobody accepts their own suggestion.
-  The suggester can withdraw it. Other deciders get `FORBIDDEN`. Accepting an accepted
+  A person can withdraw their own suggestion. An agent can never accept or reject its own. Other
+  deciders get `FORBIDDEN`. Accepting an accepted
   suggestion changes nothing. Editor roles come with `agentic-identity`.
 - Two replicas can accept one suggestion before they meet. After the merge every replica keeps
   one application and undoes the other, so the text and the edit log hold it once. An accept

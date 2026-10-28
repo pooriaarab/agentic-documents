@@ -157,8 +157,10 @@ export const ACCEPT_SCOPE = "docs:accept";
 
 const sameWho = (a: Principal, b: Principal): boolean => a.kind === b.kind && a.name === b.name;
 
+const isPerson = (who: Principal): boolean => who.kind === "human" || who.kind === "user_token";
+
 /** A person or a user token decides. An agent needs the accept scope. Roles come later with the Auth port. */
-const mayDecide = (who: Principal): boolean => who.kind === "human" || who.kind === "user_token" || who.scopes?.includes(ACCEPT_SCOPE) === true;
+const mayDecide = (who: Principal): boolean => isPerson(who) || who.scopes?.includes(ACCEPT_SCOPE) === true;
 
 /** Suggested edits. Nothing changes in the text until a person, or an agent with the accept scope, accepts one. */
 export class Suggestions {
@@ -230,13 +232,13 @@ export class Suggestions {
     });
   }
 
-  /** The suggester can withdraw. Anyone else needs the same right as accept. */
+  /** Same right as accept. A person can withdraw their own suggestion. An agent can never decide its own. */
   reject(id: string, author: Principal): void {
     const who = checkAuthor(author);
     this.doc.ydoc.transact(() => {
       const { fields, suggestion: s } = this.get(id);
-      if (!sameWho(s.author, who) && !mayDecide(author)) {
-        throw new DocError("FORBIDDEN", `${who.kind}:${who.name} cannot reject this suggestion: its author, a person, or an agent with the ${ACCEPT_SCOPE} scope can`);
+      if (!mayDecide(author) || (!isPerson(who) && sameWho(s.author, who))) {
+        throw new DocError("FORBIDDEN", `${who.kind}:${who.name} cannot reject this suggestion: a person, or an agent with the ${ACCEPT_SCOPE} scope that did not write it, can`);
       }
       if (s.status !== "pending") throw new DocError("ALREADY_DECIDED", `suggestion "${id}" is already ${s.status}`);
       this.decide(fields, "rejected", who, this.doc.now().toISOString());

@@ -319,11 +319,27 @@ describe("who may decide", () => {
     expect(doc.toMarkdown().trim()).toBe("Hello moon");
   });
 
-  test("the author can withdraw a suggestion, but another agent cannot reject it", () => {
+  test("an agent can never reject its own suggestion, with or without the scope", () => {
+    const { suggestions, id } = pending();
+    expect(codeOf(() => suggestions.reject(id, agent))).toBe("FORBIDDEN");
+    const own = suggestions.add({ text: "Hello" }, "Bye", approver);
+    expect(codeOf(() => suggestions.reject(own, approver))).toBe("FORBIDDEN");
+    expect(suggestions.list().map((s) => s.status)).toEqual(["pending", "pending"]);
+  });
+
+  test("an agent without the scope cannot reject another's suggestion, but a scoped agent can", () => {
     const { suggestions, id } = pending();
     expect(codeOf(() => suggestions.reject(id, other))).toBe("FORBIDDEN");
-    suggestions.reject(id, agent);
-    expect(suggestions.list()[0]).toMatchObject({ status: "rejected", decidedBy: agent });
+    suggestions.reject(id, approver);
+    expect(suggestions.list()[0]).toMatchObject({ status: "rejected", decidedBy: { kind: "agent_of_human", name: "approver" } });
+  });
+
+  test("a person can withdraw their own suggestion", () => {
+    const doc = fresh();
+    const suggestions = new Suggestions(doc);
+    const id = suggestions.add({ text: "world" }, "moon", human);
+    suggestions.reject(id, human);
+    expect(suggestions.list()[0]).toMatchObject({ status: "rejected", decidedBy: human });
   });
 
   test("scopes that are not a list of strings make an invalid author", () => {
