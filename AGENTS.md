@@ -40,7 +40,7 @@ change it in a call.
 | `doc_insert`, `doc_replace`, `doc_delete`, `doc_append` | Change text or sections. |
 | `doc_suggest`, `doc_suggestions`, `doc_accept`, `doc_reject` | Suggested edits. |
 | `doc_comment`, `doc_reply`, `doc_resolve`, `doc_reopen`, `doc_threads` | Comment threads. |
-| `doc_export` | Export as `md` or `html`. |
+| `doc_export` | Export as `md`, `html`, or `odt` (base64 file). |
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
 

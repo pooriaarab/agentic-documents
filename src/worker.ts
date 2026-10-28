@@ -108,9 +108,11 @@ export function createApp(service: DocsService): Hono<{ Bindings: WorkerEnv; Var
     try {
       const result = await command.run(service, input, c.get("author"));
       if (command.name === "export") {
-        const { data, contentType } = result as ExportResult;
+        const { data, contentType, encoding, format } = result as ExportResult;
         const images = input.remoteImages === true || input.remoteImages === "true" ? "data: https:" : "data:";
-        return c.body(data, 200, { "content-type": contentType, "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; img-src ${images}; sandbox` });
+        const disposition: Record<string, string> = format === "odt" ? { "content-disposition": `attachment; filename="${input.id}.odt"` } : {};
+        const headers = { ...disposition, "content-type": contentType, "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; img-src ${images}; sandbox` };
+        return encoding === "base64" ? c.body(Uint8Array.from(atob(data), (ch) => ch.charCodeAt(0)), 200, headers) : c.body(data, 200, headers);
       }
       if (typeof result === "string") return c.body(result, 200, { "content-type": "text/markdown; charset=utf-8" });
       return c.json(result);

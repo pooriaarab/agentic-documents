@@ -23,3 +23,4 @@ export { commands, type Command } from "./commands.js";
 export { EXPORT_FORMATS, exportDoc, type ExportFormat, type ExportOptions, type ExportResult } from "./export.js";
 export type { Blobs, BlobObject, Region } from "./ports.js";
 export { DocsService } from "./service.js";
+export { exportOdt, ODT_MIME } from "./odt.js";
