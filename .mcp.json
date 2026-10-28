@@ -2,7 +2,7 @@
   "mcpServers": {
     "agentic-documents": {
       "command": "npx",
-      "args": ["-y", "agentic-documents", "mcp"]
+      "args": ["-y", "agentic-documents", "mcp", "--as", "agent:claude"]
     }
   }
 }

@@ -18,6 +18,15 @@ doc.replace({ text: "Friday" }, "Monday", me);
 doc.toMarkdown();
 ```
 
+## Use the CLI or MCP
+
+```sh
+agentic-documents outline plan --as agent_of_human:scribe
+agentic-documents mcp --as agent_of_human:scribe
+```
+
+Tools are named `doc_<command>`: `doc_read`, `doc_outline`, `doc_replace`, `doc_suggest`.
+
 ## Rules
 
 - Pass your author kind and name on every change.

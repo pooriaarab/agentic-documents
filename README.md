@@ -8,8 +8,7 @@
 Write documents with people and agents in real time.
 
 > Status: early. The document model and the text operations work in Node. The
-> package is not on npm yet. The CLI, the MCP server, the HTTP API, and the web
-> UI are not built yet.
+> package is not on npm yet. The HTTP API and the web UI are not built yet.
 
 ## Install
 
@@ -40,6 +39,29 @@ suggestions.accept(id, person); // the text changes now
 new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 ```
 
+## CLI
+
+Every change needs an author: `--as <kind>:<name>` or `AGENTIC_DOCS_AS`. Documents live in
+`--dir` (or `AGENTIC_DOCS_DIR`, default `.agentic-documents`) as Yjs update files.
+
+```sh
+export AGENTIC_DOCS_AS=agent_of_human:scribe
+npx agentic-documents new plan --markdown "# Plan\n\nShip on Friday."
+npx agentic-documents outline plan
+npx agentic-documents replace plan --text Friday --content Monday
+npx agentic-documents suggest plan --text Monday --replacement Tuesday
+npx agentic-documents comment plan --text Tuesday --body "Is this date firm?"
+npx agentic-documents export plan --format md --out plan.md
+```
+
+Run `npx agentic-documents --help` for every command.
+
+## MCP
+
+`npx agentic-documents mcp --as agent_of_human:claude` starts a stdio server. It has one tool
+per command, named `doc_<command>` (`doc_read`, `doc_replace`, `doc_suggest`, and so on). The
+author is fixed when the server starts. A tool call cannot pick another author.
+
 ## Features
 
 - A Yjs document that a Tiptap editor can open. It uses the y-prosemirror layout.
@@ -60,6 +82,7 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 - Two replicas can accept one suggestion before they meet. After the merge every replica keeps
   one application and undoes the other, so the text and the edit log hold it once. An accept
   beats a reject made at the same moment.
+- Export to Markdown.
 - Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
   agent work stays labeled. The log holds no content.
 
@@ -72,10 +95,12 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 
 ## Limits
 
-- No CLI, MCP server, HTTP API, or web UI yet.
+- No HTTP API or web UI yet.
+- Documents are files. Two writers at the same moment can race. A save merges what
+  another writer saved before it, but there is no lock.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
-- Export covers Markdown only. HTML, DOCX, and ODT (.odt) exports are planned.
+- Export covers Markdown only. HTML, DOCX, and ODT (.odt) exports, and ODT import, are planned.
 - Text before the first heading has no section id. Use `append` or a text match.
 - Markdown with footnotes, or any syntax the model has no place for, is refused with
   `INVALID_INPUT`. Nothing is stored. Reference links and image references are resolved to
