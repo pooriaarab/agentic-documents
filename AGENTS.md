@@ -40,9 +40,14 @@ change it in a call.
 | `doc_insert`, `doc_replace`, `doc_delete`, `doc_append` | Change text or sections. |
 | `doc_suggest`, `doc_suggestions`, `doc_accept`, `doc_reject` | Suggested edits. |
 | `doc_comment`, `doc_reply`, `doc_resolve`, `doc_reopen`, `doc_threads` | Comment threads. |
-| `doc_export` | Export as `md`. |
+| `doc_export` | Export as `md` or `html`. |
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
+
+## HTTP API
+
+The Worker mirrors each command: `GET /api/v1/docs/:id/<command>` for reads, `POST` for writes,
+and `POST /api/v1/docs` for `new`. Send `authorization: Bearer <token>`. The token sets your author.
 
 ## The loop
 

@@ -1,0 +1,8 @@
+{
+  // Set tokens as a secret, never in this file:
+  //   wrangler secret put AGENTIC_DOCS_TOKENS
+  // The value is JSON, for example {"tok-1":"agent_of_human:scribe"}.
+  "name": "agentic-documents",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-01-01"
+}

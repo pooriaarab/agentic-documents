@@ -129,7 +129,7 @@ export const commands: Command[] = [
   command("threads", "List comment threads with their messages.", true, { id, status: z.enum(["open", "resolved"]).optional() }, (s, i) =>
     s.read(i.id, (d) => new Threads(d).list({ status: i.status })),
   ),
-  command("export", "Export the document. Format: md.", true, { id, format: z.enum(EXPORT_FORMATS) }, (s, i) =>
+  command("export", "Export the document as Markdown (md) or self-contained HTML (html).", true, { id, format: z.enum(EXPORT_FORMATS) }, (s, i) =>
     s.read(i.id, (d) => exportDoc(d, i.format)),
   ),
 ];

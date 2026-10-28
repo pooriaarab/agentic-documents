@@ -8,7 +8,7 @@
 Write documents with people and agents in real time.
 
 > Status: early. The document model and the text operations work in Node. The
-> package is not on npm yet. The HTTP API and the web UI are not built yet.
+> package is not on npm yet. The web UI is not built yet.
 
 ## Install
 
@@ -63,6 +63,26 @@ Run `npx agentic-documents --help` for every command.
 per command, named `doc_<command>` (`doc_read`, `doc_replace`, `doc_suggest`, and so on). The
 author is fixed when the server starts. A tool call cannot pick another author.
 
+## HTTP API
+
+A Cloudflare Worker (Hono) mirrors the CLI one to one under `/api/v1/docs`. A read command is a
+`GET` (flags are query parameters). A write command is a `POST` (flags are the JSON body).
+
+```sh
+curl -X POST $URL/api/v1/docs -H "authorization: Bearer $TOKEN" -d '{"id":"plan","markdown":"# Plan"}'
+curl "$URL/api/v1/docs/plan/outline" -H "authorization: Bearer $TOKEN"
+curl -X POST $URL/api/v1/docs/plan/replace -H "authorization: Bearer $TOKEN" -d '{"text":"Plan","content":"Roadmap"}'
+curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN"
+```
+
+- Each token stands for one author. Set `AGENTIC_DOCS_TOKENS` as a secret:
+  `wrangler secret put AGENTIC_DOCS_TOKENS`, with a value like `{"tok-1":"agent_of_human:scribe"}`.
+  A body cannot name its own author. With no tokens the API refuses every request.
+- Errors are `{ "error": { "code", "message", "matches" } }`. Status: 400 bad input, 401 no
+  valid token, 404 not found, 409 a conflict (ambiguous match, stale anchor, already decided).
+- `GET /health` needs no token. It reveals nothing else.
+- Run it locally with `npx wrangler dev`. Set `WRANGLER_SEND_METRICS=false` to turn off wrangler telemetry.
+
 ## Features
 
 - A Yjs document that a Tiptap editor can open. It uses the y-prosemirror layout.
@@ -83,7 +103,7 @@ author is fixed when the server starts. A tool call cannot pick another author.
 - Two replicas can accept one suggestion before they meet. After the merge every replica keeps
   one application and undoes the other, so the text and the edit log hold it once. An accept
   beats a reject made at the same moment.
-- Export to Markdown.
+- Export to Markdown and to self-contained HTML. The HTML loads nothing from other hosts.
 - Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
   agent work stays labeled. The log holds no content.
 
@@ -96,7 +116,10 @@ author is fixed when the server starts. A tool call cannot pick another author.
 
 ## Limits
 
-- No HTTP API or web UI yet.
+- No web UI yet.
+- The Worker keeps documents in memory. They are lost when the isolate restarts. A durable
+  adapter (R2 or Durable Objects) comes with `agentic-identity` and `agentic-sync`.
+- Token auth is a stopgap until the `Auth` port exists. There is no per-document sharing or role yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs
   its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that
@@ -109,7 +132,7 @@ author is fixed when the server starts. A tool call cannot pick another author.
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
-- Export covers Markdown only. HTML, DOCX, and ODT (.odt) exports, and ODT import, are planned.
+- Export covers Markdown and HTML. DOCX and ODT (.odt) exports, and ODT import, are planned.
 - Text before the first heading has no section id. Use `append` or a text match.
 - Markdown with footnotes, or any syntax the model has no place for, is refused with
   `INVALID_INPUT`. Nothing is stored. Reference links and image references are resolved to

@@ -1,5 +1,6 @@
 export {
   AgenticDoc,
+  parseAuthor,
   DocError,
   PRINCIPAL_KINDS,
   type Anchor,
@@ -17,6 +18,7 @@ export {
 export { blocksToMarkdown, markdownToBlocks, type PmNode } from "./markdown.js";
 export { schema } from "./schema.js";
 export { Suggestions, Threads, type Message, type Suggestion, type Thread } from "./review.js";
+export { MemoryBlobs } from "./memory-blobs.js";
 export { commands, type Command } from "./commands.js";
 export { EXPORT_FORMATS, exportDoc, type ExportFormat, type ExportResult } from "./export.js";
 export type { Blobs, BlobObject, Region } from "./ports.js";
