@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { DocError } from "./errors.js";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "./markdown.js";
 import { schema } from "./schema.js";
+import { APPLIED, settle } from "./settle.js";
 
 export { DocError, type DocErrorCode } from "./errors.js";
 
@@ -16,6 +17,8 @@ export type PrincipalKind = (typeof PRINCIPAL_KINDS)[number];
 export interface Principal {
   kind: PrincipalKind;
   name: string;
+  /** Rights this principal was granted, such as `docs:accept`. Used to decide, never stored in the doc. */
+  scopes?: string[];
 }
 
 /** A text range that follows its text through concurrent edits. */
@@ -48,6 +51,12 @@ export interface EditEntry {
   suggestion?: { id: string; author: Principal };
 }
 
+/** When the edit was logged, and where it put new text (relative positions that follow the text). */
+export interface EditResult {
+  at: string;
+  inserted?: { start: Record<string, unknown>; end: Record<string, unknown> };
+}
+
 export interface DocOptions {
   now?: () => Date;
 }
@@ -59,13 +68,15 @@ const isSection = (t: Target): t is SectionTarget => "section" in t;
 const isAnchor = (t: Target): t is AnchorTarget => "anchor" in t;
 
 export function checkAuthor(author: Principal): Principal {
+  const scopes = (author as { scopes?: unknown } | null)?.scopes;
   const ok =
     typeof author === "object" &&
     author !== null &&
     PRINCIPAL_KINDS.includes(author.kind) &&
     typeof author.name === "string" &&
-    author.name.trim() !== "";
-  if (!ok) throw new DocError("INVALID_AUTHOR", `author needs a kind (${PRINCIPAL_KINDS.join(", ")}) and a name`);
+    author.name.trim() !== "" &&
+    (scopes === undefined || (Array.isArray(scopes) && scopes.every((s) => typeof s === "string" && s !== "")));
+  if (!ok) throw new DocError("INVALID_AUTHOR", `author needs a kind (${PRINCIPAL_KINDS.join(", ")}), a name, and scopes that are a list of text`);
   return { kind: author.kind, name: author.name };
 }
 
@@ -106,6 +117,11 @@ export class AgenticDoc {
   constructor(ydoc: Y.Doc = new Y.Doc(), options: DocOptions = {}) {
     this.ydoc = ydoc;
     this.now = options.now ?? (() => new Date());
+    // A merge can bring in two applications of one suggestion. Settle them on every replica the same way.
+    const watched: Y.AbstractType<any>[] = [ydoc.getMap(APPLIED), ydoc.getMap("suggestions")];
+    ydoc.on("afterTransaction", (tr) => {
+      if (!tr.local && watched.some((type) => tr.changedParentTypes.has(type))) settle(ydoc);
+    });
   }
 
   static fromMarkdown(markdown: string, author: Principal, options?: DocOptions): AgenticDoc {
@@ -155,12 +171,14 @@ export class AgenticDoc {
     author: Principal,
     run: () => Pick<EditEntry, "inserted" | "deleted" | "section">,
     extra: Pick<EditEntry, "suggestion"> = {},
-  ): void {
+  ): string {
+    const at = this.now().toISOString();
     this.ydoc.transact(() => {
-      const entry: EditEntry = { op, at: this.now().toISOString(), author, ...run(), ...extra };
+      const entry: EditEntry = { op, at, author, ...run(), ...extra };
       if (entry.section === undefined) delete entry.section;
       this.log.push([entry]);
     });
+    return at;
   }
 
   toJSON(): PmNode {
@@ -257,17 +275,25 @@ export class AgenticDoc {
     content: string,
     author: Principal,
     extra: Pick<EditEntry, "suggestion"> = {},
-  ): void {
+  ): EditResult {
     const who = checkAuthor(author);
     const { unit, start, end } = this.resolve(target);
-    this.change(op, who, () => {
+    let inserted: EditResult["inserted"];
+    const at = this.change(op, who, () => {
       const marks = attrsAt(unit, op === "insert" && target.at !== "before" ? end - 1 : start);
       if (op === "insert") delete marks.link;
       const index = op === "insert" ? (target.at === "before" ? start : end) : start;
       if (op !== "insert") unit.delete(start, end - start);
-      if (op !== "delete") unit.insert(index, content, marks);
+      if (op !== "delete") {
+        unit.insert(index, content, marks);
+        inserted = {
+          start: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(unit, index, 0)),
+          end: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(unit, index + content.length, -1)),
+        };
+      }
       return { inserted: op === "delete" ? 0 : content.length, deleted: op === "insert" ? 0 : end - start };
     }, extra);
+    return { at, inserted };
   }
 
   private editSection(op: "insert" | "replace" | "delete", target: SectionTarget, markdown: string, author: Principal): void {

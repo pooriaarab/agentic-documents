@@ -48,10 +48,17 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 - An outline. Each section has an id that stays the same when people edit around it.
 - Insert, replace, and delete by section id or by exact text. Append to the end.
 - Text anchors that follow their text when other replicas edit.
-- Clear errors: `NO_MATCH`, `AMBIGUOUS_MATCH`, `STALE_ANCHOR`, `NO_SECTION`.
+- Clear errors: `NO_MATCH`, `AMBIGUOUS_MATCH`, `STALE_ANCHOR`, `NO_SECTION`, `FORBIDDEN`.
 - Comment threads on text, with replies and resolve. A thread follows its text.
 - Suggested edits (insert, replace, delete). Nothing changes until a person accepts.
   An accepted edit is logged with the accepter as editor and the suggester as origin.
+- Who may decide: a `human` or a `user_token` who is not the suggester. An agent cannot accept
+  unless its principal carries the `docs:accept` scope. Nobody accepts their own suggestion.
+  The suggester can withdraw it. Other deciders get `FORBIDDEN`. Accepting an accepted
+  suggestion changes nothing. Editor roles come with `agentic-identity`.
+- Two replicas can accept one suggestion before they meet. After the merge every replica keeps
+  one application and undoes the other, so the text and the edit log hold it once. An accept
+  beats a reject made at the same moment.
 - Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
   agent work stays labeled. The log holds no content.
 
@@ -66,8 +73,7 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 
 - No CLI, MCP server, HTTP API, or web UI yet.
 - Suggestions work on text, not on whole sections.
-- Two replicas that accept the same suggestion at the same time both apply it.
-  Accept on one authority, such as the server.
+- A scope on a principal is trusted as given. Nothing here proves who a caller is.
 - Export covers Markdown only. HTML, DOCX, and ODT (.odt) exports are planned.
 - Text before the first heading has no section id. Use `append` or a text match.
 - Markdown with footnotes, or any syntax the model has no place for, is refused with

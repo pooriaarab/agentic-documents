@@ -1,4 +1,5 @@
 import * as Y from "yjs";
+import { APPLIED, type Application } from "./settle.js";
 import { checkAuthor, DocError, type AgenticDoc, type Anchor, type AnchorTarget, type Principal, type TextTarget } from "./doc.js";
 
 export interface Message {
@@ -152,7 +153,14 @@ export class Threads {
   }
 }
 
-/** Suggested edits. Nothing changes in the text until a person accepts one. */
+export const ACCEPT_SCOPE = "docs:accept";
+
+const sameWho = (a: Principal, b: Principal): boolean => a.kind === b.kind && a.name === b.name;
+
+/** A person or a user token decides. An agent needs the accept scope. Roles come later with the Auth port. */
+const mayDecide = (who: Principal): boolean => who.kind === "human" || who.kind === "user_token" || who.scopes?.includes(ACCEPT_SCOPE) === true;
+
+/** Suggested edits. Nothing changes in the text until a person, or an agent with the accept scope, accepts one. */
 export class Suggestions {
   constructor(private readonly doc: AgenticDoc) {}
 
@@ -198,24 +206,41 @@ export class Suggestions {
     return id;
   }
 
-  private decide(fields: Fields, status: "accepted" | "rejected", author: Principal): void {
-    this.doc.ydoc.transact(() => setAll(fields, { status, decidedBy: author, decidedAt: this.doc.now().toISOString() }));
+  private decide(fields: Fields, status: "accepted" | "rejected", author: Principal, at: string): void {
+    setAll(fields, { status, decidedBy: author, decidedAt: at });
   }
 
-  /** Apply the edit as the accepting author. A stale anchor throws and the suggestion stays pending. */
+  /**
+   * Apply the edit as the accepting author. The check and the edit share one transaction. Accepting
+   * an accepted suggestion changes nothing. A stale anchor throws and the suggestion stays pending.
+   */
   accept(id: string, author: Principal): void {
     const who = checkAuthor(author);
-    const { fields, suggestion: s } = this.get(id);
-    if (s.status !== "pending") throw new DocError("ALREADY_DECIDED", `suggestion "${id}" is already ${s.status}`);
-    this.doc.edit(s.kind, { anchor: s.anchor, at: s.at }, s.replacement, who, { suggestion: { id, author: s.author } });
-    this.decide(fields, "accepted", who);
+    this.doc.ydoc.transact(() => {
+      const { fields, suggestion: s } = this.get(id);
+      if (!mayDecide(author) || sameWho(s.author, who)) {
+        throw new DocError("FORBIDDEN", `${who.kind}:${who.name} cannot accept this suggestion: a person who is not its author, or an agent with the ${ACCEPT_SCOPE} scope, can`);
+      }
+      if (s.status === "accepted") return;
+      if (s.status !== "pending") throw new DocError("ALREADY_DECIDED", `suggestion "${id}" is already ${s.status}`);
+      const { at, inserted } = this.doc.edit(s.kind, { anchor: s.anchor, at: s.at }, s.replacement, who, { suggestion: { id, author: s.author } });
+      const record: Application = { by: who, at, ...inserted };
+      this.doc.ydoc.getMap<Application>(APPLIED).set(`${id}:${this.doc.ydoc.clientID}`, record);
+      this.decide(fields, "accepted", who, at);
+    });
   }
 
+  /** The suggester can withdraw. Anyone else needs the same right as accept. */
   reject(id: string, author: Principal): void {
     const who = checkAuthor(author);
-    const { fields, suggestion: s } = this.get(id);
-    if (s.status !== "pending") throw new DocError("ALREADY_DECIDED", `suggestion "${id}" is already ${s.status}`);
-    this.decide(fields, "rejected", who);
+    this.doc.ydoc.transact(() => {
+      const { fields, suggestion: s } = this.get(id);
+      if (!sameWho(s.author, who) && !mayDecide(author)) {
+        throw new DocError("FORBIDDEN", `${who.kind}:${who.name} cannot reject this suggestion: its author, a person, or an agent with the ${ACCEPT_SCOPE} scope can`);
+      }
+      if (s.status !== "pending") throw new DocError("ALREADY_DECIDED", `suggestion "${id}" is already ${s.status}`);
+      this.decide(fields, "rejected", who, this.doc.now().toISOString());
+    });
   }
 
   list(filter: { status?: Suggestion["status"] } = {}): Suggestion[] {

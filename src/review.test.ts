@@ -180,3 +180,156 @@ describe("suggestion failures", () => {
     expect(new Suggestions(bot).list()[0]).toMatchObject({ status: "accepted", author: agent, decidedBy: human });
   });
 });
+
+const bob: Principal = { kind: "human", name: "Bob" };
+const approver: Principal = { kind: "agent_of_human", name: "approver", scopes: ["docs:accept"] };
+
+describe("concurrent decisions", () => {
+  const twoReplicas = (md = "Hello world") => {
+    const a = fresh(md);
+    return { a, b: a.fork() };
+  };
+  const converge = (...docs: AgenticDoc[]) => {
+    for (const x of docs) for (const y of docs) if (x !== y) x.applyUpdate(y.encode());
+  };
+
+  test("two replicas that accept the same replace apply it once", () => {
+    const { a, b } = twoReplicas();
+    const id = new Suggestions(a).add({ text: "world" }, "moon", agent);
+    sync(a, b);
+    new Suggestions(a).accept(id, human);
+    new Suggestions(b).accept(id, bob);
+    converge(a, b);
+    for (const doc of [a, b]) {
+      expect(doc.toMarkdown().trim()).toBe("Hello moon");
+      expect(doc.edits().filter((e) => e.suggestion?.id === id)).toHaveLength(1);
+    }
+    expect(new Suggestions(a).list()[0]).toEqual(new Suggestions(b).list()[0]);
+    expect(new Suggestions(a).list()[0].status).toBe("accepted");
+  });
+
+  test("the decider on the suggestion is the author of the edit in the log", () => {
+    const { a, b } = twoReplicas();
+    const id = new Suggestions(a).add({ text: "world" }, "moon", agent);
+    sync(a, b);
+    new Suggestions(a).accept(id, human);
+    new Suggestions(b).accept(id, bob);
+    converge(a, b);
+    const entry = a.edits().find((e) => e.suggestion?.id === id)!;
+    expect(new Suggestions(a).list()[0].decidedBy).toEqual(entry.author);
+  });
+
+  test("three replicas accept an insert once, and a delete once", () => {
+    const a = fresh("Hello world");
+    const [b, c] = [a.fork(), a.fork()];
+    const insert = new Suggestions(a).add({ text: "world", at: "after" }, "!", agent);
+    const drop = new Suggestions(a).add({ text: "Hello " }, "", agent);
+    converge(a, b, c);
+    for (const doc of [a, b, c]) {
+      new Suggestions(doc).accept(insert, human);
+      new Suggestions(doc).accept(drop, human);
+    }
+    converge(a, b, c);
+    converge(a, b, c);
+    for (const doc of [a, b, c]) {
+      expect(doc.toMarkdown().trim()).toBe("world!");
+      expect(doc.edits().filter((e) => e.suggestion)).toHaveLength(2);
+    }
+  });
+
+  test("an accept and a reject at the same moment end as accepted, text applied once", () => {
+    const { a, b } = twoReplicas();
+    const id = new Suggestions(a).add({ text: "world" }, "moon", agent);
+    sync(a, b);
+    new Suggestions(a).accept(id, human);
+    new Suggestions(b).reject(id, bob);
+    converge(a, b);
+    for (const doc of [a, b]) {
+      expect(doc.toMarkdown().trim()).toBe("Hello moon");
+      expect(new Suggestions(doc).list()[0]).toMatchObject({ status: "accepted", decidedBy: human });
+    }
+  });
+
+  test("an edit made after the merge is kept when the duplicate goes", () => {
+    const { a, b } = twoReplicas();
+    const id = new Suggestions(a).add({ text: "world" }, "moon", agent);
+    sync(a, b);
+    new Suggestions(a).accept(id, human);
+    new Suggestions(b).accept(id, bob);
+    converge(a, b);
+    a.append("Tail", human);
+    converge(a, b);
+    expect(b.toMarkdown()).toBe("Hello moon\n\nTail\n");
+  });
+
+  test("a second accept on one replica changes nothing; a reject after an accept is refused", () => {
+    const doc = fresh();
+    const suggestions = new Suggestions(doc);
+    const id = suggestions.add({ text: "world" }, "moon", agent);
+    suggestions.accept(id, human);
+    suggestions.accept(id, bob);
+    expect(doc.toMarkdown().trim()).toBe("Hello moon");
+    expect(doc.edits().filter((e) => e.suggestion)).toHaveLength(1);
+    expect(suggestions.list()[0].decidedBy).toEqual(human);
+    expect(codeOf(() => suggestions.reject(id, human))).toBe("ALREADY_DECIDED");
+  });
+});
+
+describe("who may decide", () => {
+  const pending = () => {
+    const doc = fresh();
+    const suggestions = new Suggestions(doc);
+    return { doc, suggestions, id: suggestions.add({ text: "world" }, "moon", agent) };
+  };
+
+  test("an agent without the accept scope cannot accept, of any agent kind", () => {
+    for (const kind of ["agent_of_human", "agent_of_agent", "agent"] as const) {
+      const { doc, suggestions, id } = pending();
+      expect(codeOf(() => suggestions.accept(id, { kind, name: "x" }))).toBe("FORBIDDEN");
+      expect(codeOf(() => suggestions.accept(id, { kind, name: "x", scopes: ["docs:read"] }))).toBe("FORBIDDEN");
+      expect(suggestions.list()[0].status).toBe("pending");
+      expect(doc.toMarkdown().trim()).toBe("Hello world");
+    }
+  });
+
+  test("an agent with the accept scope can accept another principal's suggestion", () => {
+    const { doc, suggestions, id } = pending();
+    suggestions.accept(id, approver);
+    expect(doc.toMarkdown().trim()).toBe("Hello moon");
+    expect(suggestions.list()[0].decidedBy).toEqual({ kind: "agent_of_human", name: "approver" });
+    expect(JSON.stringify(doc.edits())).not.toContain("docs:accept");
+  });
+
+  test("nobody accepts their own suggestion, a person or a scoped agent", () => {
+    const doc = fresh();
+    const suggestions = new Suggestions(doc);
+    const mine = suggestions.add({ text: "Hello" }, "Bye", human);
+    const theirs = suggestions.add({ text: "world" }, "moon", approver);
+    expect(codeOf(() => suggestions.accept(mine, human))).toBe("FORBIDDEN");
+    expect(codeOf(() => suggestions.accept(theirs, approver))).toBe("FORBIDDEN");
+    expect(doc.toMarkdown().trim()).toBe("Hello world");
+    suggestions.accept(mine, bob);
+    suggestions.accept(theirs, human);
+    expect(doc.toMarkdown().trim()).toBe("Bye moon");
+  });
+
+  test("a user token can accept", () => {
+    const { doc, suggestions, id } = pending();
+    suggestions.accept(id, { kind: "user_token", name: "ada-cli" });
+    expect(doc.toMarkdown().trim()).toBe("Hello moon");
+  });
+
+  test("the author can withdraw a suggestion, but another agent cannot reject it", () => {
+    const { suggestions, id } = pending();
+    expect(codeOf(() => suggestions.reject(id, other))).toBe("FORBIDDEN");
+    suggestions.reject(id, agent);
+    expect(suggestions.list()[0]).toMatchObject({ status: "rejected", decidedBy: agent });
+  });
+
+  test("scopes that are not a list of strings make an invalid author", () => {
+    const { suggestions, id } = pending();
+    for (const scopes of ["docs:accept", [1], [""], null]) {
+      expect(codeOf(() => suggestions.accept(id, { ...human, name: "Eve", scopes } as never))).toBe("INVALID_AUTHOR");
+    }
+  });
+});
