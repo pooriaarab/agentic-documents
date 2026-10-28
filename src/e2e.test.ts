@@ -110,6 +110,15 @@ describe("cli flow", () => {
     expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 
+  test("HTML export is self-contained and escapes content", () => {
+    cli(["new", "html", "--markdown", "# Hi <b>\n\n[bad](javascript:alert(1)) and [ok](https://example.org)"]);
+    const html = cli(["export", "html", "--format", "html"]).out;
+    expect(html).toMatch(/^<!doctype html>/);
+    expect(html).toContain("<title>Hi &lt;b&gt;</title>");
+    expect(html).toContain('<a href="#">bad</a>');
+    expect(html).not.toMatch(/<script|<link|@import|googleapis|\burl\(/i);
+  });
+
   test("export writes Markdown to stdout or to a file", () => {
     cli(["new", "page", "--markdown", "# Hi\n\ntext"]);
     expect(cli(["export", "page", "--format", "md"]).out).toBe("# Hi\n\ntext\n");

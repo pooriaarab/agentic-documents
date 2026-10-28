@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { FileBlobs } from "./blobs.js";
 import { commands } from "./commands.js";
-import { DocError, type Principal, type PrincipalKind } from "./doc.js";
+import { DocError, parseAuthor } from "./doc.js";
 import type { ExportResult } from "./export.js";
 import { DocsService } from "./service.js";
 import { VERSION } from "./version.js";
@@ -20,13 +20,6 @@ const options = {
   help: { type: "boolean" as const, short: "h" },
   version: { type: "boolean" as const, short: "V" },
 };
-
-/** `kind:name`, for example `agent_of_human:scribe`. Validation happens when a change needs it. */
-export function parseAuthor(value: string | undefined): Principal | undefined {
-  if (value === undefined) return undefined;
-  const cut = value.indexOf(":");
-  return { kind: (cut < 0 ? value : value.slice(0, cut)) as PrincipalKind, name: cut < 0 ? "" : value.slice(cut + 1) };
-}
 
 function help(): string {
   const lines = commands.map((c) => `  ${c.name.padEnd(12)}${c.description}`);

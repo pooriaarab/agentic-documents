@@ -80,6 +80,13 @@ export function checkAuthor(author: Principal): Principal {
   return { kind: author.kind, name: author.name };
 }
 
+/** `kind:name`, for example `agent_of_human:scribe`. Validation happens when a change needs it. */
+export function parseAuthor(value: string | undefined): Principal | undefined {
+  if (value === undefined) return undefined;
+  const cut = value.indexOf(":");
+  return { kind: (cut < 0 ? value : value.slice(0, cut)) as PrincipalKind, name: cut < 0 ? "" : value.slice(cut + 1) };
+}
+
 const unitText = (unit: Y.XmlText): string =>
   unit
     .toDelta()

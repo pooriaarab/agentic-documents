@@ -129,7 +129,7 @@ export const commands: Command[] = [
   command("threads", "List comment threads with their messages.", true, { id, status: z.enum(["open", "resolved"]).optional() }, (s, i) =>
     s.read(i.id, (d) => new Threads(d).list({ status: i.status })),
   ),
-  command("export", "Export the document. Format: md.", true, { id, format: z.enum(EXPORT_FORMATS) }, (s, i) =>
-    s.read(i.id, (d) => exportDoc(d, i.format)),
+  command("export", "Export the document as Markdown (md) or self-contained HTML (html). HTML shows no remote image unless remoteImages is true.", true, { id, format: z.enum(EXPORT_FORMATS), remoteImages: z.union([z.boolean(), z.enum(["true", "false"])]).optional() }, (s, i) =>
+    s.read(i.id, (d) => exportDoc(d, i.format, { remoteImages: i.remoteImages === true || i.remoteImages === "true" })),
   ),
 ];
