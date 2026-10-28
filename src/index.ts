@@ -16,3 +16,4 @@ export {
 } from "./doc.js";
 export { blocksToMarkdown, markdownToBlocks, type PmNode } from "./markdown.js";
 export { schema } from "./schema.js";
+export { Suggestions, Threads, type Message, type Suggestion, type Thread } from "./review.js";

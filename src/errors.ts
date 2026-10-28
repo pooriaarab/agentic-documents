@@ -1,4 +1,4 @@
-export type DocErrorCode = "NO_MATCH" | "AMBIGUOUS_MATCH" | "STALE_ANCHOR" | "NO_SECTION" | "INVALID_AUTHOR" | "INVALID_INPUT";
+export type DocErrorCode = "NO_MATCH" | "AMBIGUOUS_MATCH" | "STALE_ANCHOR" | "NO_SECTION" | "INVALID_AUTHOR" | "INVALID_INPUT" | "NO_THREAD" | "NO_SUGGESTION" | "ALREADY_DECIDED" | "FORBIDDEN";
 
 export class DocError extends Error {
   constructor(
