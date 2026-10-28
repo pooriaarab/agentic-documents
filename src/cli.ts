@@ -13,6 +13,7 @@ const flagNames = [...new Set(commands.flatMap((c) => Object.keys(c.shape)))].fi
 const options = {
   ...Object.fromEntries(flagNames.map((k) => [k, { type: "string" as const }])),
   as: { type: "string" as const },
+  scopes: { type: "string" as const },
   dir: { type: "string" as const },
   file: { type: "string" as const },
   out: { type: "string" as const },
@@ -41,6 +42,8 @@ function help(): string {
     "Flags:",
     "  --as <kind:name>  Who makes the change. Or set AGENTIC_DOCS_AS. Kinds: human, agent_of_human,",
     "                    agent_of_agent, agent, user_token.",
+    "  --scopes <a,b>    Rights for the author, such as docs:accept. Or set AGENTIC_DOCS_SCOPES. An agent",
+    "                    needs docs:accept to accept a suggestion.",
     "  --dir <path>      Where documents live. Or set AGENTIC_DOCS_DIR. Default: .agentic-documents",
     "  --file <path>     Read content (or markdown for new) from a file.",
     "  --out <path>      Write the export to a file.",
@@ -75,7 +78,9 @@ export async function main(argv: string[], env = process.env): Promise<number> {
   }
 
   const service = new DocsService(new FileBlobs(values.dir ?? env.AGENTIC_DOCS_DIR ?? ".agentic-documents"));
-  const author = parseAuthor(values.as ?? env.AGENTIC_DOCS_AS);
+  const scopes = (values.scopes ?? env.AGENTIC_DOCS_SCOPES)?.split(",").map((s) => s.trim()).filter(Boolean);
+  const named = parseAuthor(values.as ?? env.AGENTIC_DOCS_AS);
+  const author = named && scopes?.length ? { ...named, scopes } : named;
   if (name === "mcp") {
     const { startMcp } = await import("./mcp.js");
     await startMcp(service, author);
@@ -86,7 +91,7 @@ export async function main(argv: string[], env = process.env): Promise<number> {
     console.error(`unknown command "${name}". Run "${NAME} --help".`);
     return 2;
   }
-  const { as: _as, dir: _dir, file, out, help: _help, version: _version, ...fields } = values;
+  const { as: _as, scopes: _scopes, dir: _dir, file, out, help: _help, version: _version, ...fields } = values;
   const input: Record<string, unknown> = { ...(command.shape.id ? { id } : {}), ...fields };
   try {
     if (file !== undefined) {

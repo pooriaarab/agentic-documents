@@ -41,7 +41,8 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 
 ## CLI
 
-Every change needs an author: `--as <kind>:<name>` or `AGENTIC_DOCS_AS`. Documents live in
+Every change needs an author: `--as <kind>:<name>` or `AGENTIC_DOCS_AS`. An agent that may accept
+suggestions also needs `--scopes docs:accept` (or `AGENTIC_DOCS_SCOPES`). Documents live in
 `--dir` (or `AGENTIC_DOCS_DIR`, default `.agentic-documents`) as Yjs update files.
 
 ```sh
@@ -96,8 +97,16 @@ author is fixed when the server starts. A tool call cannot pick another author.
 ## Limits
 
 - No HTTP API or web UI yet.
-- Documents are files. Two writers at the same moment can race. A save merges what
-  another writer saved before it, but there is no lock.
+- A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
+  uniquely named temp file into place. A writer that loses loads the document again and runs
+  its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that
+  cannot be read, or that is dated in the future, counts as live. A writer that waits more than
+  5 seconds fails with `LOCKED`. A writer that loses 64 times in a row fails with `CONFLICT`. The lock
+  is for one machine. Two machines on a network file system need a store with its own
+  conditional write.
+- `--as` and `AGENTIC_DOCS_AS` are self-declared labels. The CLI does not prove who runs it, so
+  `--as human:Ada` labels work as human on any machine that can run the command. Only the HTTP API
+  (tokens) and an MCP server that a trusted host starts fix the author for the caller.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
 - Export covers Markdown only. HTML, DOCX, and ODT (.odt) exports, and ODT import, are planned.

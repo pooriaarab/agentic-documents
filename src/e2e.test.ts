@@ -1,5 +1,5 @@
 // End to end: the real CLI binary and the real MCP server over stdio. Needs `npm run build`.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -23,6 +23,16 @@ function cli(args: string[], as: string | null = BOT) {
   return { code: run.status, out: run.stdout, err: run.stderr };
 }
 const json = (args: string[], as?: string) => JSON.parse(cli(args, as).out);
+const cliAsync = (args: string[], as: string | null = BOT) =>
+  new Promise<{ code: number | null; out: string; err: string }>((done) => {
+    const env: Record<string, string | undefined> = { ...process.env, AGENTIC_DOCS_DIR: dir, AGENTIC_DOCS_AS: as ?? undefined };
+    const child = spawn(process.execPath, [BIN, ...args], { env });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (c) => (out += c));
+    child.stderr.on("data", (c) => (err += c));
+    child.on("close", (code) => done({ code, out, err }));
+  });
 
 describe("cli failures", () => {
   test("a change without an author fails and writes nothing", () => {
@@ -110,6 +120,42 @@ describe("cli flow", () => {
   });
 });
 
+describe("parallel writers", () => {
+  test("twelve processes append to one document and every line lands", async () => {
+    cli(["new", "race", "--markdown", "start"]);
+    const runs = await Promise.all(Array.from({ length: 12 }, (_, i) => cliAsync(["append", "race", "--content", `line ${i}`])));
+    expect(runs.map((r) => r.code)).toEqual(Array(12).fill(0));
+    const md = cli(["read", "race"]).out;
+    for (let i = 0; i < 12; i++) expect(md).toContain(`line ${i}\n`);
+    expect(readdirSync(dir).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock"))).toEqual([]);
+  });
+
+  test("eight processes create one id: one succeeds and the rest say DOCUMENT_EXISTS", async () => {
+    const runs = await Promise.all(Array.from({ length: 8 }, (_, i) => cliAsync(["new", "once", "--markdown", `from ${i}`])));
+    expect(runs.filter((r) => r.code === 0)).toHaveLength(1);
+    for (const r of runs.filter((r) => r.code !== 0)) expect(r.err).toContain("DOCUMENT_EXISTS");
+  });
+
+  test("six processes accept one suggestion and the text changes once", async () => {
+    cli(["new", "accept-race", "--markdown", "Hello world"]);
+    const suggestion = json(["suggest", "accept-race", "--text", "world", "--replacement", "moon"]).suggestion;
+    const runs = await Promise.all(Array.from({ length: 6 }, (_, i) => cliAsync(["accept", "accept-race", "--suggestion", suggestion], i % 2 ? ADA : "human:Bob")));
+    expect(runs.map((r) => r.code)).toEqual(Array(6).fill(0));
+    expect(cli(["read", "accept-race"]).out).toBe("Hello moon\n");
+    expect(json(["edits", "accept-race"]).filter((e: { suggestion?: unknown }) => e.suggestion)).toHaveLength(1);
+  });
+
+  test("an agent cannot accept from the command line, and the text stays", () => {
+    cli(["new", "agent-accept", "--markdown", "Hello world"]);
+    const suggestion = json(["suggest", "agent-accept", "--text", "world", "--replacement", "moon"]).suggestion;
+    const run = cli(["accept", "agent-accept", "--suggestion", suggestion], "agent_of_human:other");
+    expect(run.code).toBe(1);
+    expect(run.err).toContain("FORBIDDEN");
+    expect(cli(["read", "agent-accept"]).out).toBe("Hello world\n");
+    expect(cli(["accept", "agent-accept", "--suggestion", suggestion, "--scopes", "docs:accept"], "agent_of_human:other").code).toBe(0);
+  });
+});
+
 describe("mcp over stdio", () => {
   async function connect(as?: string) {
     const env = { ...process.env } as Record<string, string>;
@@ -169,6 +215,23 @@ describe("mcp over stdio", () => {
       expect((await call(anonymous, "doc_read", { id: "mcpamb" })).isError).toBe(false);
     } finally {
       await anonymous.close();
+    }
+  });
+
+  test("parallel tool calls in one server lose nothing and create once", async () => {
+    const client = await connect(BOT);
+    try {
+      await call(client, "doc_new", { id: "mcprace", markdown: "start" });
+      const writes = await Promise.all(Array.from({ length: 10 }, (_, i) => call(client, "doc_append", { id: "mcprace", content: `line ${i}` })));
+      expect(writes.map((w) => w.isError)).toEqual(Array(10).fill(false));
+      const text = (await call(client, "doc_read", { id: "mcprace" })).text;
+      for (let i = 0; i < 10; i++) expect(text).toContain(`line ${i}\n`);
+      const creates = await Promise.all(Array.from({ length: 6 }, (_, i) => call(client, "doc_new", { id: "mcponce", markdown: `from ${i}` })));
+      expect(creates.filter((c) => !c.isError)).toHaveLength(1);
+      for (const c of creates.filter((c) => c.isError)) expect(c.text).toContain("DOCUMENT_EXISTS");
+      expect(readdirSync(dir).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock"))).toEqual([]);
+    } finally {
+      await client.close();
     }
   });
 });
