@@ -1,0 +1,15 @@
+# agentic-documents
+
+Write documents with people and agents in real time.
+
+Keywords: documents,editor,rich-text,tiptap,collaboration,agents,mcp,cli,cloudflare.
+
+- SDK: import { summarizeText, dispatchText } from "agentic-documents".
+- CLI: agentic-documents summary --text "...".
+- MCP: run agentic-documents mcp, then call summarize_text.
+
+## Docs
+
+- README: https://github.com/pooriaarab/agentic-documents
+- Core contract: https://github.com/pooriaarab/agentic-documents/blob/main/docs/agentic-core.md
+- License: MIT
