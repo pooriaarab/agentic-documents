@@ -1,47 +1,18 @@
-export { VERSION } from "./version.js";
 export {
-  defineBrand,
-  createLogger,
-  GuardError,
-  VendorError,
-  createGuards,
-  LocalRouterAdapter,
-  HttpRouterAdapter,
-  recordCost,
-  getCostReport,
-  resetCosts,
-  createDryRunResult,
-  dispatchText,
-  summarizeText,
-} from "./core.js";
-export type {
-  BrandConfig,
-  LogLevel,
-  Logger,
-  LoggerOptions,
-  CapsConfig,
-  QuietHoursConfig,
-  GuardsConfig,
-  Guards,
-  DispatchReceipt,
-  RouterAdapter,
-  HttpRouterOptions,
-  CostEntry,
-  CostReport,
-  DispatchOptions,
-  DispatchResult,
-  TopWord,
-  TextSummary,
-  SummarizeOptions,
-} from "./core.js";
-
-import { defineBrand, type BrandConfig } from "./core.js";
-import { VERSION } from "./version.js";
-
-export const DEFAULT_BRAND: BrandConfig = defineBrand({
-  name: "Agentic pack",
-  command: "agentic-documents",
-  description: "Write documents with people and agents in real time.",
-  keywords: ["documents","editor","rich-text","tiptap","collaboration","agents","mcp","cli","cloudflare"],
-  version: VERSION,
-});
+  AgenticDoc,
+  DocError,
+  PRINCIPAL_KINDS,
+  type Anchor,
+  type AnchorTarget,
+  type DocErrorCode,
+  type DocOptions,
+  type EditEntry,
+  type Principal,
+  type PrincipalKind,
+  type Section,
+  type SectionTarget,
+  type Target,
+  type TextTarget,
+} from "./doc.js";
+export { blocksToMarkdown, markdownToBlocks, type PmNode } from "./markdown.js";
+export { schema } from "./schema.js";

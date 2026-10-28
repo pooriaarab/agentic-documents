@@ -4,37 +4,39 @@ Write documents with people and agents in real time.
 
 ## Mental model
 
-Text goes in. Stats or a route receipt come out. One core serves
-all three faces, so each face returns the same shape.
+A document is a Yjs fragment in the Tiptap layout. You read it as Markdown. You
+change it by section id or by exact text. Every change needs an author.
 
-## The three faces
+## Use it
 
-- SDK: `import { summarizeText } from "agentic-documents"`.
-- CLI: `npx agentic-documents summary --text "..."`.
-- MCP: `npx agentic-documents mcp`, then call a tool below.
+```ts
+import { AgenticDoc } from "agentic-documents";
+```
 
-Keywords: documents,editor,rich-text,tiptap,collaboration,agents,mcp,cli,cloudflare.
-
-## MCP tools
-
-| Tool | Use it for |
+| Call | Use it for |
 | --- | --- |
-| summarize_text | Count chars, words, lines, top words. |
-| dispatch_text | Route one text. Pass dryRun to preview. |
-| get_cost_report | Read session cost totals. |
+| `AgenticDoc.fromMarkdown(md, author)` | Make a document. |
+| `doc.toMarkdown()` | Read the whole document. |
+| `doc.outline()` | List sections: `id`, `level`, `title`. |
+| `doc.readSection(id)` | Read one section. |
+| `doc.insert / replace / delete(target, ...)` | Change a section or matched text. |
+| `doc.append(md, author)` | Add blocks at the end. |
+| `doc.anchor(text, occurrence?)` | Pin a text range for later. |
+| `doc.edits()` | Read the edit log. |
+
+A target is `{ section }`, `{ text, occurrence? }`, or `{ anchor }`.
 
 ## The loop
 
-1. Discover the tools with `tools/list`.
-2. Run `summarize_text` on a sample.
-3. Preview a route with `dispatch_text` and dryRun true.
-4. Run the real route when the preview looks right.
-5. Read `get_cost_report` and state the cost.
+1. Read the outline.
+2. Read the section you plan to change.
+3. Change it by section id. Use exact text for a small edit.
+4. Read the section again and check the result.
 
 ## Rules
 
-- Preview with dry run before each real dispatch.
-- Stop when a guard denies the call. State the reason.
-- Never retry a denied call with changed text to dodge a guard.
-- Report adapter errors as errors. Never present them as success.
-- State the cost report before you claim the task is done.
+- Pass your own author kind and name on every change.
+- On `AMBIGUOUS_MATCH`, read the contexts and pass `occurrence`. Do not guess.
+- On `STALE_ANCHOR` or `NO_MATCH`, read the document again. Then decide.
+- A section replace keeps the heading and removes the subsections.
+- Report errors as errors. Never present them as success.

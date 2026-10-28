@@ -1,6 +1,6 @@
 ---
 name: agentic-documents
-description: Write documents with people and agents in real time. Keywords: documents,editor,rich-text,tiptap,collaboration,agents,mcp,cli,cloudflare.
+description: Read and edit rich-text documents by section or exact text, as Markdown, with every edit labeled by author. Keywords: documents,editor,rich-text,tiptap,yjs,agents.
 ---
 
 # agentic-documents
@@ -9,27 +9,18 @@ Write documents with people and agents in real time.
 
 ## Use the SDK
 
-```js
-import { summarizeText, dispatchText } from "agentic-documents";
+```ts
+import { AgenticDoc } from "agentic-documents";
 
-summarizeText("some text");
-await dispatchText("some text", { dryRun: true });
+const me = { kind: "agent_of_human", name: "scribe" } as const;
+const doc = AgenticDoc.fromMarkdown("# Plan\n\nShip on Friday.", me);
+doc.replace({ text: "Friday" }, "Monday", me);
+doc.toMarkdown();
 ```
-
-## Use the CLI
-
-```sh
-agentic-documents summary --text "some text"
-agentic-documents dispatch --text "some text" --dry-run
-```
-
-## Use the MCP server
-
-Start the server with `agentic-documents mcp`. Call `summarize_text`
-for stats, `dispatch_text` for routes, `get_cost_report` for costs.
 
 ## Rules
 
-- Preview each route with dry run first.
-- Report guard denials and adapter errors as failures.
-- Read the cost report at the end.
+- Pass your author kind and name on every change.
+- Read the outline, then the section, before you edit.
+- On an ambiguous match, pass `occurrence`.
+- Report errors as failures.
