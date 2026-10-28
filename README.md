@@ -50,7 +50,7 @@ console.log(doc.edits()); // each edit keeps the author kind and name
 
 - A match is exact and case sensitive.
 - A match stays inside one block. It cannot cross a paragraph, a cell, or a hard break.
-- More than one match is an error. Pass `occurrence` (1 is the first) to choose.
+- More than one match is an error, and matches may overlap: `ana` matches twice in `banana`. Pass `occurrence` (1 is the first start) to choose.
 - A replacement takes the marks of the first matched character.
 
 ## Limits
@@ -59,6 +59,13 @@ console.log(doc.edits()); // each edit keeps the author kind and name
 - No comments or suggested edits yet.
 - Export covers Markdown only. HTML, DOCX, and ODT (.odt) exports are planned.
 - Text before the first heading has no section id. Use `append` or a text match.
+- Markdown with footnotes, or any syntax the model has no place for, is refused with
+  `INVALID_INPUT`. Nothing is stored. Reference links and image references are resolved to
+  their URL. An unused reference definition is dropped.
+- Markdown import drops link titles, table column alignment, and the part of a code fence
+  line after the language.
+- Markdown output trims whitespace at the edge of a block and skips empty paragraphs. A text
+  target that includes a trailing space can match in the document and not in `read` output.
 
 ## Develop
 

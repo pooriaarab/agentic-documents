@@ -1,7 +1,8 @@
-import type { PhrasingContent, Root, RootContent, TableCell } from "mdast";
+import type { Definition, PhrasingContent, Root, RootContent, TableCell } from "mdast";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown, gfmToMarkdown } from "mdast-util-gfm";
 import { toMarkdown } from "mdast-util-to-markdown";
+import { DocError } from "./errors.js";
 import { gfm } from "micromark-extension-gfm";
 
 /** A ProseMirror node in JSON form, the shape y-prosemirror reads and writes. */
@@ -14,6 +15,21 @@ export interface PmNode {
 }
 
 type Mark = NonNullable<PmNode["marks"]>[number];
+
+// Reference links and images read their URL from a definition. Set for one parse, which is synchronous.
+let definitions = new Map<string, Definition>();
+
+function unsupported(what: string): never {
+  throw new DocError("INVALID_INPUT", `Markdown ${what} is not supported and would be lost; remove it or write it inline`);
+}
+
+function collectDefinitions(nodes: readonly { type: string }[], into: Map<string, Definition>): void {
+  for (const node of nodes) {
+    if (node.type === "definition") into.set((node as Definition).identifier, node as Definition);
+    const children = (node as { children?: { type: string }[] }).children;
+    if (children) collectDefinitions(children, into);
+  }
+}
 
 const withContent = (node: PmNode, content: PmNode[]): PmNode => (content.length ? { ...node, content } : node);
 
@@ -40,8 +56,14 @@ function inline(nodes: PhrasingContent[], marks: Mark[] = []): PmNode[] {
         return [{ type: "image", attrs: { src: node.url, alt: node.alt ?? null, title: node.title ?? null } }];
       case "break":
         return [{ type: "hardBreak" }];
+      case "linkReference":
+        return inline(node.children, [...marks, { type: "link", attrs: { href: definitions.get(node.identifier)?.url ?? unsupported("link reference without a definition") } }]);
+      case "imageReference": {
+        const url = definitions.get(node.identifier)?.url ?? unsupported("image reference without a definition");
+        return [{ type: "image", attrs: { src: url, alt: node.alt ?? null, title: null } }];
+      }
       default:
-        return "children" in node ? inline(node.children as PhrasingContent[], marks) : [];
+        return unsupported(`"${node.type}"`);
     }
   });
 }
@@ -94,8 +116,10 @@ function blocks(nodes: RootContent[]): PmNode[] {
             })),
           },
         ];
-      default:
+      case "definition":
         return [];
+      default:
+        return unsupported(`"${node.type}"`);
     }
   });
 }
@@ -103,7 +127,14 @@ function blocks(nodes: RootContent[]): PmNode[] {
 /** Parse GitHub-flavored Markdown into top-level ProseMirror blocks. */
 export function markdownToBlocks(markdown: string): PmNode[] {
   const tree = fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
-  const out = blocks(tree.children);
+  definitions = new Map();
+  collectDefinitions(tree.children, definitions);
+  let out: PmNode[];
+  try {
+    out = blocks(tree.children);
+  } finally {
+    definitions = new Map();
+  }
   return out.length ? out : [{ type: "paragraph" }];
 }
 

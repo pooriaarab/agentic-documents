@@ -256,3 +256,40 @@ describe("persistence and Markdown", () => {
     expect(copy.edits()).toEqual(doc.edits());
   });
 });
+
+describe("overlapping matches", () => {
+  test("a text that overlaps itself counts every start, so banana/ana is ambiguous", () => {
+    const doc = AgenticDoc.fromMarkdown("banana", human);
+    expect(codeOf(() => doc.replace({ text: "ana" }, "X", agent))).toBe("AMBIGUOUS_MATCH");
+    expect(codeOf(() => doc.anchor("ana"))).toBe("AMBIGUOUS_MATCH");
+    expect(doc.toMarkdown().trim()).toBe("banana");
+  });
+
+  test("aaa has two matches of aa, and occurrence 2 is the one at index 1", () => {
+    const doc = AgenticDoc.fromMarkdown("aaa", human);
+    expect(codeOf(() => doc.delete({ text: "aa" }, agent))).toBe("AMBIGUOUS_MATCH");
+    doc.replace({ text: "aa", occurrence: 2 }, "X", agent);
+    expect(doc.toMarkdown().trim()).toBe("aX");
+  });
+});
+
+describe("Markdown that must not lose content", () => {
+  test("a reference link keeps its URL", () => {
+    const doc = AgenticDoc.fromMarkdown("See [the docs][d].\n\n[d]: https://example.org/docs", human);
+    expect(doc.toMarkdown()).toBe("See [the docs](https://example.org/docs).\n");
+  });
+
+  test("an image reference keeps its image", () => {
+    const doc = AgenticDoc.fromMarkdown("![logo][i]\n\n[i]: https://example.org/i.png", human);
+    expect(doc.toMarkdown()).toBe("![logo](https://example.org/i.png)\n");
+  });
+
+  test("footnotes are refused with INVALID_INPUT, and nothing is stored", () => {
+    const md = "Claim[^1].\n\n[^1]: The source.";
+    expect(codeOf(() => AgenticDoc.fromMarkdown(md, human))).toBe("INVALID_INPUT");
+    const doc = AgenticDoc.fromMarkdown("kept", human);
+    expect(codeOf(() => doc.append(md, agent))).toBe("INVALID_INPUT");
+    expect(doc.toMarkdown().trim()).toBe("kept");
+    expect(doc.edits()).toHaveLength(1);
+  });
+});

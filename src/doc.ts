@@ -1,7 +1,10 @@
 import { prosemirrorJSONToYXmlFragment, yXmlFragmentToProsemirrorJSON } from "y-prosemirror";
 import * as Y from "yjs";
+import { DocError } from "./errors.js";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "./markdown.js";
 import { schema } from "./schema.js";
+
+export { DocError, type DocErrorCode } from "./errors.js";
 
 const FRAGMENT = "default";
 const CONTEXT_CHARS = 20;
@@ -13,19 +16,6 @@ export type PrincipalKind = (typeof PRINCIPAL_KINDS)[number];
 export interface Principal {
   kind: PrincipalKind;
   name: string;
-}
-
-export type DocErrorCode = "NO_MATCH" | "AMBIGUOUS_MATCH" | "STALE_ANCHOR" | "NO_SECTION" | "INVALID_AUTHOR";
-
-export class DocError extends Error {
-  constructor(
-    readonly code: DocErrorCode,
-    message: string,
-    readonly matches: { occurrence: number; context: string }[] = [],
-  ) {
-    super(message);
-    this.name = "DocError";
-  }
 }
 
 /** A text range that follows its text through concurrent edits. */
@@ -209,7 +199,7 @@ export class AgenticDoc {
     return unitsOf(this.fragment).flatMap((unit) => {
       const found: Range[] = [];
       const value = unitText(unit);
-      for (let at = value.indexOf(text); at >= 0; at = value.indexOf(text, at + text.length)) {
+      for (let at = value.indexOf(text); at >= 0; at = value.indexOf(text, at + 1)) {
         found.push({ unit, start: at, end: at + text.length });
       }
       return found;
