@@ -165,18 +165,19 @@ describe("authors", () => {
 
 describe("sections", () => {
   const SRC = "Intro\n\n# One\n\nbody one\n\n## One A\n\nsub\n\n# Two\n\nbody two";
+  const headings = (d: AgenticDoc) => d.outline().filter((s) => s.level > 0);
 
   test("outline lists headings with levels and ids that survive edits", () => {
     const a = AgenticDoc.fromMarkdown(SRC, human);
-    const ids = a.outline().map((s) => s.id);
-    expect(a.outline().map((s) => [s.level, s.title])).toEqual([[1, "One"], [2, "One A"], [1, "Two"]]);
+    const ids = headings(a).map((s) => s.id);
+    expect(headings(a).map((s) => [s.level, s.title])).toEqual([[1, "One"], [2, "One A"], [1, "Two"]]);
     expect(new Set(ids).size).toBe(3);
     const b = a.fork();
     b.insert({ section: ids[0], at: "start" }, "new first", agent);
     b.replace({ text: "Two" }, "Second", agent);
     sync(a, b);
-    expect(a.outline().map((s) => s.id)).toEqual(ids);
-    expect(a.outline()[2].title).toBe("Second");
+    expect(headings(a).map((s) => s.id)).toEqual(ids);
+    expect(headings(a)[2].title).toBe("Second");
   });
 
   test("an unknown section id is NO_SECTION", () => {
@@ -187,19 +188,19 @@ describe("sections", () => {
 
   test("replace swaps the body and subsections, and keeps the heading", () => {
     const doc = AgenticDoc.fromMarkdown(SRC, human);
-    doc.replace({ section: doc.outline()[0].id }, "fresh", agent);
+    doc.replace({ section: headings(doc)[0].id }, "fresh", agent);
     expect(doc.toMarkdown()).toBe("Intro\n\n# One\n\nfresh\n\n# Two\n\nbody two\n");
   });
 
   test("delete removes the heading, body and subsections", () => {
     const doc = AgenticDoc.fromMarkdown(SRC, human);
-    doc.delete({ section: doc.outline()[0].id }, agent);
+    doc.delete({ section: headings(doc)[0].id }, agent);
     expect(doc.toMarkdown()).toBe("Intro\n\n# Two\n\nbody two\n");
   });
 
   test("insert at end lands after subsections; append lands last", () => {
     const doc = AgenticDoc.fromMarkdown(SRC, human);
-    doc.insert({ section: doc.outline()[0].id }, "tail of one", agent);
+    doc.insert({ section: headings(doc)[0].id }, "tail of one", agent);
     doc.append("- last", agent);
     expect(doc.toMarkdown()).toBe(
       "Intro\n\n# One\n\nbody one\n\n## One A\n\nsub\n\ntail of one\n\n# Two\n\nbody two\n\n- last\n",
@@ -208,7 +209,7 @@ describe("sections", () => {
 
   test("readSection returns the Markdown of one section", () => {
     const doc = AgenticDoc.fromMarkdown(SRC, human);
-    expect(doc.readSection(doc.outline()[1].id)).toBe("## One A\n\nsub\n");
+    expect(doc.readSection(headings(doc)[1].id)).toBe("## One A\n\nsub\n");
   });
 });
 
@@ -291,5 +292,54 @@ describe("Markdown that must not lose content", () => {
     expect(codeOf(() => doc.append(md, agent))).toBe("INVALID_INPUT");
     expect(doc.toMarkdown().trim()).toBe("kept");
     expect(doc.edits()).toHaveLength(1);
+  });
+});
+
+describe("preamble", () => {
+  const PRE = "Intro line\n\n- one\n\n# First\n\nBody";
+  const doc = (md = PRE) => AgenticDoc.fromMarkdown(md, human);
+
+  test("text before the first heading has a section id that does not change", () => {
+    const d = doc();
+    const [pre, first] = d.outline();
+    expect(pre).toMatchObject({ id: "preamble", level: 0 });
+    expect(first.title).toBe("First");
+    d.replace({ section: first.id }, "Changed", agent);
+    d.insert({ text: "Intro", at: "before" }, "More ", agent);
+    expect(d.outline()[0].id).toBe("preamble");
+    expect(AgenticDoc.fromUpdate(d.encode()).outline()[0].id).toBe("preamble");
+  });
+
+  test("a document that starts with a heading lists no preamble", () => {
+    expect(doc("# Only\n\nBody").outline().map((s) => s.title)).toEqual(["Only"]);
+  });
+
+  test("read, replace, insert, and delete work on the preamble", () => {
+    const d = doc();
+    expect(d.readSection("preamble")).toBe("Intro line\n\n- one\n");
+    d.insert({ section: "preamble", at: "end" }, "Added", agent);
+    expect(d.toMarkdown()).toBe("Intro line\n\n- one\n\nAdded\n\n# First\n\nBody\n");
+    d.replace({ section: "preamble" }, "New intro", agent);
+    expect(d.toMarkdown()).toBe("New intro\n\n# First\n\nBody\n");
+    d.delete({ section: "preamble" }, agent);
+    expect(d.toMarkdown()).toBe("# First\n\nBody\n");
+    d.insert({ section: "preamble", at: "start" }, "Back", agent);
+    expect(d.toMarkdown()).toBe("Back\n\n# First\n\nBody\n");
+  });
+
+  test("a document with no heading is all preamble", () => {
+    const d = doc("Just text");
+    d.append("More", agent);
+    expect(d.readSection("preamble")).toBe("Just text\n\nMore\n");
+  });
+
+  test("a section edit never touches the preamble", () => {
+    const d = doc();
+    d.delete({ section: d.outline()[1].id }, agent);
+    expect(d.toMarkdown()).toBe("Intro line\n\n- one\n");
+  });
+
+  test("an unknown section id is still NO_SECTION", () => {
+    expect(codeOf(() => doc().readSection("preamble2"))).toBe("NO_SECTION");
   });
 });
