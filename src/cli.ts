@@ -1,0 +1,127 @@
+#!/usr/bin/env node
+import { readFileSync, writeFileSync } from "node:fs";
+import { parseArgs } from "node:util";
+import { FileBlobs } from "./blobs.js";
+import { commands } from "./commands.js";
+import { DocError, type Principal, type PrincipalKind } from "./doc.js";
+import type { ExportResult } from "./export.js";
+import { DocsService } from "./service.js";
+import { VERSION } from "./version.js";
+
+const NAME = "agentic-documents";
+const flagNames = [...new Set(commands.flatMap((c) => Object.keys(c.shape)))].filter((k) => k !== "id");
+const options = {
+  ...Object.fromEntries(flagNames.map((k) => [k, { type: "string" as const }])),
+  as: { type: "string" as const },
+  scopes: { type: "string" as const },
+  dir: { type: "string" as const },
+  file: { type: "string" as const },
+  out: { type: "string" as const },
+  help: { type: "boolean" as const, short: "h" },
+  version: { type: "boolean" as const, short: "V" },
+};
+
+/** `kind:name`, for example `agent_of_human:scribe`. Validation happens when a change needs it. */
+export function parseAuthor(value: string | undefined): Principal | undefined {
+  if (value === undefined) return undefined;
+  const cut = value.indexOf(":");
+  return { kind: (cut < 0 ? value : value.slice(0, cut)) as PrincipalKind, name: cut < 0 ? "" : value.slice(cut + 1) };
+}
+
+function help(): string {
+  const lines = commands.map((c) => `  ${c.name.padEnd(12)}${c.description}`);
+  return [
+    `${NAME} ${VERSION}`,
+    "",
+    `Usage: ${NAME} <command> <id> [flags]`,
+    "",
+    "Commands:",
+    ...lines,
+    "  mcp         Start the MCP server on stdio.",
+    "",
+    "Flags:",
+    "  --as <kind:name>  Who makes the change. Or set AGENTIC_DOCS_AS. Kinds: human, agent_of_human,",
+    "                    agent_of_agent, agent, user_token.",
+    "  --scopes <a,b>    Rights for the author, such as docs:accept. Or set AGENTIC_DOCS_SCOPES. An agent",
+    "                    needs docs:accept to accept a suggestion.",
+    "  --dir <path>      Where documents live. Or set AGENTIC_DOCS_DIR. Default: .agentic-documents",
+    "  --file <path>     Read content (or markdown for new) from a file.",
+    "  --out <path>      Write the export to a file.",
+    "  --<field> <value> Any field of the command, such as --text, --section, --occurrence.",
+  ].join("\n");
+}
+
+// parseArgs refuses a value that starts with "-", such as a Markdown list. Bind each value to its flag.
+function bindValues(argv: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const name = argv[i].startsWith("--") && !argv[i].includes("=") ? argv[i].slice(2) : undefined;
+    const takesValue = name !== undefined && (options as Record<string, { type: string }>)[name]?.type === "string";
+    out.push(takesValue && i + 1 < argv.length ? `${argv[i]}=${argv[++i]}` : argv[i]);
+  }
+  return out;
+}
+
+export async function main(argv: string[], env = process.env): Promise<number> {
+  let parsed;
+  try {
+    parsed = parseArgs({ args: bindValues(argv), options, allowPositionals: true });
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
+  const { values, positionals } = parsed;
+  const [name, id] = positionals;
+  if (values.version || values.help || name === undefined) {
+    console.log(values.version ? VERSION : help());
+    return 0;
+  }
+
+  const service = new DocsService(new FileBlobs(values.dir ?? env.AGENTIC_DOCS_DIR ?? ".agentic-documents"));
+  const scopes = (values.scopes ?? env.AGENTIC_DOCS_SCOPES)?.split(",").map((s) => s.trim()).filter(Boolean);
+  const named = parseAuthor(values.as ?? env.AGENTIC_DOCS_AS);
+  const author = named && scopes?.length ? { ...named, scopes } : named;
+  if (name === "mcp") {
+    const { startMcp } = await import("./mcp.js");
+    await startMcp(service, author);
+    return 0;
+  }
+  const command = commands.find((c) => c.name === name);
+  if (!command) {
+    console.error(`unknown command "${name}". Run "${NAME} --help".`);
+    return 2;
+  }
+  const { as: _as, scopes: _scopes, dir: _dir, file, out, help: _help, version: _version, ...fields } = values;
+  const input: Record<string, unknown> = { ...(command.shape.id ? { id } : {}), ...fields };
+  try {
+    if (file !== undefined) {
+      const key = "content" in command.shape ? "content" : "markdown" in command.shape ? "markdown" : undefined;
+      if (!key) throw new DocError("INVALID_INPUT", `"${name}" takes no --file`);
+      if (key in input) throw new DocError("INVALID_INPUT", `pass --file or --${key}, not both`);
+      input[key] = readFileSync(file, "utf8");
+    }
+    const result = await command.run(service, input, author);
+    if (name === "export") {
+      const { data, encoding } = result as ExportResult;
+      if (out === undefined) process.stdout.write(data);
+      else writeFileSync(out, encoding === "base64" ? Buffer.from(data, "base64") : data);
+    } else console.log(typeof result === "string" ? result.replace(/\n$/, "") : JSON.stringify(result, null, 2));
+    return 0;
+  } catch (error) {
+    if (!(error instanceof DocError)) throw error;
+    console.error(`${error.code}: ${error.message}`);
+    for (const m of error.matches) console.error(`  ${m.occurrence}: ...${m.context}...`);
+    return error.code === "INVALID_INPUT" ? 2 : 1;
+  }
+}
+
+main(process.argv.slice(2)).then(
+  (code) => {
+    // A running server (mcp) keeps stdio open, so exit only on failure.
+    if (code !== 0) process.exit(code);
+  },
+  (error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  },
+);

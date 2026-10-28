@@ -6,6 +6,7 @@ Keywords: documents, editor, rich-text, tiptap, yjs, collaboration, agents.
 
 - SDK: import { AgenticDoc } from "agentic-documents".
 - Read as Markdown, read an outline, edit by section id or exact text.
+- CLI: npx agentic-documents <command> <id>. MCP: npx agentic-documents mcp --as <kind>:<name>.
 - Every edit carries an author kind and name.
 
 ## Docs

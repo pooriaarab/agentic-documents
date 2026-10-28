@@ -28,6 +28,22 @@ import { AgenticDoc } from "agentic-documents";
 
 A target is `{ section }`, `{ text, occurrence? }`, or `{ anchor }`.
 
+## CLI and MCP
+
+The CLI and the MCP server share one command table. A tool is `doc_<command>`. Start the server
+with `npx agentic-documents mcp --as <kind>:<name>`. The operator sets your author. You cannot
+change it in a call.
+
+| Tool | Use it for |
+| --- | --- |
+| `doc_new`, `doc_read`, `doc_outline`, `doc_edits` | Create and read. |
+| `doc_insert`, `doc_replace`, `doc_delete`, `doc_append` | Change text or sections. |
+| `doc_suggest`, `doc_suggestions`, `doc_accept`, `doc_reject` | Suggested edits. |
+| `doc_comment`, `doc_reply`, `doc_resolve`, `doc_reopen`, `doc_threads` | Comment threads. |
+| `doc_export` | Export as `md`. |
+
+An error returns `isError` with `{ error: { code, message, matches } }`.
+
 ## The loop
 
 1. Read the outline.
