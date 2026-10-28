@@ -44,6 +44,8 @@ export interface EditEntry {
   inserted: number;
   deleted: number;
   section?: string;
+  /** Set when an accepted suggestion caused the edit. `author` is who suggested it. */
+  suggestion?: { id: string; author: Principal };
 }
 
 export interface DocOptions {
@@ -56,7 +58,7 @@ type Range = { unit: Y.XmlText; start: number; end: number };
 const isSection = (t: Target): t is SectionTarget => "section" in t;
 const isAnchor = (t: Target): t is AnchorTarget => "anchor" in t;
 
-function checkAuthor(author: Principal): Principal {
+export function checkAuthor(author: Principal): Principal {
   const ok =
     typeof author === "object" &&
     author !== null &&
@@ -99,7 +101,7 @@ function toYBlocks(content: PmNode[]): Y.XmlElement[] {
 
 export class AgenticDoc {
   readonly ydoc: Y.Doc;
-  private readonly now: () => Date;
+  readonly now: () => Date;
 
   constructor(ydoc: Y.Doc = new Y.Doc(), options: DocOptions = {}) {
     this.ydoc = ydoc;
@@ -148,10 +150,14 @@ export class AgenticDoc {
     return this.log.toArray();
   }
 
-  private change(op: EditEntry["op"], author: Principal, run: () => Pick<EditEntry, "inserted" | "deleted" | "section">): void {
+  private change(
+    op: EditEntry["op"],
+    author: Principal,
+    run: () => Pick<EditEntry, "inserted" | "deleted" | "section">,
+    extra: Pick<EditEntry, "suggestion"> = {},
+  ): void {
     this.ydoc.transact(() => {
-      const counts = run();
-      const entry: EditEntry = { op, at: this.now().toISOString(), author, ...counts };
+      const entry: EditEntry = { op, at: this.now().toISOString(), author, ...run(), ...extra };
       if (entry.section === undefined) delete entry.section;
       this.log.push([entry]);
     });
@@ -233,7 +239,7 @@ export class AgenticDoc {
     };
   }
 
-  private resolve(target: TextTarget | AnchorTarget): Range {
+  resolve(target: TextTarget | AnchorTarget): Range {
     if (!isAnchor(target)) return this.pick(target.text, target.occurrence);
     const { anchor } = target;
     const start = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(anchor.start), this.ydoc);
@@ -245,7 +251,13 @@ export class AgenticDoc {
     return { unit, start: start!.index, end: end.index };
   }
 
-  private edit(op: "insert" | "replace" | "delete", target: TextTarget | AnchorTarget, content: string, author: Principal): void {
+  edit(
+    op: "insert" | "replace" | "delete",
+    target: TextTarget | AnchorTarget,
+    content: string,
+    author: Principal,
+    extra: Pick<EditEntry, "suggestion"> = {},
+  ): void {
     const who = checkAuthor(author);
     const { unit, start, end } = this.resolve(target);
     this.change(op, who, () => {
@@ -255,7 +267,7 @@ export class AgenticDoc {
       if (op !== "insert") unit.delete(start, end - start);
       if (op !== "delete") unit.insert(index, content, marks);
       return { inserted: op === "delete" ? 0 : content.length, deleted: op === "insert" ? 0 : end - start };
-    });
+    }, extra);
   }
 
   private editSection(op: "insert" | "replace" | "delete", target: SectionTarget, markdown: string, author: Principal): void {

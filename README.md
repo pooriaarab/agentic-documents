@@ -8,8 +8,8 @@
 Write documents with people and agents in real time.
 
 > Status: early. The document model and the text operations work in Node. The
-> package is not on npm yet. The CLI, the MCP server, the HTTP API, comments,
-> suggestions, and the web UI are not built yet.
+> package is not on npm yet. The CLI, the MCP server, the HTTP API, and the web
+> UI are not built yet.
 
 ## Install
 
@@ -20,7 +20,7 @@ npm install agentic-documents
 ## Quick start
 
 ```ts
-import { AgenticDoc } from "agentic-documents";
+import { AgenticDoc, Suggestions, Threads } from "agentic-documents";
 
 const agent = { kind: "agent_of_human", name: "scribe" } as const;
 
@@ -32,6 +32,12 @@ doc.insert({ section: plan.id, at: "end" }, "- [ ] Write notes", agent);
 
 console.log(doc.toMarkdown());
 console.log(doc.edits()); // each edit keeps the author kind and name
+
+const person = { kind: "human", name: "Ada" } as const;
+const suggestions = new Suggestions(doc);
+const id = suggestions.add({ text: "Monday" }, "Tuesday", agent);
+suggestions.accept(id, person); // the text changes now
+new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 ```
 
 ## Features
@@ -43,7 +49,10 @@ console.log(doc.edits()); // each edit keeps the author kind and name
 - Insert, replace, and delete by section id or by exact text. Append to the end.
 - Text anchors that follow their text when other replicas edit.
 - Clear errors: `NO_MATCH`, `AMBIGUOUS_MATCH`, `STALE_ANCHOR`, `NO_SECTION`.
-- Every edit needs an author. The edit log keeps the kind and the name, so
+- Comment threads on text, with replies and resolve. A thread follows its text.
+- Suggested edits (insert, replace, delete). Nothing changes until a person accepts.
+  An accepted edit is logged with the accepter as editor and the suggester as origin.
+- Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
   agent work stays labeled. The log holds no content.
 
 ## Rules for text matching
@@ -56,7 +65,9 @@ console.log(doc.edits()); // each edit keeps the author kind and name
 ## Limits
 
 - No CLI, MCP server, HTTP API, or web UI yet.
-- No comments or suggested edits yet.
+- Suggestions work on text, not on whole sections.
+- Two replicas that accept the same suggestion at the same time both apply it.
+  Accept on one authority, such as the server.
 - Export covers Markdown only. HTML, DOCX, and ODT (.odt) exports are planned.
 - Text before the first heading has no section id. Use `append` or a text match.
 - Markdown with footnotes, or any syntax the model has no place for, is refused with

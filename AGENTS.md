@@ -23,6 +23,8 @@ import { AgenticDoc } from "agentic-documents";
 | `doc.append(md, author)` | Add blocks at the end. |
 | `doc.anchor(text, occurrence?)` | Pin a text range for later. |
 | `doc.edits()` | Read the edit log. |
+| `new Threads(doc)` | `add`, `reply`, `resolve`, `reopen`, `list`. |
+| `new Suggestions(doc)` | `add`, `accept`, `reject`, `list`. |
 
 A target is `{ section }`, `{ text, occurrence? }`, or `{ anchor }`.
 
@@ -38,5 +40,8 @@ A target is `{ section }`, `{ text, occurrence? }`, or `{ anchor }`.
 - Pass your own author kind and name on every change.
 - On `AMBIGUOUS_MATCH`, read the contexts and pass `occurrence`. Do not guess.
 - On `STALE_ANCHOR` or `NO_MATCH`, read the document again. Then decide.
+- Prefer a suggestion over a direct edit when a person owns the text.
+- Only a person accepts a suggestion. Do not accept your own.
+- A stale suggestion stays pending. Reject it or make a new one.
 - A section replace keeps the heading and removes the subsections.
 - Report errors as errors. Never present them as success.
