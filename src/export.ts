@@ -1,7 +1,9 @@
 import type { AgenticDoc } from "./doc.js";
 import type { PmNode } from "./markdown.js";
+import { ODT_MIME, exportOdt } from "./odt.js";
+import { toBase64 } from "./package.js";
 
-export const EXPORT_FORMATS = ["md", "html"] as const;
+export const EXPORT_FORMATS = ["md", "html", "odt"] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
 export interface ExportOptions {
@@ -100,5 +102,6 @@ export function exportDoc(doc: AgenticDoc, format: ExportFormat, options: Export
   if (format === "html") {
     return { format, contentType: "text/html; charset=utf-8", encoding: "utf8", data: toHtml(doc.toJSON().content ?? [], options.remoteImages === true) };
   }
+  if (format === "odt") return { format, contentType: ODT_MIME, encoding: "base64", data: toBase64(exportOdt(doc.toJSON().content ?? [])) };
   return { format, contentType: "text/markdown; charset=utf-8", encoding: "utf8", data: doc.toMarkdown() };
 }

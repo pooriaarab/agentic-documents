@@ -96,8 +96,9 @@ export async function main(argv: string[], env = process.env): Promise<number> {
     const result = await command.run(service, input, author);
     if (name === "export") {
       const { data, encoding } = result as ExportResult;
-      if (out === undefined) process.stdout.write(data);
-      else writeFileSync(out, encoding === "base64" ? Buffer.from(data, "base64") : data);
+      const bytes = encoding === "base64" ? Buffer.from(data, "base64") : data;
+      if (out === undefined) process.stdout.write(bytes);
+      else writeFileSync(out, bytes);
     } else console.log(typeof result === "string" ? result.replace(/\n$/, "") : JSON.stringify(result, null, 2));
     return 0;
   } catch (error) {

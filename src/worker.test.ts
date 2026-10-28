@@ -194,6 +194,16 @@ describe("worker flow", () => {
     expect(html).not.toMatch(/NaN/);
   });
 
+  test("ODT export sends the file bytes with its type and a download name", async () => {
+    await post("", BOT, { id: "odtdoc", markdown: "# Hi\n\ntext" });
+    const res = await api("/odtdoc/export?format=odt", ADA);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(res.headers.get("content-type")).toBe("application/vnd.oasis.opendocument.text");
+    expect(res.headers.get("content-disposition")).toBe('attachment; filename="odtdoc.odt"');
+    expect(new TextDecoder().decode(bytes.slice(0, 2))).toBe("PK");
+    expect(new TextDecoder().decode(bytes.slice(30, 38))).toBe("mimetype");
+  });
+
   test("HTML export is self-contained, escaped, and sandboxed", async () => {
     await post("", BOT, { id: "page", markdown: "# Hi <b> &amp; you\n\n[bad](javascript:alert(1)) and [ok](https://example.org)\n\n```\n<script>x</script>\n```" });
     const res = await api("/page/export?format=html", ADA);

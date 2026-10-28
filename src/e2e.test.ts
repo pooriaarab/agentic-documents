@@ -129,6 +129,23 @@ describe("cli flow", () => {
   });
 });
 
+describe("ODT export through the CLI", () => {
+  test("the file is a zip with the mimetype first, and stdout carries the same bytes", () => {
+    cli(["new", "odt-doc", "--markdown", "# Hi\n\n- one\n- two\n\n| a | b |\n| - | - |\n| 1 | 2 |"]);
+    const file = join(dir, "doc.odt");
+    expect(cli(["export", "odt-doc", "--format", "odt", "--out", file]).code).toBe(0);
+    const bytes = readFileSync(file);
+    expect(bytes.subarray(0, 2).toString()).toBe("PK");
+    expect(bytes.subarray(30, 38).toString()).toBe("mimetype");
+    const piped = spawnSync(process.execPath, [BIN, "export", "odt-doc", "--format", "odt"], { env: { ...process.env, AGENTIC_DOCS_DIR: dir }, encoding: "buffer" });
+    expect(piped.stdout.equals(bytes)).toBe(true);
+  });
+
+  test("an unknown export format is refused", () => {
+    expect(cli(["export", "odt-doc", "--format", "rtf"]).code).toBe(2);
+  });
+});
+
 describe("preamble through the CLI", () => {
   test("the outline lists the text before the first heading, and a section target edits it", () => {
     cli(["new", "pre", "--markdown", "Intro text\n\n# Plan\n\nBody"]);

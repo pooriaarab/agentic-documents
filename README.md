@@ -53,6 +53,7 @@ npx agentic-documents replace plan --text Friday --content Monday
 npx agentic-documents suggest plan --text Monday --replacement Tuesday
 npx agentic-documents comment plan --text Tuesday --body "Is this date firm?"
 npx agentic-documents export plan --format md --out plan.md
+npx agentic-documents export plan --format odt --out plan.odt   # OpenDocument text
 ```
 
 Run `npx agentic-documents --help` for every command.
@@ -112,6 +113,11 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - Two replicas can accept one suggestion before they meet. After the merge every replica keeps
   one application and undoes the other, so the text and the edit log hold it once. An accept
   beats a reject made at the same moment.
+- Export to ODT (OpenDocument text): headings, paragraphs, bold, italic, strike, code, links, lists,
+  quotes, rules, tables, and images as embedded files. The package follows ODF 1.3 with the mimetype
+  stored first. The CLI and the API send the file bytes. LibreOffice opens it, lists keep their
+  numbers, and its own re-save reads back to the same Markdown (checked by hand with LibreOffice 24.8
+  in the PR that added it).
 - Export to Markdown and to self-contained HTML. The HTML loads nothing from other hosts. An image
   stored in the document as a `data:` URI (PNG, JPEG, GIF, or WebP) shows. Any other image becomes
   its alt text, because a remote image tells its host who opened the file. `remoteImages` turns
@@ -146,7 +152,11 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
-- Export covers Markdown and HTML. DOCX and ODT (.odt) exports, and ODT import, are planned.
+- Export covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are planned.
+- ODT export: comments and suggestions are not written. A code block loses its language. A table
+  cell span is not written (the model has none yet). A task list becomes a bullet list that starts each
+  item with `☐` or `☑`. A remote image is not linked, because an office program would ask its host
+  for it when the file opens. It becomes its alt text.
 - Markdown with footnotes, or any syntax the model has no place for, is refused with
   `INVALID_INPUT`. Nothing is stored. Reference links and image references are resolved to
   their URL. An unused reference definition is dropped.
