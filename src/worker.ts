@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { assertRegion, parsePrincipal, parseRegion, type Auth, type PrincipalContext, type Region, type Scope } from "agentic-identity";
+import { assertRegion, parsePrincipal, parseRegion, type Auth, type PrincipalContext, type Region } from "agentic-identity";
 import { acceptWebSocketProtocol, principalFromWebSocketRequest, requirePrincipal } from "agentic-identity/http";
 import { D1_SCHEMA, createD1Store, createR2Blobs, type D1Like, type R2Like } from "agentic-identity/cloudflare";
 import type { Realtime, Role } from "agentic-realtime";
@@ -21,7 +21,7 @@ export interface WorkerEnv {
   /** R2 bucket: each document as a Yjs update. Create it with `--jurisdiction eu`. */
   DOCS?: R2Like;
   /**
-   * JSON object: bearer token (32 bytes or more) to `kind:name`, or to `{ "as": "kind:name", "scopes": ["docs:accept"], "role": "viewer" }`.
+   * JSON object: bearer token (32 to 512 bytes of A-Z a-z 0-9 _ -) to `kind:name`, or to `{ "as": "kind:name", "scopes": ["docs:accept"], "role": "viewer" }`.
    * A role is `editor` (the default) or `viewer`. A viewer reads and cannot write, over HTTP or in a live room.
    * Set it as a secret. A short token or a bad entry refuses the whole config.
    */
@@ -51,6 +51,8 @@ function same(a: string, b: string): boolean {
 }
 
 const MIN_TOKEN_BYTES = 32;
+/** The characters a Bearer credential may hold in agentic-identity, so a token outside it could never sign in. */
+const TOKEN_CHARS = /^[A-Za-z0-9_-]{1,512}$/;
 const warned = new Set<string>();
 
 function refuse(reason: string): undefined {
@@ -107,6 +109,7 @@ function readTokens(raw: string | undefined): Map<string, Identity> | undefined 
   const found = new Map<string, Identity>();
   for (const [token, entry] of Object.entries(table)) {
     if (new TextEncoder().encode(token).length < MIN_TOKEN_BYTES) return refuse(`a token is shorter than ${MIN_TOKEN_BYTES} bytes`);
+    if (!TOKEN_CHARS.test(token)) return refuse("a token has characters outside A-Z a-z 0-9 _ - or is over 512 bytes");
     const identity = identityOf(entry);
     if (!identity) return refuse("an entry is not a valid kind:name or { as, scopes, role }");
     found.set(token, identity);
@@ -173,8 +176,9 @@ function tokenAuth(tokens: string | undefined): { auth: Auth; identityOf: (conte
       const bearer = /^Bearer (.+)$/.exec(request.headers.get("authorization") ?? "")?.[1];
       const identity = bearer === undefined ? undefined : identityFor(tokens, bearer);
       if (!identity) return null;
-      const { kind, name, scopes } = identity.principal;
-      const context: PrincipalContext = { principalId: name, kind, chain: [{ kind, id: name }], scopes: (scopes ?? []) as Scope[] };
+      const { kind, name } = identity.principal;
+      // The docs scopes (`docs:accept`) live on `identity.principal`. They are not identity scopes, so the context holds none.
+      const context: PrincipalContext = { principalId: name, kind, chain: [{ kind, id: name }], scopes: [] };
       known.set(context, identity);
       return context;
     },

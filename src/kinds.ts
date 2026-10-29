@@ -1,4 +1,4 @@
-// Its own module, so the browser editor can check a kind without loading the document engine.
+// Its own module, so the browser editor can tell a machine from a person without loading the document engine.
 import type { PrincipalKind } from "agentic-identity";
 
 export type { PrincipalKind };
