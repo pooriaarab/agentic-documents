@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The Worker uses `agentic-identity` 0.6 for Bearer auth and the WebSocket token. A token in `AGENTIC_DOCS_TOKENS`
+  now holds only `A-Z a-z 0-9 _ -` (32 to 512 bytes), and a bad one refuses the whole config. An author name there
+  follows the identity id rule (`A-Z a-z 0-9 . _ -`, up to 128 characters). A browser must offer both `agentic-docs`
+  and `agentic-docs.bearer.<token>` as subprotocols.
+
 ## 0.7.0
 
 ### Added

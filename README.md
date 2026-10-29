@@ -148,8 +148,9 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   `wrangler secret put AGENTIC_DOCS_TOKENS`. The value is a JSON object from token to author:
   `{"<32 or more random bytes>":"agent_of_human:scribe"}`. To give an agent the right to accept
   suggestions, use `{"as":"agent_of_human:approver","scopes":["docs:accept"]}` as the value.
-  Make a token with `openssl rand -hex 32`.
-- A token under 32 bytes, a value that is not a valid author, or a value that is not a JSON
+  Make a token with `openssl rand -hex 32`. A token holds only `A-Z a-z 0-9 _ -` (32 to 512 bytes), and an
+  author name holds only `A-Z a-z 0-9 . _ -` (up to 128 characters, no space or `@`).
+- A token under 32 bytes, a token with other characters (for example base64 with `+` or `/`), a value that is not a valid author, or a value that is not a JSON
   object makes the Worker refuse every request (401). It logs the reason once, never the token.
   A body cannot name its own author. With no tokens the API refuses every request.
 - Errors are `{ "error": { "code", "message", "matches" } }`. Status: 400 bad input, 401 no

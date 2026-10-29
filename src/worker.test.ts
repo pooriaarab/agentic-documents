@@ -99,6 +99,9 @@ describe("worker failures", () => {
       { [good]: "human:Ada", short: "human:Bob" },
       { [good]: "human:Ada", [`b${"b".repeat(30)}`]: "human:Bob" }, // 31 bytes
       { [good]: "robot:r2" },
+      { [`${good}+/=`]: "human:Ada" }, // base64 characters can never pass the Bearer check
+      { [good]: "human:Ada Lovelace" },
+      { [good]: "human:ada@example.org" },
       { [good]: "human:" },
       { [good]: { as: "human:Ada", scopes: "docs:accept" } },
       { [good]: 7 },
