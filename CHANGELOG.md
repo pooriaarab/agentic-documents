@@ -4,8 +4,8 @@
 
 ### Changed
 
-- `agentic-identity` moves from `^0.8.0` to `^0.9.0`, `agentic-design` from `^0.4.0` to `^0.5.0`, `agentic-realtime` from `^0.4.1` to `^0.4.3`, and `agentic-formats` from `^0.3.0` to `^0.4.2`. `agentic-formats` 0.4.2 depends on zod 4 itself, so the `overrides` entry for `agentic-formats` is now redundant. It stays for safety.
-- `agentic-realtime` 0.4.3 still pins its own `agentic-identity` `^0.7.0`, so the lockfile keeps a second copy of that package under `agentic-realtime`. Version 0.4.1 had no `agentic-identity` dependency, so the copy is new in this release.
+- `agentic-identity` moves from `^0.8.0` to `^0.9.0`, `agentic-design` from `^0.4.0` to `^0.6.0`, `agentic-realtime` from `^0.4.1` to `^0.4.4`, and `agentic-formats` from `^0.3.0` to `^0.4.2`. `agentic-design` 0.5.0 and 0.6.0 change the look and make `Tabs` use a roving tab index. `agentic-realtime` 0.4.4 uses `agentic-identity` 0.9.0, so the lockfile has one copy of it.
+- `agentic-formats` 0.4.2 depends on zod 4 itself, so the `overrides` entry for `agentic-formats` is now redundant. It stays for safety.
 
 ## 0.11.0
 
