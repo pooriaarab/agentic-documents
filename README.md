@@ -16,6 +16,20 @@ Write documents with people and agents in real time.
 npm install agentic-documents
 ```
 
+## Subpath exports
+
+| Import | Use it for |
+| --- | --- |
+| `agentic-documents` | The document model, text operations, threads, suggestions, the service, the file store, export, the sharing API, and their types. See [Quick start](#quick-start). |
+| `agentic-documents/worker` | The HTTP API as a Hono app. See [Worker subpath](#worker-subpath). |
+| `agentic-documents/live` | `LiveDoc`, the client for a live room. See [Live editing](#live-editing). |
+| `agentic-documents/client` | A typed client for the Worker API. See [SDK](#sdk). |
+| `agentic-documents/formats` | Import and export files. See [File formats](#file-formats). |
+| `agentic-documents/ui` | Mount the editor, or the whole app, in your page. See [Embed the editor](#embed-the-editor) and [Mount the whole app](#mount-the-whole-app). |
+| `agentic-documents/ui.css` | The base styles of the editor. Load it after `agentic-design/styles.css` and with `agentic-documents/ui`. See [Embed the editor](#embed-the-editor). |
+| `agentic-documents/app.css` | The layout styles of the whole app. Load it after `agentic-documents/ui.css`. See [Mount the whole app](#mount-the-whole-app). |
+| `agentic-documents/live-worker` | The HTTP API with live rooms, as a Worker. It exports `SyncRoom`. See [Live editing](#live-editing). |
+
 ## Quick start
 
 ```ts
@@ -573,6 +587,20 @@ Limits of live editing:
   line after the language.
 - Markdown output trims whitespace at the edge of a block and skips empty paragraphs. A text
   target that includes a trailing space can match in the document and not in `read` output.
+
+## Run locally
+
+```sh
+bun install        # or: npm ci
+bun run dev        # or: npm run dev
+curl http://localhost:8787/health
+```
+
+The script builds the app, then runs `wrangler dev` with the region check off (`AGENTIC_DOCS_REGION=unknown`). `/health` needs no token. To sign in to the UI on your machine only, pass a static token: `TOKEN=$(openssl rand -hex 32); echo "$TOKEN"; npm run dev -- --var AGENTIC_DOCS_UNSAFE_TOKENS:1 --var "AGENTIC_DOCS_TOKENS:{\"$TOKEN\":\"human:Ada\"}"`.
+
+The scripts call `npm` and `node` (Node 22 or newer), so install both, even if you use bun. They need a POSIX shell.
+
+Run `npm run dev:smoke` to check this path. It starts the dev server on port 8799, waits for `GET /health` to answer 200, and stops the server. CI runs it as the "dev smoke" step. Set `DEV_SMOKE_PORT` to use another port.
 
 ## Develop
 
