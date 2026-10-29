@@ -83,7 +83,8 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
     if (shown) placed.current();
   }, [shown]);
 
-  if (!at || !editable) return null;
+  // `editable` is the role. The editor also turns read only when the document is removed.
+  if (!at || !editable || !editor.isEditable) return null;
   const back = () => editor.view.focus();
   const tool = (label: string, icon: ReactNode, run: () => void, active?: boolean) => (
     <ToolbarButton label={label} icon={icon} pressed={active} onClick={() => (back(), run())} />
@@ -104,7 +105,7 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
         {tool("Strikethrough", glyph("S", "s"), () => chain().toggleStrike().run(), editor.isActive("strike"))}
         {tool("Inline code", glyph("</>", "mono"), () => chain().toggleCode().run(), editor.isActive("code"))}
         {tool("Link", icons.link, onLink, editor.isActive("link"))}
-        {actions.map((a, i) => <ToolbarButton key={`${i}-${a.label}`} label={a.label} icon={a.icon} onClick={() => a.run(editor)} />)}
+        {actions.map((a, i) => <ToolbarButton key={`${i}-${a.label}`} label={a.label} icon={a.icon} onClick={() => (back(), a.run(editor))} />)}
       </Toolbar>
     </div>
   );

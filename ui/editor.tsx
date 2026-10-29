@@ -1,4 +1,4 @@
-import { Editor, Extension, type AnyExtension } from "@tiptap/core";
+import { Editor, Extension, getSchema, type AnyExtension } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
@@ -12,7 +12,6 @@ import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, usableNa
 import * as Y from "yjs";
 import { isMachine } from "../src/kinds.js";
 import { MAX_LIVE_BYTES } from "../src/limits.js";
-import { schema } from "../src/schema.js";
 import type { LiveSession } from "./live.js";
 import { BubbleMenu, type BubbleAction } from "./bubble.js";
 import { CodeBlock } from "./code.js";
@@ -77,14 +76,17 @@ function carets(sync: NonNullable<LiveSession["sync"]>) {
   });
 }
 
-export class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
+/** A host extension that changes what the stored document keeps. The editor shows its message. */
+export class ExtensionError extends TypeError {}
+
+export class Boundary extends Component<{ children: ReactNode }, { failed: boolean; message?: string }> {
+  state: { failed: boolean; message?: string } = { failed: false };
+  static getDerivedStateFromError(error: unknown) {
+    return { failed: true, message: error instanceof ExtensionError ? error.message : undefined };
   }
   render() {
     return this.state.failed ? (
-      <div role="alert" className="agd-doc agd-notice"><EmptyState title="The editor stopped" description="The document has content this page cannot show. Reload to try again." /></div>
+      <div role="alert" className="agd-doc agd-notice"><EmptyState title="The editor stopped" description={this.state.message ? `The app gave the editor an extension it cannot use: ${this.state.message}.` : "The document has content this page cannot show. Reload to try again."} /></div>
     ) : this.props.children;
   }
 }
@@ -117,21 +119,34 @@ export function Surface({ live, editable, principal: me, onEditor, extras }: { l
       setRefused(!ok);
       return ok;
     };
+    const base = [
+      StarterKit.configure({ undoRedo: false, underline: false, codeBlock: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
+      // The same rules as the engine schema (src/schema.ts): an image sits in a line, and a task item can hold a list.
+      CodeBlock, DocImage, TaskList, TaskItem.configure({ nested: true }), Table, TableRow, TableCell, TableHeader,
+      Collaboration.configure({ document: live.doc, field: "default" }),
+      ...(live.sync ? [carets(live.sync)] : []),
+      AgentText,
+      ...(editable ? [Placeholder.configure({ placeholder: "Write, or type / to add a block" })] : []),
+    ];
+    // A host extension may add plugins, decorations, and shortcuts. One that adds or changes a node, a mark, or an
+    // attribute is refused: the stored document keeps only its own schema, so that content would be lost or block saves.
+    const extra = added.current ?? [];
+    if (extra.length > 0) {
+      const plain = getSchema(base);
+      const full = getSchema([...base, ...extra]);
+      const keys = (spec: { attrs?: object | null } | undefined) => Object.keys(spec?.attrs ?? {}).sort().join(",");
+      const changed = [
+        ...Object.keys(full.nodes).filter((n) => !plain.nodes[n] || keys(full.nodes[n]!.spec) !== keys(plain.nodes[n]!.spec)),
+        ...Object.keys(full.marks).filter((m) => !plain.marks[m] || keys(full.marks[m]!.spec) !== keys(plain.marks[m]!.spec)),
+      ];
+      if (changed.length > 0) throw new ExtensionError(`it adds or changes ${changed.join(", ")}, which the stored document cannot keep`);
+    }
     const editor = new Editor({
       element: host.current!,
       editable,
       // editor.css has the base rules, so a page that forbids inline styles still shows the editor right.
       injectCSS: false,
-      extensions: [
-        StarterKit.configure({ undoRedo: false, underline: false, codeBlock: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
-        // The same rules as the engine schema (src/schema.ts): an image sits in a line, and a task item can hold a list.
-        CodeBlock, DocImage, TaskList, TaskItem.configure({ nested: true }), Table, TableRow, TableCell, TableHeader,
-        Collaboration.configure({ document: live.doc, field: "default" }),
-        ...(live.sync ? [carets(live.sync)] : []),
-        AgentText,
-        ...(editable ? [Placeholder.configure({ placeholder: "Write, or type / to add a block" })] : []),
-        ...(added.current ?? []),
-      ],
+      extensions: [...base, ...extra],
       editorProps: {
         // Alt+F10 moves the focus into the bubble menu of a selection.
         attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "agd-prose", ...(editable ? { "aria-keyshortcuts": "Alt+F10" } : {}) },
@@ -141,12 +156,6 @@ export function Surface({ live, editable, principal: me, onEditor, extras }: { l
         handleDrop: (_view, _event, slice, moved) => !moved && !fits(slice), // a move inside the text adds nothing
       },
     });
-    // Fail closed on a host extension that adds a node or a mark: the stored document cannot keep it.
-    const unknown = [...Object.keys(editor.schema.nodes).filter((n) => !schema.nodes[n]), ...Object.keys(editor.schema.marks).filter((m) => !schema.marks[m])];
-    if (unknown.length > 0) {
-      editor.destroy();
-      throw new TypeError(`an editor extension adds what the stored document cannot keep: ${unknown.join(", ")}`);
-    }
     setEditor(editor);
     // The sticky bar covers the top of the window, so the caret is scrolled into view below it. The bar wraps on a narrow
     // window, so the margin follows its height.

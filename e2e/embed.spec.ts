@@ -142,6 +142,7 @@ test("a host adds a slash item, a bubble tool, and a Tiptap extension, and one t
   await expect(bubble.getByRole("button", { name: "Comment" })).toBeFocused();
   await ada.keyboard.press("Enter");
   expect(await ada.evaluate(() => (window as unknown as { seen: { comment?: string } }).seen.comment)).toContain("Signed, the host");
+  await expect(textbox(ada)).toBeFocused(); // a host tool gives the focus back to the text, as the built-in ones do
 
   // A viewer gets no bubble menu, and the host cannot replace a read-only editor's text.
   const vic = await host(browser, VIC, id, "&extras");
@@ -150,10 +151,12 @@ test("a host adds a slash item, a bubble tool, and a Tiptap extension, and one t
   await expect(vic.getByRole("toolbar", { name: "Selection" })).toHaveCount(0);
   expect(await vic.evaluate(() => (window as unknown as { tryImport: () => string }).tryImport())).toContain("read only");
 
-  // A host extension that adds a mark stops the editor with a message, rather than writing what the store cannot keep.
+  // A host extension that adds a mark, or an attribute to a node, stops the editor with a message that names them, rather
+  // than writing what the store cannot keep.
   const bad = await (await browser.newContext()).newPage();
   await bad.goto(`${url()}/embed/#token=${encodeURIComponent(ADA)}&id=${encodeURIComponent(id)}&extras&badext`);
   await expect(bad.getByRole("alert")).toContainText("The editor stopped");
+  await expect(bad.getByRole("alert")).toContainText("paragraph, hostHighlight"); // the message names what it refused
   await expect(bad.getByRole("textbox")).toHaveCount(0);
   await ada.context().close();
   await vic.context().close();

@@ -13,13 +13,18 @@ const me = await client.me();
 const url = new URL(`/api/v1/docs/${encodeURIComponent(id)}/ws`, location.href);
 url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 // With `extras`, the host adds a slash item, a bubble tool, and a keyboard shortcut, as an app with comments or an
-// assistant would. With `badext`, it adds a mark, which the editor refuses.
+// assistant would. With `badext`, it adds a mark and a paragraph attribute, which the editor refuses.
 const seen: { comment?: string; shortcut?: boolean } = {};
 const slashItems: SlashItem[] = [{ title: "Signature", description: "Sign the text", run: (e) => e.chain().focus().insertContent("Signed, the host").run() }];
 const bubbleActions: BubbleAction[] = [{ label: "Comment", icon: "C", run: (e) => void (seen.comment = e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)) }];
 const extensions = [
   Extension.create({ name: "hostKeys", addKeyboardShortcuts: () => ({ "Mod-Shift-y": () => ((seen.shortcut = true), true) }) }),
-  ...(params.has("badext") ? [Mark.create({ name: "hostHighlight", parseHTML: () => [{ tag: "mark" }], renderHTML: () => ["mark", 0] })] : []),
+  ...(params.has("badext")
+    ? [
+        Mark.create({ name: "hostHighlight", parseHTML: () => [{ tag: "mark" }], renderHTML: () => ["mark", 0] }),
+        Extension.create({ name: "hostTone", addGlobalAttributes: () => [{ types: ["paragraph"], attributes: { tone: { default: null } } }] }),
+      ]
+    : []),
 ];
 let current: Editor | null = null;
 const editor = mountEditor(document.getElementById("editor")!, {
