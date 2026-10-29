@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 ### Removed
 
@@ -10,12 +10,17 @@
 
 ### Changed
 
-- The Worker signs in with `agentic-identity` keys from the D1 database by default (`createStoreAuth`). A scope of
-  `docs:write` makes an editor, no write scope makes a viewer, and `docs:admin` grants an agent `docs:accept` and
-  `docs:remove`. `createApp` takes an `auth` option to bring your own `Auth` port.
+- **Breaking.** The Worker signs in with `agentic-identity` keys from the D1 database by default (`createStoreAuth`).
+  A deployment that only sets `AGENTIC_DOCS_TOKENS` now gets 401 on every request until you add principals and keys
+  to the database. A scope of `docs:write` makes an editor, no write scope makes a viewer, and `docs:admin` grants an
+  agent `docs:accept` and `docs:remove`. `createApp` takes an `auth` option to bring your own `Auth` port.
 - **Breaking.** `AGENTIC_DOCS_TOKENS` is ignored unless `AGENTIC_DOCS_UNSAFE_TOKENS=1` is set. It is a development
   fallback. Set the new variable where you still use the table. Without a D1 database or the switch, the Worker
   answers 500 `MISCONFIGURED`.
+- `agentic-design` moves from `^0.1.0` to `^0.3.1`, `agentic-formats` from `^0.2.0` to `^0.3.0`, and
+  `agentic-realtime` from `^0.1.0` to `^0.4.1`.
+- A live join seeds only the parts of the stored document that the room lacks. Two principals that join at the same
+  time no longer fail: the second seed is not refused.
 
 ## 0.7.1
 
