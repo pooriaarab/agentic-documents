@@ -48,7 +48,7 @@ change it in a call.
 
 Only an owner shares a document, and an agent needs the `docs:admin` scope too. A refusal is `FORBIDDEN`. Never try to
 grant yourself a role. Roles are stored, but reads and writes do not check them yet, nothing opens a link token, and
-nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role. A document with no owner record (made before sharing, with no creator in the catalog or made by an agent that acts for a person) cannot be shared.
+nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role. A document with no owner record (made before sharing, by an author with no `docs:write` scope, or by an author whose name is not a valid grant name) is claimed by its creator, when the caller is that creator and has a write scope. A document with no creator in the catalog, or made by an agent that acts for a person, cannot be claimed.
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
 
