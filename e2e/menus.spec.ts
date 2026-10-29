@@ -144,8 +144,27 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   await page.keyboard.press("Control+End");
   await page.keyboard.press("Shift+ArrowLeft");
   await expect(bubble).toBeVisible();
+  // With the focus in it, it stays, so the focus is not lost.
+  await page.keyboard.press("Alt+F10");
+  await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
+  await page.mouse.wheel(0, -100000);
+  await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
+  await page.keyboard.press("Escape"); // back to the text
   await page.mouse.wheel(0, -100000);
   await expect(bubble).toHaveCount(0);
+
+  // The slash menu hides too when its slash goes under the bar, still inside the window.
+  await page.keyboard.press("Control+Home");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" /");
+  const list = page.getByRole("listbox", { name: "Insert a block" });
+  await expect(list).toBeVisible();
+  await page.evaluate(() => {
+    const line = document.querySelector(".agd-prose p")!.getBoundingClientRect();
+    const bar = document.querySelector(".agd-doc__bar")!.getBoundingClientRect();
+    window.scrollBy(0, line.bottom - bar.height + 4); // the bar sticks at the top, and the line's bottom goes under it
+  });
+  await expect(list).toHaveCount(0);
   await page.context().close();
 });
 
