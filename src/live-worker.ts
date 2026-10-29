@@ -1,5 +1,6 @@
 import { createDurableObjectRealtime } from "agentic-realtime/worker";
-import { createApp, serviceFor, type WorkerEnv } from "./worker.js";
+import { DocError } from "./doc.js";
+import { createApp, regionOf, serviceFor, type WorkerEnv } from "./worker.js";
 
 export { SyncRoom } from "agentic-realtime/worker";
 
@@ -13,9 +14,10 @@ export interface LiveEnv extends WorkerEnv {
 /** The Worker with live rooms. It keeps the data of each room in a Durable Object, in the EU jurisdiction when the region is "eu". */
 const app = createApp(serviceFor, {
   live: (env) => {
+    const region = regionOf(env); // the same claim as the HTTP API: no valid region, no room
     const rooms = (env as LiveEnv).SYNC_ROOM;
-    if (!rooms) throw new Error("bind a Durable Object namespace as SYNC_ROOM");
-    return createDurableObjectRealtime(rooms, env.AGENTIC_DOCS_REGION === "eu" ? "eu" : undefined);
+    if (!rooms) throw new DocError("MISCONFIGURED", "bind a Durable Object namespace as SYNC_ROOM");
+    return createDurableObjectRealtime(rooms, region === "eu" ? "eu" : undefined);
   },
 });
 

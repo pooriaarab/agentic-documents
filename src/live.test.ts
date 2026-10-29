@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { SyncClient } from "agentic-realtime/client";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { DocError } from "./doc.js";
+import { AgenticDoc, DocError } from "./doc.js";
 import { LiveDoc } from "./live.js";
 
 const freePort = () =>
@@ -77,6 +77,13 @@ afterAll(() => {
 });
 
 const join_ = (id: string, token: string, extra: object = {}) => LiveDoc.join({ server: SERVER(), id, token, ...extra });
+const http = (path: string, token: string, body?: unknown) =>
+  fetch(`${SERVER()}/api/v1/docs${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
 const until = async (check: () => boolean, what: string) => {
   for (let i = 0; i < 100 && !check(); i++) await new Promise((r) => setTimeout(r, 50));
   if (!check()) throw new Error(`timed out waiting for ${what}`);
@@ -163,6 +170,19 @@ describe("permissions", () => {
     expect(ws.status).toBe(401);
   });
 
+  test("an unknown token cannot open the room, and a raw editor can forge the log but not the room's list", async () => {
+    await expect(SyncClient.connect({ url: `${SERVER().replace("http", "ws")}/api/v1/docs/perm/ws`, headers: { authorization: `Bearer ${NOBODY}` }, timeoutMs: 1500 })).rejects.toThrow();
+    const agent = await join_("forged", BOT);
+    await agent.edit((d, a) => d.append("Honest.", a));
+    const raw = await SyncClient.connect({ url: `${SERVER().replace("http", "ws")}/api/v1/docs/forged/ws`, headers: { authorization: `Bearer ${BOT}` } });
+    const forged = new AgenticDoc(raw.doc);
+    await raw.edit(() => forged.append("Forged.", { kind: "human", name: "Ada" }));
+    expect(forged.edits().map((e) => e.author.kind)).toContain("human");
+    const room = (await (await http("/forged/room", ADA)).json()) as { contributors: { kind: string; machine: boolean }[] };
+    expect(room.contributors).toEqual([expect.objectContaining({ name: "scribe", kind: "agent_of_human", machine: true })]);
+    await Promise.all([agent.leave(), raw.disconnect()]);
+  });
+
   test("a Worker built with no live rooms answers 404 on the ws route", async () => {
     const { createApp } = await import("./worker.js");
     const app = createApp({} as never);
@@ -171,3 +191,15 @@ describe("permissions", () => {
   });
 });
 
+
+describe("config that fails closed", () => {
+  test("a bad role refuses the whole token table", async () => {
+    const { createApp } = await import("./worker.js");
+    const app = createApp({} as never);
+    for (const role of ["admin", "owner", 1, null]) {
+      const env = { AGENTIC_DOCS_TOKENS: JSON.stringify({ [ADA]: { as: "human:Ada", role }, [BOT]: "agent:bot" }) };
+      for (const token of [ADA, BOT]) expect((await app.request("/api/v1/me", { headers: { authorization: `Bearer ${token}` } }, env)).status).toBe(401);
+    }
+  });
+
+});

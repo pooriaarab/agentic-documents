@@ -129,7 +129,9 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   its alt text, because a remote image tells its host who opened the file. `remoteImages` turns
   that back on.
 - Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
-  agent work stays labeled. The log holds no content.
+  agent work stays labeled. The log holds no content. Over the CLI, MCP, and HTTP the server or
+  the operator sets the author. In a live room a client writes its own log entries, so treat the log
+  there as advisory. The room's own record of who sent updates is at `GET /api/v1/docs/:id/room`.
 
 ## Rules for text matching
 
@@ -146,7 +148,7 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   overwrite each other. The CLI and MCP server keep the same data in local files.
 - The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. Files from an older release that sit
   directly in `<dir>` are not read.
-- Token auth is a stopgap until the `Auth` port exists. There is no per-document sharing or role yet.
+- Token auth is a stopgap until the `Auth` port exists. A token has one role for the whole server: `editor` (the default) or `viewer`. A viewer cannot call a write command or write in a live room. There is no per-document sharing yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs
   its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that

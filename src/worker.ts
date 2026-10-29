@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { assertRegion, parseRegion } from "agentic-identity";
+import { assertRegion, parseRegion, type Region } from "agentic-identity";
 import { D1_SCHEMA, createD1Store, createR2Blobs, type D1Like, type R2Like } from "agentic-identity/cloudflare";
 import type { Realtime, Role } from "agentic-realtime";
 import { commands, type Command } from "./commands.js";
@@ -151,6 +151,13 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
     const { kind, name, scopes } = c.get("author");
     return c.json({ kind, name, scopes: scopes ?? [], role: c.get("role") });
   });
+  // Who sent updates in the room, as the room recorded it from the tokens. The edit log in the document is written by clients.
+  app.get("/api/v1/docs/:id/room", async (c) => {
+    if (!options.live) return fail("NOT_FOUND", "this server hosts no live rooms", 404);
+    if (!DOC_ID.test(c.req.param("id"))) return fail("INVALID_INPUT", `invalid document id "${c.req.param("id")}"`, 400);
+    const { contributors } = await options.live(c.env ?? {}).meta(c.req.param("id"));
+    return c.json({ contributors: contributors.map(({ id, kind, machine }) => ({ name: id, kind, machine })) });
+  });
   // The live room. The token sets the author kind and the role. A viewer joins and reads, and the room drops its writes.
   app.get("/api/v1/docs/:id/ws", (c) => {
     const id = c.req.param("id");
@@ -209,9 +216,8 @@ const schemas = new WeakMap<object, Promise<unknown>>();
 // The adapter needs a signing secret. This package never makes signed URLs, so a secret that lives and dies with the isolate is enough.
 let urlSecret: string | undefined; // made on first use: a Worker may not make random values at load
 
-/** The service over D1 and R2. One region claim covers D1 and R2. The bucket is declared with the "eu" jurisdiction in wrangler.jsonc: keep the two in step. */
-export async function serviceFor(env: WorkerEnv): Promise<DocsService> {
-  if (!env.DB || !env.DOCS) throw new DocError("MISCONFIGURED", "bind a D1 database as DB and an R2 bucket as DOCS");
+/** The region claim, or a MISCONFIGURED error. The HTTP API and the live rooms both use it, so neither runs without it. */
+export function regionOf(env: WorkerEnv): Region {
   let region;
   try {
     region = parseRegion(env.AGENTIC_DOCS_REGION);
@@ -221,6 +227,13 @@ export async function serviceFor(env: WorkerEnv): Promise<DocsService> {
   if (region === "unknown" && env.AGENTIC_DOCS_UNSAFE_REGION !== "1") {
     throw new DocError("MISCONFIGURED", 'the region "unknown" turns the residency check off; set AGENTIC_DOCS_UNSAFE_REGION=1 to accept that for local development');
   }
+  return region;
+}
+
+/** The service over D1 and R2. One region claim covers D1 and R2. The bucket is declared with the "eu" jurisdiction in wrangler.jsonc: keep the two in step. */
+export async function serviceFor(env: WorkerEnv): Promise<DocsService> {
+  if (!env.DB || !env.DOCS) throw new DocError("MISCONFIGURED", "bind a D1 database as DB and an R2 bucket as DOCS");
+  const region = regionOf(env);
   const db = env.DB;
   let ready = schemas.get(db);
   if (!ready) {
