@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- zod moves to 4.6.7 to fix GHSA-mrhx-c7xc-m3w5, a high advisory (memory exhaustion when validating oversized constrained collections). The direct dependency moves from `^3.25.0` to `^4.6.7`. An npm `overrides` entry moves `agentic-design` and `agentic-formats` to zod 4.6.7 in this repo's install and build. npm ignores `overrides` in a published package, so an install of this package still gets zod 3 under those two packages until they accept zod 4.
+- zod 4 words some validation messages differently. An `INVALID_INPUT` error can carry other message text. A client that matches on message text should match on the error code.
+
 ## 0.9.0
 
 ### Changed
