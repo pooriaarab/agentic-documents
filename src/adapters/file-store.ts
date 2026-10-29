@@ -17,16 +17,19 @@ const ATTEMPTS = 64;
  * lock was lost and the snapshot changed, the transaction runs again on the new snapshot.
  * The store re-reads and re-writes the whole snapshot on each call: it suits a small local catalog.
  */
-export function createFileStore(dir: string, options: AdapterOptions & Pick<FileBlobsOptions, "lockStaleMs" | "lockTimeoutMs"> = {}): Store {
+export function createFileStore(dir: string, options: AdapterOptions & Pick<FileBlobsOptions, "lockStaleMs" | "lockTimeoutMs"> & { shared?: string } = {}): Store {
+  // The dataset is the directory. `shared` (used by the contract suites) must not reach the memory store, or it would share memory instead of the file.
+  const { shared: _shared, ...rest } = options;
+  const memoryOptions = { region: rest.region, now: rest.now };
   const blobs = createFileBlobs(dir, options);
   const locked = createLocker(resolve(dir), options);
   const mutex = resolve(dir, "store-mutex");
-  const region = createMemoryStore(options).region;
+  const region = createMemoryStore(memoryOptions).region;
 
   async function load(): Promise<{ memory: Store; rows: Map<string, Row>; version: string | undefined }> {
     const found = await blobs.get(KEY);
     const rows = new Map<string, Row>();
-    const memory = createMemoryStore(options);
+    const memory = createMemoryStore(memoryOptions);
     if (found) {
       for (const row of JSON.parse(new TextDecoder().decode(found.data)) as Row[]) {
         rows.set(JSON.stringify([row[0], row[1]]), row);

@@ -167,7 +167,7 @@ const schemas = new WeakMap<object, Promise<unknown>>();
 // The adapter needs a signing secret. This package never makes signed URLs, so a secret that lives and dies with the isolate is enough.
 let urlSecret: string | undefined; // made on first use: a Worker may not make random values at load
 
-/** The service over D1 and R2. The R2 bucket is declared with the "eu" jurisdiction in wrangler.jsonc. */
+/** The service over D1 and R2. One region claim covers D1 and R2. The bucket is declared with the "eu" jurisdiction in wrangler.jsonc: keep the two in step. */
 async function serviceFor(env: WorkerEnv): Promise<DocsService> {
   if (!env.DB || !env.DOCS) throw new DocError("MISCONFIGURED", "bind a D1 database as DB and an R2 bucket as DOCS");
   let region;
@@ -189,10 +189,10 @@ async function serviceFor(env: WorkerEnv): Promise<DocsService> {
     schemas.set(db, ready);
   }
   await ready;
-  return new DocsService({
-    store: createD1Store(db, { region }),
-    blobs: createR2Blobs(env.DOCS, { region: "eu", urlBase: "https://invalid.example/unused", urlSecret: (urlSecret ??= `${crypto.randomUUID()}${crypto.randomUUID()}`) }),
-  });
+  const store = createD1Store(db, { region });
+  const blobs = createR2Blobs(env.DOCS, { region, urlBase: "https://invalid.example/unused", urlSecret: (urlSecret ??= `${crypto.randomUUID()}${crypto.randomUUID()}`) });
+  assertRegion(region, store, blobs);
+  return new DocsService({ store, blobs });
 }
 
 const app = createApp(serviceFor);
