@@ -63,7 +63,7 @@ export class Boundary extends Component<{ children: ReactNode }, { failed: boole
   }
 }
 
-export function Surface({ live, editable, principal: me }: { live: LiveSession; editable: boolean; principal: EditorPrincipal }) {
+export function Surface({ live, editable, principal: me, onEditor }: { live: LiveSession; editable: boolean; principal: EditorPrincipal; onEditor?: (editor: Editor | null) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const [editor, setEditor] = useState<Editor>();
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -75,11 +75,15 @@ export function Surface({ live, editable, principal: me }: { live: LiveSession; 
   const [href, setHref] = useState("");
   const [linkError, setLinkError] = useState<string>();
   const refocus = useRef(false);
+  const tell = useRef(onEditor);
+  tell.current = onEditor;
 
   useEffect(() => {
     const editor = new Editor({
       element: host.current!,
       editable,
+      // editor.css has the base rules, so a page that forbids inline styles still shows the editor right.
+      injectCSS: false,
       extensions: [
         StarterKit.configure({ undoRedo: false, underline: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
         Image, TaskList, TaskItem, Table, TableRow, TableCell, TableHeader,
@@ -90,6 +94,7 @@ export function Surface({ live, editable, principal: me }: { live: LiveSession; 
       editorProps: { attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "prose" } },
     });
     setEditor(editor);
+    tell.current?.(editor);
     editor.on("transaction", () => (setAgentText(host.current?.querySelector(".agent-text") != null), refresh()));
     const offPeers = live.sync?.onPeers(setPeers);
     setPeers(live.sync?.peers ?? []);
@@ -122,6 +127,7 @@ export function Surface({ live, editable, principal: me }: { live: LiveSession; 
           labeled = true;
           live.doc.getArray("edits").push([{ op: "live", at: new Date().toISOString(), author: { kind: me.kind, name: me.name }, client: live.doc.clientID, inserted: 0, deleted: 0 }]);
         }
+        if (live.hosted) return; // the app keeps the document, so there is nothing to save
         live.touch();
         setSaved("saving");
         clearTimeout(timer);
@@ -137,6 +143,7 @@ export function Surface({ live, editable, principal: me }: { live: LiveSession; 
       offStatus();
       if (timer) clearTimeout(timer);
       offPeers?.();
+      tell.current?.(null);
       editor.destroy();
     };
   }, [live, editable, me.name, me.kind]);
@@ -208,7 +215,7 @@ export function Surface({ live, editable, principal: me }: { live: LiveSession; 
           <span role="status" className="muted">
             {!editable ? "Read only. " : ""}
             {connection === "disconnected" ? "Offline: changes are kept and sync when you are back. " : ""}
-            {saved === "saving" ? "Saving…" : saved === "failed" ? "Not saved. Will try again." : saved === "removed" ? "This document was removed. Your changes are not saved." : "Saved"}
+            {live.hosted ? "" : saved === "saving" ? "Saving…" : saved === "failed" ? "Not saved. Will try again." : saved === "removed" ? "This document was removed. Your changes are not saved." : "Saved"}
           </span>
         </div>
       </div>

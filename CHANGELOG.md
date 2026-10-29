@@ -10,6 +10,10 @@
 
 ### Added
 
+- `agentic-documents/ui`: a `host` option for `mountEditor` and `DocumentEditor`. The app gives its own `Y.Doc`, and
+  optionally the presence and the status of its room. The editor binds to that document and does not load, save, or
+  join a room. `client` is optional with `host`. `onEditor` gives the app the Tiptap editor. The editor no longer
+  injects an inline style. `ui.css` has its base rules.
 - Sharing, built on the grant, invite, and link primitives of `agentic-identity`. New commands: `grants`, `grant`,
   `revoke`, `invites`, `invite`, `link`, and `unlink`. They are in the CLI, the MCP server (`doc_grants` and so on),
   and the HTTP API (`GET /docs/:id/grants`, `POST /docs/:id/grant`, and so on). Only an owner may use them, and an

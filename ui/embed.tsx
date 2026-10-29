@@ -1,13 +1,15 @@
 // The editor for an app that embeds it: `agentic-documents/ui`. The app gives a document id, a client, the principal who
-// uses the editor, and an optional live room. React and react-dom are peer dependencies.
+// uses the editor, and an optional live room. Or it gives its own Yjs document as `host`. React and react-dom are peer
+// dependencies.
 import { Button, EmptyState } from "agentic-design/react";
-import { useEffect, useRef, useState } from "react";
+import type { Editor } from "@tiptap/core";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { PRINCIPAL_KINDS, type PrincipalKind } from "agentic-identity";
-import { openSession, type EditorClient, type EditorRoom, type LiveSession } from "./live.js";
+import { checkHost, hostSession, openSession, type EditorClient, type EditorRoom, type HostDocument, type LiveSession, type RoomPresence } from "./live.js";
 import { Boundary, Surface, isRemoved } from "./editor.js";
 
-export type { EditorClient, EditorRoom, LiveSession };
+export type { Editor, EditorClient, EditorRoom, HostDocument, LiveSession, RoomPresence };
 
 /** Who uses the editor. The server still checks every write against its own token. */
 export interface EmbedPrincipal {
@@ -20,11 +22,18 @@ export interface EmbedPrincipal {
 export interface DocumentEditorOptions {
   /** The document id. */
   id: string;
-  /** Loads and saves the document. A client from `createClient` in `agentic-documents/client` works. */
-  client: EditorClient;
+  /** Loads and saves the document. A client from `createClient` in `agentic-documents/client` works. Not needed with `host`. */
+  client?: EditorClient;
   principal: EmbedPrincipal;
-  /** The live room. With one, people and agents edit together and see each other. Without one, the editor saves alone. */
+  /** The live room. With one, people and agents edit together and see each other. Without one, the editor saves alone. Not allowed with `host`. */
   room?: EditorRoom;
+  /**
+   * A Yjs document that the app keeps in its own room. The editor binds to it and does not load, save, join a room, or
+   * close it. The app does all of that.
+   */
+  host?: HostDocument;
+  /** Called with the editor when it is ready, and with null when it goes. The app can read the selection or the JSON, or insert content. */
+  onEditor?: (editor: Editor | null) => void;
   /** Called when the document cannot open, with the error. */
   onError?: (error: unknown) => void;
   /** Called when the editor closes a document, with a promise that settles when the last save and the leave are done. It rejects when that save fails. */
@@ -35,6 +44,17 @@ export interface DocumentEditorOptions {
 function checkPrincipal(principal: EmbedPrincipal): void {
   if (!principal || !PRINCIPAL_KINDS.includes(principal.kind) || typeof principal.name !== "string" || principal.name.trim() === "") {
     throw new TypeError(`the editor needs a principal with a kind (${PRINCIPAL_KINDS.join(", ")}) and a name`);
+  }
+}
+
+/** The editor needs a client, or a host document and no room of its own. */
+function checkOptions(options: DocumentEditorOptions): void {
+  checkPrincipal(options.principal);
+  if (options.host !== undefined) {
+    checkHost(options.host);
+    if (options.room !== undefined) throw new TypeError("the editor takes a room or a host document, not both");
+  } else if (typeof options.client?.state !== "function" || typeof options.client.checkpoint !== "function") {
+    throw new TypeError("the editor needs a client from createClient, or a host document");
   }
 }
 
@@ -91,9 +111,30 @@ const describe = (error: unknown): string => {
   return error instanceof Error ? error.message : "Something went wrong.";
 };
 
+/** The editor on a document the app keeps. */
+function HostedEditor({ host, principal, onEditor }: { host: HostDocument; principal: EmbedPrincipal; onEditor?: (editor: Editor | null) => void }) {
+  // The app may make the host object on each render. Only the document and the presence decide when to bind again.
+  const latest = useRef(host);
+  latest.current = host;
+  const live = useMemo(
+    () => hostSession({ doc: host.doc, presence: host.presence, status: () => latest.current.status?.() ?? "connected", onStatus: (listener) => latest.current.onStatus?.(listener) ?? (() => {}) }),
+    [host.doc, host.presence],
+  );
+  return (
+    <Boundary>
+      <Surface live={live} editable={principal.role === "editor"} principal={principal} onEditor={onEditor} />
+    </Boundary>
+  );
+}
+
 /** The editor for one document, with its toolbar, presence, and save state. */
-export function DocumentEditor({ id, client, principal, room, onError, onLeave }: DocumentEditorOptions) {
-  checkPrincipal(principal);
+export function DocumentEditor(options: DocumentEditorOptions) {
+  checkOptions(options);
+  return options.host ? <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} /> : <StoredEditor {...options} client={options.client!} />;
+}
+
+/** The editor on a document that it loads and saves with the client. */
+function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor }: DocumentEditorOptions & { client: EditorClient }) {
   const editable = principal.role === "editor";
   const [attempt, setAttempt] = useState(0);
   const load = useEditorSession(client, id, principal.name, editable, room, attempt, onLeave);
@@ -115,13 +156,13 @@ export function DocumentEditor({ id, client, principal, room, onError, onLeave }
   }
   return (
     <Boundary>
-      <Surface live={load.live} editable={editable} principal={principal} />
+      <Surface live={load.live} editable={editable} principal={principal} onEditor={onEditor} />
     </Boundary>
   );
 }
 
 export interface MountedEditor {
-  /** Show another document, principal, or room in the same place. A bad principal throws and keeps the editor as it is. */
+  /** Show another document, principal, room, or host document in the same place. A bad option throws and keeps the editor as it is. */
   update(options: DocumentEditorOptions): void;
   /** Remove the editor. It saves this tab's changes, then leaves the room. The promise rejects when that save fails. */
   unmount(): Promise<void>;
@@ -129,7 +170,7 @@ export interface MountedEditor {
 
 /** Render the editor into an element, for an app that does not use React itself. */
 export function mountEditor(element: HTMLElement, options: DocumentEditorOptions): MountedEditor {
-  checkPrincipal(options.principal);
+  checkOptions(options);
   const root = createRoot(element);
   const leaving = new Set<Promise<void>>();
   const track = (done: Promise<void>) => {
@@ -140,7 +181,7 @@ export function mountEditor(element: HTMLElement, options: DocumentEditorOptions
     root.render(<DocumentEditor key={next.id} {...next} onLeave={(done) => (track(done), next.onLeave?.(done))} />);
   render(options);
   return {
-    update: (next) => (checkPrincipal(next.principal), render(next)),
+    update: (next) => (checkOptions(next), render(next)),
     unmount: async () => {
       root.unmount(); // runs the cleanup now, so every leave is tracked before the wait
       await Promise.all(leaving);

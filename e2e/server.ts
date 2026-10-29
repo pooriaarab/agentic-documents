@@ -6,12 +6,12 @@ import { liveServer } from "../src/test-server.js";
 import { TOKENS } from "./tokens.js";
 
 // Starts `wrangler dev` with the built UI as static assets. Run `npm run build` first.
-// It also serves /embed/: a host page that mounts `agentic-documents/ui` from the build, as an app that embeds it would.
+// It also serves /embed/: host pages that mount `agentic-documents/ui` from the build, as an app that embeds it would.
 export default async function setup(): Promise<() => void> {
   const assets = mkdtempSync(join(tmpdir(), "agentic-documents-assets-"));
   cpSync("dist/ui", assets, { recursive: true });
   await build({
-    entryPoints: { "embed/app": "e2e/embed/main.ts", "embed/mount": "e2e/embed/mount.ts" },
+    entryPoints: { "embed/app": "e2e/embed/main.ts", "embed/mount": "e2e/embed/mount.ts", "embed/host": "e2e/embed/host.ts" },
     outdir: assets,
     bundle: true,
     format: "esm",
@@ -23,6 +23,7 @@ export default async function setup(): Promise<() => void> {
   });
   cpSync("e2e/embed/index.html", join(assets, "embed/index.html"));
   cpSync("e2e/embed/mount.html", join(assets, "embed/mount.html"));
+  cpSync("e2e/embed/host.html", join(assets, "embed/host.html"));
   const server = await liveServer(TOKENS, { assets });
   await server.start();
   process.env.E2E_URL = server.url;
