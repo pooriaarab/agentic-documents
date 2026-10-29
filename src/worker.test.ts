@@ -31,7 +31,7 @@ let server: ChildProcess;
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "agentic-documents-worker-"));
   const config = join(dir, "wrangler.jsonc");
-  writeFileSync(config, JSON.stringify({ name: "docs-e2e", main: resolve("src/worker.ts"), compatibility_date: "2026-01-01", compatibility_flags: ["nodejs_compat"], d1_databases: [{ binding: "DB", database_name: "docs-e2e", database_id: "00000000-0000-0000-0000-000000000000" }], r2_buckets: [{ binding: "DOCS", bucket_name: "docs-e2e", jurisdiction: "eu" }], vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" } }));
+  writeFileSync(config, JSON.stringify({ name: "docs-e2e", main: resolve("src/worker.ts"), compatibility_date: "2026-01-01", compatibility_flags: ["nodejs_compat"], d1_databases: [{ binding: "DB", database_name: "docs-e2e", database_id: "00000000-0000-0000-0000-000000000000" }], r2_buckets: [{ binding: "DOCS", bucket_name: "docs-e2e", jurisdiction: "eu" }], vars: { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" } }));
   const [port, inspector] = [await freePort(), await freePort()];
   BASE = `http://127.0.0.1:${port}`;
   // Its own process group: workerd children outlive a kill of wrangler alone.
@@ -66,7 +66,7 @@ const post = (path: string, token: string, body: unknown) => api(path, token, { 
 describe("worker failures", () => {
   test("the real Worker refuses to serve without a region claim or without its bindings", async () => {
     const { default: worker } = await import("./worker.js");
-    const env = { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS) };
+    const env = { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS) };
     const ask = (extra: object) =>
       worker.fetch(new Request("http://x/api/v1/docs/a/read", { headers: { authorization: `Bearer ${ADA}` } }), { ...env, DB: {}, DOCS: {}, ...extra } as never, {});
     for (const extra of [{}, { AGENTIC_DOCS_REGION: "EU" }, { AGENTIC_DOCS_REGION: "mars" }, { AGENTIC_DOCS_REGION: "unknown" }, { AGENTIC_DOCS_REGION: "eu", DB: undefined }]) {
@@ -84,16 +84,18 @@ describe("worker failures", () => {
 
   test("with no tokens configured the API is closed", async () => {
     const app = createApp(new DocsService({ blobs: createMemoryBlobs(), store: createMemoryStore() }));
+    // With no switch and no D1 database there is nothing to sign in against: the Worker refuses, it does not guess.
     const res = await app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${BOT}` } }, {});
-    expect(res.status).toBe(401);
-    const broken = await app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${BOT}` } }, { AGENTIC_DOCS_TOKENS: "{oops" });
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as any).error.code).toBe("MISCONFIGURED");
+    const broken = await app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${BOT}` } }, { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: "{oops" });
     expect(broken.status).toBe(401);
   });
 
   test("a short token, or a config that is not a table of valid entries, closes the whole API", async () => {
     const app = createApp(new DocsService({ blobs: createMemoryBlobs(), store: createMemoryStore() }));
     const good = `ok-${"k".repeat(40)}`;
-    const ask = (tokens: string) => app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${good}` } }, { AGENTIC_DOCS_TOKENS: tokens });
+    const ask = (tokens: string) => app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${good}` } }, { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: tokens });
     expect((await ask(JSON.stringify({ [good]: "human:Ada" }))).status).toBe(404); // valid config: passes auth, no document
     for (const bad of [
       { [good]: "human:Ada", short: "human:Bob" },

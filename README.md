@@ -55,7 +55,7 @@ npm run build                      # writes dist/ and dist/ui
 export WRANGLER_SEND_METRICS=false
 TOKEN=$(openssl rand -hex 32); echo "$TOKEN"
 npx wrangler dev --var AGENTIC_DOCS_REGION:unknown --var AGENTIC_DOCS_UNSAFE_REGION:1 \
-  --var "AGENTIC_DOCS_TOKENS:{\"$TOKEN\":\"human:Ada\"}"
+  --var AGENTIC_DOCS_UNSAFE_TOKENS:1 --var "AGENTIC_DOCS_TOKENS:{\"$TOKEN\":\"human:Ada\"}"
 ```
 
 Open the address that wrangler prints, paste the token, and sign in. The token stays in that tab and goes
@@ -98,7 +98,7 @@ npm install agentic-documents
 }
 ```
 
-Add the D1 and R2 bindings from the sample `wrangler.jsonc`, and set `AGENTIC_DOCS_TOKENS` as a secret.
+Add the D1 and R2 bindings from the sample `wrangler.jsonc`. The Worker signs in with `agentic-identity` keys from the D1 database (see [Sign-in](#sign-in)).
 The Worker serves the files in `dist/ui` first. It answers `/api`, `/health`, and any other path. If you deploy from a clone
 with the sample `wrangler.jsonc`, run `npm run build` before `wrangler deploy`. The build writes `dist/ui`,
 and the sample file reads it.
@@ -144,15 +144,7 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 # add &remoteImages=true to keep web images; the default shows only images stored inside the document
 ```
 
-- Each token stands for one author. Set `AGENTIC_DOCS_TOKENS` as a secret:
-  `wrangler secret put AGENTIC_DOCS_TOKENS`. The value is a JSON object from token to author:
-  `{"<32 or more random bytes>":"agent_of_human:scribe"}`. To give an agent the right to accept
-  suggestions, use `{"as":"agent_of_human:approver","scopes":["docs:accept"]}` as the value.
-  Make a token with `openssl rand -hex 32`. A token holds only `A-Z a-z 0-9 _ -` (32 to 512 bytes), and an
-  author name holds only `A-Z a-z 0-9 . _ -` (up to 128 characters, not starting with `.`, no space or `@`).
-- A token under 32 bytes, a token with other characters (for example base64 with `+` or `/`), a value that is not a valid author, or a value that is not a JSON
-  object makes the Worker refuse every request (401). It logs the reason once, never the token.
-  A body cannot name its own author. With no tokens the API refuses every request.
+- Each key stands for one principal. See [Sign-in](#sign-in). A body cannot name its own author.
 - Errors are `{ "error": { "code", "message", "matches" } }`. Status: 400 bad input, 401 no
   valid token, 403 `FORBIDDEN` (for example an agent without `docs:accept` that accepts), 404 not
   found, 409 a conflict (ambiguous match, stale anchor, already decided), 503 `LOCKED`.
@@ -341,6 +333,33 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Arra
   as advisory. The room's own record of who sent updates in the room is at `GET /api/v1/docs/:id/room`. It does not cover
   text written over HTTP, the CLI, or MCP before the room opened: the client that seeds the room appears there.
 
+## Sign-in
+
+The Worker reads Bearer keys with `createStoreAuth` from `agentic-identity`. The principals and the keys live in
+the `principals` and `credentials` collections of the D1 database that the Worker already binds as `DB`. Make them
+with `agentic-identity` (its server, its CLI, or `issueCredential`) against that database. A key that is missing,
+expired, or revoked gets 401. A revoked agent stops, and so does every key below it.
+
+- The key sets the author. The principal id is the author name, and the principal kind is the author kind.
+- The role comes from the scopes of the principal, after the delegation chain narrows them. `docs:write` (or `docs:admin`, or
+  `*:write`, or `*:admin`) makes an editor. A principal with no write scope is a `viewer`: it reads and cannot write.
+- `docs:admin` also grants an agent the `docs:accept` and `docs:remove` scopes. A person needs no scope for either.
+- The Worker takes no sign-in from the request body, and it ignores `AGENTIC_DOCS_TOKENS` unless you switch it on.
+
+### Development fallback: a static token table
+
+For local work with `wrangler dev`, you can use a fixed table of tokens. It has no expiry and no revocation, so
+never use it in production. Set both variables:
+
+- `AGENTIC_DOCS_UNSAFE_TOKENS=1` switches the table on. With any other value the table is ignored.
+- `AGENTIC_DOCS_TOKENS` is a JSON object from token to author: `{"<32 or more random bytes>":"agent_of_human:scribe"}`.
+  To give an agent the right to accept suggestions, use `{"as":"agent_of_human:approver","scopes":["docs:accept"]}` as the value.
+  For a read-only token, use `{"as":"human:Vic","role":"viewer"}`. A token with no role is an editor.
+  Make a token with `openssl rand -hex 32`. A token holds only `A-Z a-z 0-9 _ -` (32 to 512 bytes), and an
+  author name holds only `A-Z a-z 0-9 . _ -` (up to 128 characters, not starting with `.`, no space or `@`).
+- A token under 32 bytes, a token with other characters (for example base64 with `+` or `/`), a value that is not a valid author, or a value that is not a JSON
+  object makes the Worker refuse every request (401). It logs the reason once, never the token.
+
 ## Live demo
 
 A demo Worker runs at <https://agentic-documents-demo.hello-fd1.workers.dev>. It is a staging build. Open the
@@ -355,7 +374,7 @@ Durable Objects, and `AGENTIC_DOCS_REGION=eu`. To redeploy, a maintainer with a 
 CLOUDFLARE_API_TOKEN=<token> npm run deploy:demo
 ```
 
-The tokens live in a Worker secret, never in the repo or in CI. Set them with
+The demo is a staging build, so it sets `AGENTIC_DOCS_UNSAFE_TOKENS=1` and reads its static token table. The tokens live in a Worker secret, never in the repo or in CI. Set them with
 `WRANGLER_SEND_METRICS=false npx wrangler secret put AGENTIC_DOCS_TOKENS --config wrangler.demo.jsonc`. To make your own demo, copy
 `wrangler.demo.jsonc`, change the name, and put your own database id and bucket name in it. Make the database with
 `WRANGLER_SEND_METRICS=false npx wrangler d1 create <name> --jurisdiction eu`, because the jurisdiction is fixed when you create it. Make the bucket with
@@ -394,7 +413,7 @@ npx agentic-documents mcp --live https://docs.example.com
   The CLI and MCP server save after each change. If a save fails, the room keeps the change and the error says so: do not repeat it. `new` makes the document in the store, and a room picks it up on the next join. A document over 1,000,000 bytes cannot open in a room or be saved from one. A save refuses an update with a wrong
   kind of content or a malformed thread, suggestion, or log entry. HTTP edits reach an open room only when a client joins and seeds it.
 - A `viewer` token joins and reads. The room drops its updates, and `edit` and `save` fail with `FORBIDDEN`.
-  Set a role in `AGENTIC_DOCS_TOKENS` with `{ "as": "human:Vic", "role": "viewer" }`. A token with no role is an editor.
+  A principal with no `docs:write` scope is a viewer (see [Sign-in](#sign-in)). In the development token table, use `{ "as": "human:Vic", "role": "viewer" }`.
 - `GET /api/v1/docs/:id/room` lists who sent updates in the room, and whether each is machine-made.
 - Pass `reconnect: {}` to `join` to keep trying after a drop. Edits made offline merge on return.
   A room that restarts recovers its state from the Durable Object.

@@ -8,7 +8,9 @@
   "preview_urls": false,
   "vars": {
     // The database and the bucket have the eu jurisdiction.
-    "AGENTIC_DOCS_REGION": "eu"
+    "AGENTIC_DOCS_REGION": "eu",
+    // The demo is a staging build with a static token table. See "Development fallback" in the README.
+    "AGENTIC_DOCS_UNSAFE_TOKENS": "1"
   },
   "assets": { "directory": "./dist/ui" },
   "durable_objects": { "bindings": [{ "name": "SYNC_ROOM", "class_name": "SyncRoom" }] },

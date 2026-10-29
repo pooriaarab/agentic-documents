@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The Worker signs in with `agentic-identity` keys from the D1 database by default (`createStoreAuth`). A scope of
+  `docs:write` makes an editor, no write scope makes a viewer, and `docs:admin` grants an agent `docs:accept` and
+  `docs:remove`. `createApp` takes an `auth` option to bring your own `Auth` port.
+- **Breaking.** `AGENTIC_DOCS_TOKENS` is ignored unless `AGENTIC_DOCS_UNSAFE_TOKENS=1` is set. It is a development
+  fallback. Set the new variable where you still use the table. Without a D1 database or the switch, the Worker
+  answers 500 `MISCONFIGURED`.
+
 ## 0.7.1
 
 ### Changed
