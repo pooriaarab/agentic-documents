@@ -106,8 +106,8 @@ test("on a short window the slash menu shows a part of the list, and the arrow k
   await page.context().close();
 });
 
-test("a slash that Escape closed stays closed when a peer writes before it", async ({ browser }) => {
-  const { page, id } = await open(browser, "Intro");
+test("a slash that Escape closed stays closed when a peer writes before it, also with the caret elsewhere", async ({ browser }) => {
+  const { page, id } = await open(browser, "First\n\nIntro");
   const text = textbox(page);
   await expect(text).toContainText("Intro");
   await text.click();
@@ -116,10 +116,13 @@ test("a slash that Escape closed stays closed when a peer writes before it", asy
   const list = page.getByRole("listbox", { name: "Insert a block" });
   await expect(list).toBeVisible();
   await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+Home"); // the caret goes to another line
   const peer = await LiveDoc.join({ server: url(), id, token: BOB });
-  await peer.edit((doc, author) => doc.replace({ text: "Intro" }, "A longer opening", author));
+  await peer.edit((doc, author) => doc.replace({ text: "First" }, "A much longer first line", author));
   await peer.flush();
-  await expect(text).toContainText("A longer opening /");
+  await expect(text).toContainText("A much longer first line");
+  await page.keyboard.press("Control+End"); // back after the closed slash
+  await expect(list).toHaveCount(0);
   await page.keyboard.type("x"); // "x" finds Text, so a lost dismissal would open the menu
   await expect(list).toHaveCount(0);
   await peer.leave();

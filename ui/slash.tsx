@@ -2,8 +2,8 @@
 // gitmarkdown slash command menu (MIT, see THIRD_PARTY_NOTICES.md). The text keeps the focus. The menu is a list box that
 // the text controls: arrow keys move the active item, Enter or Tab picks it, Escape closes it.
 import type { Editor } from "@tiptap/core";
-import type { Transaction } from "@tiptap/pm/state";
-import { ySyncPluginKey } from "@tiptap/y-tiptap";
+import { absolutePositionToRelativePosition, relativePositionToAbsolutePosition, ySyncPluginKey } from "@tiptap/y-tiptap";
+import type * as Y from "yjs";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { glyph, icons } from "./icons.js";
 
@@ -62,12 +62,25 @@ function find(editor: Editor): Omit<Open, "top" | "left" | "rows"> | undefined {
   return { from: selection.from - found[1]!.length - 1, query: found[1]!.toLowerCase().trim() };
 }
 
+type Sync = { doc: Y.Doc; type: Y.XmlFragment; binding?: { mapping: unknown } };
+const syncOf = (editor: Editor) => ySyncPluginKey.getState(editor.state) as Sync | undefined;
+/** A document position as a Yjs relative position, when the editor is bound to Yjs. */
+const pin = (editor: Editor, pos: number): Y.RelativePosition | number => {
+  const sync = syncOf(editor);
+  return sync?.binding ? absolutePositionToRelativePosition(pos, sync.type, sync.binding.mapping as never) : pos;
+};
+const unpin = (editor: Editor, at: Y.RelativePosition | number): number | undefined => {
+  if (typeof at === "number") return at;
+  const sync = syncOf(editor);
+  return sync?.binding ? (relativePositionToAbsolutePosition(sync.doc, sync.type, at, sync.binding.mapping as never) ?? undefined) : undefined;
+};
+
 export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[] }) {
   const [open, setOpen] = useState<Open>();
   const [active, setActive] = useState(0);
-  // The slash that Escape closed. Typing on, or a peer writing before it, does not open the menu again; a new slash
-  // does. Local changes move the position exactly. A peer's change replaces the line, so it is read again then.
-  const dismissed = useRef<number | undefined>(undefined);
+  // The slash that Escape closed, as a Yjs relative position: it stays on that slash through local and peer changes,
+  // also while the caret is somewhere else. Typing on does not open the menu again; a new slash does.
+  const dismissed = useRef<Y.RelativePosition | number | undefined>(undefined);
   const id = useId();
   const shown = open ? items.filter((item) => matches(item, open.query)) : [];
   const state = useRef({ open, shown, active });
@@ -77,9 +90,10 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
     const update = () => {
       const hit = editor.isFocused ? find(editor) : undefined;
       // A closed slash stays closed while it is there, even when the caret leaves it and comes back. Another slash opens.
-      const closed = dismissed.current;
-      if (closed !== undefined && (editor.state.doc.textBetween(closed, Math.min(closed + 1, editor.state.doc.content.size)) !== "/" || (hit && hit.from !== closed))) dismissed.current = undefined;
-      if (!hit || hit.from === dismissed.current) return setOpen(undefined);
+      const closed = dismissed.current === undefined ? undefined : unpin(editor, dismissed.current);
+      const size = editor.state.doc.content.size;
+      if (dismissed.current !== undefined && (closed === undefined || closed >= size || editor.state.doc.textBetween(closed, closed + 1) !== "/" || (hit && hit.from !== closed))) dismissed.current = undefined;
+      if (!hit || (dismissed.current !== undefined && hit.from === closed)) return setOpen(undefined);
       const at = editor.view.coordsAtPos(hit.from);
       setOpen((old) => {
         if (old?.query !== hit.query) setActive(0);
@@ -100,12 +114,6 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
       });
     };
     const blur = () => setOpen(undefined);
-    const moved = ({ transaction }: { transaction: Transaction }) => {
-      if (dismissed.current === undefined || !transaction.docChanged) return;
-      const peer = (transaction.getMeta(ySyncPluginKey) as { isChangeOrigin?: boolean } | undefined)?.isChangeOrigin;
-      dismissed.current = peer ? (find(editor)?.from ?? dismissed.current) : transaction.mapping.map(dismissed.current);
-    };
-    editor.on("transaction", moved);
     editor.on("update", update);
     editor.on("selectionUpdate", update);
     editor.on("blur", blur);
@@ -117,7 +125,6 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
       editor.off("update", update);
       editor.off("selectionUpdate", update);
       editor.off("blur", blur);
-      editor.off("transaction", moved);
     };
   }, [editor, items]);
 
@@ -154,7 +161,7 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        dismissed.current = at.from;
+        dismissed.current = pin(editor, at.from);
         setOpen(undefined);
       }
     };
