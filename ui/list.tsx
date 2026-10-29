@@ -15,14 +15,16 @@ export function DocumentList({ go }: { go: (hash: string) => void }) {
   const [deleting, setDeleting] = useState<DocSummary>();
   const canWrite = me.role === "editor";
 
-  const refresh = useCallback(() => {
-    setLoad({ state: "loading" });
-    api.list().then(
+  const refresh = useCallback((quiet = false) => {
+    if (!quiet) setLoad({ state: "loading" });
+    return api.list().then(
       (docs) => setLoad({ state: "ready", docs: docs.sort((a, b) => b.updatedAt - a.updatedAt) }),
       (e: unknown) => setLoad({ state: "error", message: describe(e) }),
     );
   }, [api]);
-  useEffect(refresh, [refresh]);
+  useEffect(() => void refresh(), [refresh]);
+  // After a rename or a delete the list stays on screen, and focus goes to the page heading.
+  const changed = () => void refresh(true).then(() => document.querySelector("h1")?.focus());
 
   const newButton = canWrite ? <Button onClick={() => setCreating(true)}><PlusIcon aria-hidden /> New document</Button> : undefined;
   return (
@@ -34,7 +36,7 @@ export function DocumentList({ go }: { go: (hash: string) => void }) {
       {load.state === "loading" && <p role="status" className="muted">Loading documents…</p>}
       {load.state === "error" && (
         <div role="alert" className="notice">
-          <EmptyState title="Could not load documents" description={load.message} action={<Button onClick={refresh}>Try again</Button>} />
+          <EmptyState title="Could not load documents" description={load.message} action={<Button onClick={() => void refresh()}>Try again</Button>} />
         </div>
       )}
       {load.state === "ready" && load.docs.length === 0 && (
@@ -63,8 +65,8 @@ export function DocumentList({ go }: { go: (hash: string) => void }) {
         </FileList>
       )}
       <NewDocument open={creating} onOpenChange={setCreating} onCreated={(id) => go(`#/d/${encodeURIComponent(id)}`)} />
-      <RenameDocument id={renaming?.id ?? ""} current={renaming?.title ?? ""} open={renaming !== undefined} onOpenChange={(open) => !open && setRenaming(undefined)} onDone={refresh} />
-      <DeleteDocument id={deleting?.id ?? ""} name={deleting?.title ?? ""} open={deleting !== undefined} onOpenChange={(open) => !open && setDeleting(undefined)} onDone={refresh} />
+      <RenameDocument id={renaming?.id ?? ""} current={renaming?.title ?? ""} open={renaming !== undefined} onOpenChange={(open) => !open && setRenaming(undefined)} onDone={changed} />
+      <DeleteDocument id={deleting?.id ?? ""} name={deleting?.title ?? ""} open={deleting !== undefined} onOpenChange={(open) => !open && setDeleting(undefined)} onDone={changed} />
     </>
   );
 }

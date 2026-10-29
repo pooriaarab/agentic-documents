@@ -9,11 +9,12 @@ import { Extension } from "@tiptap/core";
 import { ySyncPluginKey, yCursorPlugin } from "@tiptap/y-tiptap";
 import { Component, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, Toolbar, ToolbarButton, ToolbarSeparator, usableName, type PresenceEntry } from "agentic-design/react";
+import { DocsApiError } from "../src/client.js";
 import { describe, isMachine, useSession } from "./api.js";
 import { PageHeading } from "./focus.js";
 import { DeleteDocument, RenameDocument, ShareDocument } from "./dialogs.js";
 import { openSession, type LiveSession } from "./live.js";
-import { AgentText, agentRuns } from "./marks.js";
+import { AgentText } from "./marks.js";
 
 type Load = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; live: LiveSession; title: string };
 const SAVE_AFTER_MS = 1500;
@@ -82,8 +83,8 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
     })();
     return () => {
       cancelled = true;
-      // A save after a delete would make the document again, and a viewer cannot save.
-      if (live) void (removed.current || me.role === "viewer" ? Promise.resolve() : live.save().catch(() => undefined)).finally(() => live?.close());
+      // Save on leave only when this tab changed something. A save never makes a document, so a delete stays deleted.
+      if (live) void (removed.current || me.role === "viewer" || !live.dirty ? Promise.resolve() : live.save().catch(() => undefined)).finally(() => live?.close());
     };
   }, [api, token, id, me.name, me.role, attempt]);
 
@@ -120,7 +121,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
   const [editor, setEditor] = useState<Editor>();
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   const [peers, setPeers] = useState<Peer[]>([]);
-  const [saved, setSaved] = useState<"saved" | "saving" | "failed">("saved");
+  const [saved, setSaved] = useState<"saved" | "saving" | "failed" | "removed">("saved");
   const [connection, setConnection] = useState<Status>("connecting");
   const [agentText, setAgentText] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -142,7 +143,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
       editorProps: { attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "prose" } },
     });
     setEditor(editor);
-    editor.on("transaction", refresh);
+    editor.on("transaction", () => (setAgentText(host.current?.querySelector(".agent-text") != null), refresh()));
     const offPeers = live.sync.onPeers(setPeers);
     setPeers(live.sync.peers);
 
@@ -152,22 +153,22 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
       setSaved("saving");
       live.save().then(
         () => setSaved("saved"),
-        () => {
+        (error: unknown) => {
+          if (error instanceof DocsApiError && error.code === "NO_DOCUMENT") return setSaved("removed"); // someone deleted it: stop saving
           setSaved("failed");
           timer = setTimeout(save, 5000); // try again, so a stale stored copy does not wait for the next keystroke
         },
       );
     };
     const changed = (_update: Uint8Array, origin: unknown) => {
-      setAgentText(agentRuns(live.doc).length > 0);
       if (editable && origin === ySyncPluginKey) { // only changes made in this editor are saved from this tab
+        live.dirty = true;
         setSaved("saving");
         clearTimeout(timer);
         timer = setTimeout(save, SAVE_AFTER_MS);
       }
     };
     live.doc.on("update", changed);
-    setAgentText(agentRuns(live.doc).length > 0);
     setConnection(live.status());
     const offStatus = live.onStatus(setConnection);
     return () => {
@@ -238,7 +239,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
           <span role="status" className="muted">
             {!editable ? "Read only. " : ""}
             {connection === "disconnected" ? "Offline: changes are kept and sync when you are back. " : ""}
-            {saved === "saving" ? "Saving…" : saved === "failed" ? "Not saved. Will try again." : "Saved"}
+            {saved === "saving" ? "Saving…" : saved === "failed" ? "Not saved. Will try again." : saved === "removed" ? "This document was removed. Your changes are not saved." : "Saved"}
           </span>
         </div>
       </div>

@@ -169,9 +169,10 @@ export function createClient(options: ClientOptions) {
     async state(id: string, call?: CallOptions): Promise<Uint8Array> {
       return new Uint8Array(await (await send(`${doc(id)}/state`, { method: "GET" }, call, "application/octet-stream")).arrayBuffer());
     },
-    /** `POST /checkpoint`: merge a Yjs update into the stored document. */
-    async checkpoint(id: string, update: Uint8Array, call?: CallOptions): Promise<{ ok: true }> {
-      return (await json(await send(`${doc(id)}/checkpoint`, { method: "POST", body: update as BodyInit }, call), isOk, "{ ok: true }")) as { ok: true };
+    /** `POST /checkpoint`: merge a Yjs update into the stored document. It makes the document when there is none, unless `create` is false: then it fails with `NO_DOCUMENT`. */
+    async checkpoint(id: string, update: Uint8Array, call?: CallOptions & { create?: boolean }): Promise<{ ok: true }> {
+      const query = call?.create === false ? { create: false } : undefined;
+      return (await json(await send(`${doc(id)}/checkpoint`, { method: "POST", body: update as BodyInit, query }, call), isOk, "{ ok: true }")) as { ok: true };
     },
   };
 }

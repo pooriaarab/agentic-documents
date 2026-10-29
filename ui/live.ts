@@ -18,7 +18,9 @@ export interface LiveSession {
   /** The socket state now, and a way to hear when it changes. */
   status: () => Status;
   onStatus: (listener: (status: Status) => void) => () => void;
-  /** Merge the room into the stored document. */
+  /** True when this tab changed the text and has not saved it yet. */
+  dirty: boolean;
+  /** Merge the room into the stored document. It never makes a document: a removed one fails with NO_DOCUMENT. */
   save(): Promise<void>;
   close(): Promise<void>;
 }
@@ -39,15 +41,23 @@ export async function openSession(api: DocsClient, token: string, id: string, na
   });
   // Open the editor once the room has sent what it holds, so its first update does not land under the first keystroke.
   await sync.whenSynced().catch(() => undefined);
-  return {
+  const session: LiveSession = {
     sync,
     doc,
     status: () => status,
     onStatus: (listener) => (listeners.add(listener), () => void listeners.delete(listener)),
+    dirty: false,
     async save() {
-      await sync.flush();
-      await api.checkpoint(id, Y.encodeStateAsUpdate(doc));
+      session.dirty = false;
+      try {
+        await sync.flush();
+        await api.checkpoint(id, Y.encodeStateAsUpdate(doc), { create: false });
+      } catch (error) {
+        session.dirty = true;
+        throw error;
+      }
     },
     close: () => sync.disconnect(),
   };
+  return session;
 }

@@ -57,6 +57,7 @@ export const AgentText = Extension.create({
           const sync = ySyncPluginKey.getState(view.state) as { doc: Y.Doc; type: Y.XmlFragment; binding?: { mapping: Map<Y.AbstractType<unknown>, unknown> } } | undefined;
           if (!sync) return {};
           let timer: ReturnType<typeof setTimeout> | undefined;
+          let drawn = "";
           const refresh = () => {
             timer = undefined;
             try {
@@ -69,6 +70,9 @@ export const AgentText = Extension.create({
                 const b = relativePositionToAbsolutePosition(sync.doc, sync.type, Y.createRelativePositionFromTypeIndex(text, to), mapping as never);
                 if (a !== null && b !== null && a < b && b <= size) marks.push(Decoration.inline(a, b, { class: "agent-text", title: "Written by an agent" }));
               }
+              const signature = marks.map((m) => `${m.from}-${m.to}`).join(",");
+              if (signature === drawn) return; // nothing moved: no transaction, no render
+              drawn = signature;
               view.dispatch(view.state.tr.setMeta(key, DecorationSet.create(view.state.doc, marks)).setMeta("addToHistory", false));
             } catch {
               /* the text and the document were mid-change. The next update draws again. */

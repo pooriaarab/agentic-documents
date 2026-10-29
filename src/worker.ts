@@ -256,7 +256,7 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
   app.post("/api/v1/docs/:id/checkpoint", async (c) => {
     if (c.get("role") === "viewer") throw new DocError("FORBIDDEN", "this token is a viewer; it cannot change a document");
     const update = await readCapped(c.req.raw, MAX_LIVE_BYTES);
-    await (await serviceOf(c)).checkpoint(c.req.param("id"), update, c.get("author"));
+    await (await serviceOf(c)).checkpoint(c.req.param("id"), update, c.get("author"), { create: c.req.query("create") !== "false" });
     return c.json({ ok: true });
   });
 

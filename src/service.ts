@@ -97,7 +97,7 @@ export class DocsService implements DocAccess {
    * has none. A merge is safe to repeat and to run in any order. The save is conditional, so two
    * checkpoints at once both land.
    */
-  async checkpoint(id: string, update: Uint8Array, author: Principal): Promise<void> {
+  async checkpoint(id: string, update: Uint8Array, author: Principal, options: { create?: boolean } = {}): Promise<void> {
     const key = this.key(id);
     const scratch = new Y.Doc();
     try {
@@ -112,6 +112,8 @@ export class DocsService implements DocAccess {
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       const found = await this.blobs.get(key);
       if (!found) {
+        // A client that only saves, such as the web UI, must not bring back a document that someone removed.
+        if (options.create === false) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
         const created = AgenticDoc.fromUpdate(update, this.options);
         const fresh = this.checked(id, created);
         this.fits(id, fresh);

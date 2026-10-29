@@ -44,7 +44,7 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 The Worker serves a small web app, built on [agentic-design](https://www.npmjs.com/package/agentic-design)
 and the typed client (`agentic-documents/client`). It has a document list, a rich-text editor (headings,
 lists, bold, italic, links), rename, delete, a share dialog, the people and agents in the room, and a dotted
-underline on text that an agent wrote. The tests check each main view with axe (WCAG 2.2 AA rules) in the light and the dark theme: sign in, list, empty and error list, new-document dialog, editor, share dialog,, link, rename and delete dialogs, the actions menu, and the read-only view. Axe finds only part of the faults, so it does not replace a test with a screen reader. Screenshots of
+underline on text that an agent wrote. The tests check each main view with axe (WCAG 2.2 AA rules) in the light and the dark theme: sign in, list, empty and error list, new-document dialog, editor, share dialog, link, rename and delete dialogs, the actions menu, and the read-only view. Axe finds only part of the faults, so it does not replace a test with a screen reader. Screenshots of
 every view are in [docs/screenshots](docs/screenshots).
 
 Run it on your machine:
@@ -69,7 +69,7 @@ How it works:
 - The editor joins the live room of the document. A browser WebSocket cannot send an `Authorization`
   header, so the page offers the token as a subprotocol, which only the live-room route reads.
 - The page saves the room to the stored document 1.5 seconds after a change, and when you leave the
-  document. A command over HTTP then reads the new text.
+  document in the app (not when you close the tab). A save never makes a document: if someone deleted it, the page says so and stops saving. A command over HTTP then reads the new text.
 - An agent's text is the text whose writer is a logged edit by a non-human author (see the `client` field of the
   edit log). Typing in the editor does not add to the edit log.
 - The page sets a content security policy: scripts, styles, fonts, and images come from the Worker only, and a document image that points to another host does not load.

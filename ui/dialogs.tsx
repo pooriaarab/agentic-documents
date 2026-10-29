@@ -51,8 +51,9 @@ export function NewDocument({ open, onOpenChange, onCreated }: Shared & { onCrea
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title="New document" submit="Create" onDone={() => onOpenChange?.(false)}
       action={async () => {
+        const retry = made.current !== undefined;
         const id = (made.current ??= idFor(title));
-        await api.create({ id }).catch((e: unknown) => (e instanceof DocsApiError && e.code === "DOCUMENT_EXISTS" ? undefined : Promise.reject(e)));
+        await api.create({ id }).catch((e: unknown) => (retry && e instanceof DocsApiError && e.code === "DOCUMENT_EXISTS" ? undefined : Promise.reject(e)));
         if (title.trim()) await api.rename(id, { title });
         onCreated(id);
       }}>

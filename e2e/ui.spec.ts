@@ -120,6 +120,40 @@ test("deleting from the editor stays deleted, and a bad edit log entry does not 
   void browser;
 });
 
+test("a document that someone else deleted stays deleted when this tab saves or leaves", async ({ browser }) => {
+  const id = `doomed-${Date.now().toString(36)}`;
+  const ada = createClient({ baseUrl: url(), token: ADA });
+  await ada.create({ id, markdown: "Hello." });
+  const bob = await newPage(await browser.newContext(), BOB);
+  await bob.goto(`${url()}/#/d/${id}`);
+  await expect(textbox(bob)).toContainText("Hello.");
+  await textbox(bob).click();
+  await bob.keyboard.type(" Typed after the delete.");
+  await ada.remove(id);
+  // Bob's typing save finds no document and says so. It does not make the document again.
+  await bob.keyboard.type(" More.");
+  await expect(bob.getByRole("status").filter({ hasText: "was removed" })).toBeVisible();
+  await bob.getByRole("link", { name: "Documents", exact: true }).click();
+  await expect(bob.getByRole("heading", { name: "Documents", level: 1 })).toBeVisible();
+  await bob.waitForTimeout(1000);
+  expect((await fetch(`${url()}/api/v1/docs/${id}/read`, { headers: { authorization: `Bearer ${ADA}` } })).status).toBe(404);
+  expect((await ada.list()).map((d) => d.id)).not.toContain(id);
+  await bob.context().close();
+});
+
+test("opening a document and leaving it does not change who edited it last", async ({ browser }) => {
+  const id = `quiet-${Date.now().toString(36)}`;
+  await createClient({ baseUrl: url(), token: BOB }).create({ id, markdown: "Bob wrote this." });
+  const ada = await newPage(await browser.newContext(), ADA);
+  await ada.goto(`${url()}/#/d/${id}`);
+  await expect(textbox(ada)).toContainText("Bob wrote this.");
+  await ada.getByRole("link", { name: "Documents", exact: true }).click();
+  await expect(ada.getByRole("link", { name: id })).toBeVisible();
+  const row = (await createClient({ baseUrl: url(), token: ADA }).list()).find((d) => d.id === id)!;
+  expect(row.updatedBy).toEqual({ kind: "human", name: "Bob" });
+  await ada.context().close();
+});
+
 test("rename and delete from the list, with the keyboard", async ({ page }) => {
   await signIn(page, ADA);
   const title = `Draft ${Date.now().toString(36)}`;
@@ -134,6 +168,7 @@ test("rename and delete from the list, with the keyboard", async ({ page }) => {
   await page.getByLabel("Title").fill(`${title} v2`);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("link", { name: `${title} v2` })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Documents", level: 1 })).toBeFocused(); // focus is not lost when the list refreshes
 
   await page.getByRole("button", { name: `Actions for ${title} v2` }).focus();
   await page.keyboard.press("Enter");
