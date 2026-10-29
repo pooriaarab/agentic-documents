@@ -1,19 +1,22 @@
 import { Editor, Extension } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { Placeholder } from "@tiptap/extensions";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import type { Slice } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
 import type { Peer, Status } from "agentic-realtime/client";
 import { ySyncPluginKey, yCursorPlugin } from "@tiptap/y-tiptap";
-import { Component, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, usableName, type PresenceEntry } from "agentic-design/react";
 import * as Y from "yjs";
 import { isMachine } from "../src/kinds.js";
 import { MAX_LIVE_BYTES } from "../src/limits.js";
 import type { LiveSession } from "./live.js";
+import { BubbleMenu } from "./bubble.js";
 import { DocImage, ImageDialog } from "./image.js";
 import { AgentText } from "./marks.js";
+import { defaultSlashItems, SlashMenu } from "./slash.js";
 import { FormatBar } from "./toolbar.js";
 
 /** Who uses the editor. The name shows in presence. The kind says if it is a person or an agent. */
@@ -105,6 +108,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
         Collaboration.configure({ document: live.doc, field: "default" }),
         ...(live.sync ? [carets(live.sync)] : []),
         AgentText,
+        ...(editable ? [Placeholder.configure({ placeholder: "Write, or type / to add a block" })] : []),
       ],
       editorProps: {
         attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "agd-prose" },
@@ -195,6 +199,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
   // Focus the view first, in this frame. The focus command moves focus in a later frame.
   const chain = () => (editor!.view.focus(), editor!.chain().focus());
 
+  const slashItems = useMemo(() => defaultSlashItems({ image: () => setImaging(true) }), []);
+
   function openLink() {
     setHref((editor?.getAttributes("link").href as string | undefined) ?? "");
     setLinkError(undefined);
@@ -256,6 +262,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           </div>
         </form>
       </Dialog>
+      {editor && editable && <SlashMenu editor={editor} items={slashItems} />}
+      {editor && <BubbleMenu editor={editor} editable={editable} onLink={openLink} />}
       <ImageDialog editor={editor} doc={live.doc} open={imaging} onOpenChange={setImaging} />
     </section>
   );
