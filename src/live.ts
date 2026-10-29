@@ -183,7 +183,7 @@ export class LiveService implements DocAccess {
   // The catalog lives in the store, not in a room, so these go to the HTTP API.
   async list(): Promise<DocSummary[]> {
     const body: unknown = await (await this.call("/api/v1/docs", { method: "GET" })).json().catch(() => undefined);
-    const who = (w: unknown) => typeof w === "object" && w !== null && PRINCIPAL_KINDS.includes((w as Principal).kind) && typeof (w as Principal).name === "string";
+    const who = (w: unknown) => typeof w === "object" && w !== null && PRINCIPAL_KINDS.includes((w as Principal).kind) && typeof (w as Principal).name === "string" && (w as Principal).name !== "";
     const row = (r: unknown) => {
       const d = r as DocSummary;
       return typeof r === "object" && r !== null && typeof d.id === "string" && typeof d.title === "string" && typeof d.createdAt === "number" && typeof d.updatedAt === "number" && who(d.createdBy) && who(d.updatedBy);

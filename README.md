@@ -8,7 +8,7 @@
 Write documents with people and agents in real time.
 
 > Status: early, version 0.4.0. The document model, the text operations, the CLI, the MCP server,
-> the Worker API, and live editing in a room work. The web UI is not built yet.
+> the Worker API, live editing in a room, and a small web UI work. See [UI](#ui).
 
 ## Install
 
@@ -38,6 +38,43 @@ const id = suggestions.add({ text: "Monday" }, "Tuesday", agent);
 suggestions.accept(id, person); // the text changes now
 new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 ```
+
+## UI
+
+The Worker serves a small web app, built on [agentic-design](https://www.npmjs.com/package/agentic-design)
+and the typed client (`agentic-documents/client`). It has a document list, a rich-text editor (headings,
+lists, bold, italic, links), rename, delete, a share dialog, the people and agents in the room, and a dotted
+underline on text that an agent wrote. It meets WCAG 2.2 AA in the light and the dark theme. Screenshots of
+every view are in [docs/screenshots](docs/screenshots).
+
+Run it on your machine:
+
+```sh
+npm ci
+npm run build                      # writes dist/ and dist/ui
+export WRANGLER_SEND_METRICS=false
+TOKEN=$(openssl rand -hex 32); echo "$TOKEN"
+npx wrangler dev --var AGENTIC_DOCS_REGION:unknown --var AGENTIC_DOCS_UNSAFE_REGION:1 \
+  --var "AGENTIC_DOCS_TOKENS:{\"$TOKEN\":\"human:Ada\"}"
+```
+
+Open the address that wrangler prints, paste the token, and sign in. The token stays in that tab and goes
+when you close it. A token for an agent, such as `agent_of_human:Scribe`, makes its edits show as agent text.
+A `viewer` token opens documents read only. The region setting turns the residency check off, so use it for
+local work only.
+
+How it works:
+
+- The list, rename, delete, and the share dialog use the HTTP API through the typed client.
+- The editor joins the live room of the document. A browser WebSocket cannot send an `Authorization`
+  header, so the page offers the token as a subprotocol, which only the live-room route reads.
+- The page saves the room to the stored document 1.5 seconds after a change, and when you leave the
+  document. A command over HTTP then reads the new text.
+- An agent's text is the text whose writer is a logged edit by a non-human author (see the `client` field of the
+  edit log). Typing in the editor does not add to the edit log.
+- Run the tests with `npm run e2e`. They start `wrangler dev` with the built UI, drive Chromium with
+  Playwright, and run an axe check (WCAG 2.2 AA) on each view in both themes. Run them once with
+  `UPDATE_SCREENSHOTS=1` to write the screenshots again.
 
 ## CLI
 
@@ -237,14 +274,18 @@ Limits of live editing:
 
 ## Limits
 
-- No web UI yet.
+- The UI has no accounts. You paste a token, and the token sets your role. The share dialog shows a link and who
+  changed the document. Roles, invites, and expiring links wait for the sharing API in the Worker.
+- The UI marks agent text from the edit log, which a client writes. A modified client can mark its own text as a
+  person's, or a person's as an agent's. The last edit shown in the list is approximate when two writes race.
+- The UI is English only. It needs a browser with `WebSocket` and ES2022.
 - A document holds no roles of its own. The token table gives `editor` or `viewer`. To share a document
   by person, use `createSharing` from `agentic-identity` 0.4. A grant names its subject by kind
   (`human` or `agent`) and id, so a person and an agent with the same id hold separate roles. When you
   delete a document, call `deleteResource` on its resource so its grants do not outlive it. If
   `deleteResource` fails, treat the delete as failed and run it again. If it throws
   `EraseRefusedError`, remove the child resources or the extra owners first. Do not reuse the id
-  until it succeeds. This package has no command that deletes a whole document.
+  until it succeeds. The `remove` command deletes the document and its catalog entry. It does not touch grants.
 - The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
   shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
   overwrite each other. The CLI and MCP server keep the same data in local files.
