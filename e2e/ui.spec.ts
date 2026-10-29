@@ -30,8 +30,9 @@ test("create a document, type, reload, and a second browser sees the edit live",
   await ada.getByRole("button", { name: "Link" }).click();
   await ada.getByLabel("Address").fill("https://example.com/docs");
   await ada.getByRole("button", { name: "Apply" }).click();
+  await expect(ada.getByRole("dialog")).toHaveCount(0);
   await expect(textbox(ada)).toBeFocused(); // writing goes on in the text after the dialog closes
-  await ada.keyboard.press("ArrowRight"); // collapses the selection at its end
+  await ada.keyboard.press("Control+End"); // the caret goes to the end of the text, whatever is selected
   await ada.keyboard.press("Enter");
   await ada.getByRole("button", { name: "H2 heading" }).click();
   await ada.keyboard.type("Risks");
