@@ -7,8 +7,8 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.1.0. The document model, the text operations, the CLI, the MCP server,
-> and the Worker API work. The web UI is not built yet.
+> Status: early, version 0.2.0. The document model, the text operations, the CLI, the MCP server,
+> the Worker API, and live editing in a room work. The web UI is not built yet.
 
 ## Install
 
