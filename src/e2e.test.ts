@@ -142,6 +142,13 @@ describe("ODT export through the CLI", () => {
     expect(piped.stdout.equals(bytes)).toBe(true);
   });
 
+  test("what the ODT cannot hold goes to stderr, and the exit code stays 0", () => {
+    cli(["new", "lossy-doc", "--markdown", "text\n\n---\n\n> quote"]);
+    const r = spawnSync(process.execPath, [BIN, "export", "lossy-doc", "--format", "odt"], { env: { ...process.env, AGENTIC_DOCS_DIR: dir }, encoding: "buffer" });
+    expect(r.status).toBe(0);
+    expect(r.stderr.toString()).toContain("warning: a horizontal rule is left out");
+  });
+
   test("an unknown export format is refused", () => {
     expect(cli(["export", "odt-doc", "--format", "rtf"]).code).toBe(2);
   });

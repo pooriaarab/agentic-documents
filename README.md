@@ -291,10 +291,10 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data: Uint8Arra
   one application and undoes the other, so the text and the edit log hold it once. An accept
   beats a reject made at the same moment.
 - Export to ODT (OpenDocument text): headings, paragraphs, bold, italic, strike, code, links, lists,
-  quotes, rules, tables, and images as embedded files. The package follows ODF 1.3 with the mimetype
-  stored first. The CLI and the API send the file bytes. LibreOffice opens it, lists keep their
-  numbers, and its own re-save reads back to the same Markdown (checked by hand with LibreOffice 24.8
-  in the PR that added it).
+  tables, and PNG, JPEG, and GIF images as embedded files. `agentic-formats` writes the file, with the
+  mimetype stored first. The CLI and the API send the file bytes. A quote, a code block, a rule, a list
+  start number, and a WebP image are not kept in full (see Limits). Each loss is in `warnings` (SDK and
+  MCP), on stderr (CLI), and in the `x-export-warnings` header (API).
 - Export to Markdown and to self-contained HTML. The HTML loads nothing from other hosts. An image
   stored in the document as a `data:` URI (PNG, JPEG, GIF, or WebP) shows. Any other image becomes
   its alt text, because a remote image tells its host who opened the file. `remoteImages` turns
@@ -400,7 +400,9 @@ Limits of live editing:
   of code text, a horizontal rule is left out, a numbered list starts at 1, and a task list becomes a list that starts
   each item with `☐` or `☑`. On import, underline, superscript, and subscript are left out, and a footnote becomes
   text in brackets, and code text keeps only its code mark. Each one is named in `warnings`.
-- ODT export: comments and suggestions are not written. A code block loses its language. A table
+- ODT export: a quote becomes plain paragraphs, a code block becomes a paragraph of code text, a rule is
+  left out, a numbered list starts at 1, a list item keeps one paragraph, and a WebP image becomes its alt text.
+  Comments and suggestions are not written. A code block loses its language. A table
   cell span is not written (the model has none yet). A task list becomes a bullet list that starts each
   item with `☐` or `☑`. A remote image is not linked, because an office program would ask its host
   for it when the file opens. It becomes its alt text.

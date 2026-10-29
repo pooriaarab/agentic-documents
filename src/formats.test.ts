@@ -1,6 +1,6 @@
-import { normalizeTextDoc, readDocx, readOdt, writeDocx, writeOdt } from "agentic-formats";
+import { DEFAULT_LIMITS, normalizeTextDoc, readDocx, readOdt, readZip, writeDocx, writeOdt } from "agentic-formats";
 import { describe, expect, it } from "vitest";
-import { AgenticDoc, DocError } from "./index.js";
+import { AgenticDoc, DocError, exportDoc, exportOdt } from "./index.js";
 import { exportFile, fromTextDoc, importFile, toTextDoc } from "./formats.js";
 
 const ada = { kind: "human" as const, name: "Ada" };
@@ -148,5 +148,41 @@ describe("file formats", () => {
     const { blocks, warnings } = fromTextDoc({ blocks: [{ type: "paragraph", content: [{ type: "image", data: new Uint8Array([60]), mime: "image/svg+xml" as never, alt: "s" }] }] });
     expect(JSON.stringify(blocks)).toContain("[image: s]");
     expect(warnings.join(" ")).toMatch(/image/);
+  });
+});
+
+describe("the ODT export is safe and says what it loses", () => {
+  const contentOf = (bytes: Uint8Array) => new TextDecoder().decode(readZip(bytes, DEFAULT_LIMITS, "odt", (n) => n === "content.xml")["content.xml"]);
+
+  it("the same document gives the same bytes, and the mimetype comes first", () => {
+    const blocks = AgenticDoc.fromMarkdown(MD, ada).toJSON().content ?? [];
+    expect(exportOdt(blocks)).toEqual(exportOdt(blocks));
+    expect(new TextDecoder().decode(exportOdt([]).slice(30, 38))).toBe("mimetype");
+  });
+
+  it("an unsafe link, a remote image, and an SVG image are never written", () => {
+    const blocks = AgenticDoc.fromMarkdown("[x](javascript:alert(1)) ![a](https://tracker.example/a.gif) ![b](data:image/svg+xml;base64,PHN2Zz4=)", ada).toJSON().content ?? [];
+    const xml = contentOf(exportOdt(blocks));
+    expect(xml).not.toMatch(/javascript|tracker|svg\+xml|PHN2Zz4/);
+    expect(xml).toContain("x");
+  });
+
+  it("a control character and markup cannot break the XML", () => {
+    const xml = contentOf(exportOdt([{ type: "paragraph", content: [{ type: "text", text: "a\u0000b <i> & \"q\"" }] }]));
+    expect(xml).toContain("ab &lt;i&gt; &amp; &quot;q&quot;");
+  });
+
+  it("exportDoc lists what the ODT cannot hold, so a caller does not see a silent loss", () => {
+    const doc = AgenticDoc.fromMarkdown("3. three\n4. four\n\n---\n\n> quote\n\n```\ncode\n```\n\n![w](data:image/webp;base64,UklGRg==)", ada);
+    expect(exportDoc(doc, "odt").warnings).toEqual(
+      expect.arrayContaining([
+        "a numbered list that does not start at 1 starts at 1",
+        "a horizontal rule is left out",
+        "a quote is kept as plain paragraphs",
+        "a code block is kept as a paragraph of code text",
+        "an image that is not an embedded PNG, JPEG, or GIF is kept as its alt text",
+      ]),
+    );
+    expect(exportDoc(doc, "md").warnings).toEqual([]);
   });
 });

@@ -215,6 +215,13 @@ describe("worker flow", () => {
     expect(new TextDecoder().decode(bytes.slice(30, 38))).toBe("mimetype");
   });
 
+  test("ODT export names what the file cannot hold in a header", async () => {
+    await post("", BOT, { id: "lossy", markdown: "text\n\n---\n\n> quote" });
+    const res = await api("/lossy/export?format=odt", ADA);
+    expect(JSON.parse(res.headers.get("x-export-warnings") ?? "[]")).toEqual(expect.arrayContaining(["a horizontal rule is left out", "a quote is kept as plain paragraphs"]));
+    expect((await api("/odtdoc/export?format=odt", ADA)).headers.get("x-export-warnings")).toBeNull();
+  });
+
   test("HTML export is self-contained, escaped, and sandboxed", async () => {
     await post("", BOT, { id: "page", markdown: "# Hi <b> &amp; you\n\n[bad](javascript:alert(1)) and [ok](https://example.org)\n\n```\n<script>x</script>\n```" });
     const res = await api("/page/export?format=html", ADA);
