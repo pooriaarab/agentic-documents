@@ -93,10 +93,9 @@ test("Download Markdown saves the text, and Import Markdown replaces it for ever
   await expect(textbox(page)).toContainText("First draft.");
   const more = page.getByRole("button", { name: "More actions" });
 
-  // The file is named after the title, with the characters a file name cannot hold made spaces.
+  // The file is named after the title, read when the download starts, with the characters a file name cannot hold
+  // made spaces. Someone else renames the document while the page is open.
   await createClient({ baseUrl: url(), token: ADA }).rename(id, { title: "Q3/plan: notes" });
-  await page.reload();
-  await expect(textbox(page)).toContainText("First draft.");
   await more.click();
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("menuitem", { name: "Download Markdown" }).click()]);
   expect(download.suggestedFilename()).toBe("Q3 plan notes.md");
@@ -113,6 +112,10 @@ test("Download Markdown saves the text, and Import Markdown replaces it for ever
   await dialog.getByLabel("Markdown file").setInputFiles(write("big.md", "word ".repeat(120 * 1024)));
   await dialog.getByRole("button", { name: "Replace the text" }).click();
   await expect(dialog.getByRole("alert")).toContainText("512 KB or less"); // an import stays under the room limit
+  // Many small blocks make a document far larger than its Markdown: the size of the document is what counts.
+  await dialog.getByLabel("Markdown file").setInputFiles(write("tasks.md", "- [ ] x\n".repeat(30000)));
+  await dialog.getByRole("button", { name: "Replace the text" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("a live room keeps");
   await dialog.getByLabel("Markdown file").setInputFiles(write("note.md", "Text with a note.[^1]\n\n[^1]: The note."));
   await dialog.getByRole("button", { name: "Replace the text" }).click();
   await expect(dialog.getByRole("alert")).toContainText("cannot be imported");

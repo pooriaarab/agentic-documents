@@ -68,7 +68,8 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
   // The list page has these in its top bar. A document has no side bar or top bar of the app, so they are here.
   const themes: [ThemePreference, string][] = [["system", "System theme"], ["light", "Light theme"], ["dark", "Dark theme"]];
   const more: MenuItem[] = [
-    ...(editor ? [{ label: "Download Markdown", onSelect: () => downloadMarkdown(editor, title.title) }] : []),
+    // The title is read again, since someone else may have renamed the document since this page opened.
+    ...(editor ? [{ label: "Download Markdown", onSelect: () => void api.list().then((docs) => docs.find((d) => d.id === id)?.title ?? title.title, () => title.title).then((name) => downloadMarkdown(editor, name)) }] : []),
     // Not once the editor is read only, for example after someone removed the document: that text cannot be saved.
     ...(editor && writable && me.role === "editor" ? [{ label: "Import Markdown", onSelect: () => setDialog("import") }] : []),
     ...(editor ? ["separator" as const] : []),

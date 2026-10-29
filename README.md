@@ -80,7 +80,7 @@ them. In a code block, a Code language tool sets the language of the fence. Twel
 (Shell, CSS, Go, HTML, JavaScript, JSON, Markdown, Python, Rust, SQL, TypeScript, YAML). Any other language shows as
 plain text: it is never guessed. The colors are decorations, so the stored text has none. The document menu has
 Download Markdown, which saves the text as a `.md` file named after the title, and Import Markdown, which replaces the
-text for everyone in the room with a `.md` file of 512 KB or less, so the document stays under the room limit. Both
+text for everyone in the room with a `.md` file of 512 KB or less whose document stays under the room limit. Both
 use the same conversion as `doc_read` and `doc_new`, so an import refuses what `doc_new` refuses (a footnote, for
 example). An image that a paste would not keep is dropped. Undo takes an import back.
 

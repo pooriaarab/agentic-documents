@@ -3,6 +3,9 @@
 import type { Editor } from "@tiptap/core";
 import { Button, Dialog, DialogClose, Input } from "agentic-design/react";
 import { useEffect, useState, type FormEvent } from "react";
+import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
+import * as Y from "yjs";
+import { MAX_LIVE_BYTES } from "../src/limits.js";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "../src/markdown.js";
 import { allowedSource } from "./image.js";
 
@@ -22,11 +25,16 @@ const keepImages = (nodes: PmNode[], remote: boolean): PmNode[] =>
 /**
  * Replace the text of the editor with Markdown. An image is dropped when the editor would not keep it from a paste:
  * with `remote`, an `https://` address is kept. It throws an error with a message when the Markdown has a part the
- * document cannot keep.
+ * document cannot keep, or when the document would pass the room limit.
  */
 export function setEditorMarkdown(editor: Editor, markdown: string, remote = true): void {
   const content = keepImages(markdownToBlocks(markdown), remote);
-  editor.chain().focus().setContent(content.length ? content : [{ type: "paragraph" }]).run();
+  const doc = { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
+  // Many small blocks make a Yjs document much larger than its Markdown, so measure the document itself. It must stay
+  // under the room limit, with room to spare for what is deleted and for later typing.
+  const size = Y.encodeStateAsUpdate(prosemirrorJSONToYDoc(editor.schema, doc, "default")).byteLength;
+  if (size > MAX_LIVE_BYTES * 0.9) throw new Error(`As a document it is about ${Math.ceil(size / 1024)} KB, more than the ${Math.floor((MAX_LIVE_BYTES * 0.9) / 1024)} KB a live room keeps.`);
+  editor.chain().focus().setContent(doc.content).run();
 }
 
 /** Save the text as a `.md` file. */
