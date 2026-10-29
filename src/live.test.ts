@@ -317,6 +317,37 @@ describe("persistence through the Store and Blobs ports", () => {
     expect((await http("/typed-new/read", ADA)).status).toBe(404);
   });
 
+  test("an update with a malformed thread, suggestion, or log entry is refused before it can break a later command", async () => {
+    await http("", ADA, { id: "shapes", markdown: "# Shapes\n\nSome text here." });
+    const base = new Uint8Array(await (await fetch(`${SERVER()}/api/v1/docs/shapes/state`, { headers: { authorization: `Bearer ${ADA}` } })).arrayBuffer());
+    const forge = (change: (d: AgenticDoc) => void) => {
+      const d = AgenticDoc.fromUpdate(base);
+      change(d);
+      return d.encode();
+    };
+    const emptyThread = forge((d) => {
+      const t = new Y.Map<unknown>();
+      d.ydoc.getMap<Y.Map<unknown>>("threads").set("t1", t);
+      t.set("anchor", { text: "x", start: {}, end: {} });
+      t.set("status", "open");
+      t.set("messages", new Y.Array());
+    });
+    const badSuggestion = forge((d) => {
+      const f = new Y.Map<unknown>();
+      d.ydoc.getMap<Y.Map<unknown>>("suggestions").set("s1", f);
+      f.set("kind", "bogus");
+    });
+    const badLog = forge((d) => d.ydoc.getArray("edits").push([{ op: "append", at: "now", author: { kind: "agent", name: 5 } }]));
+    for (const [body, why] of [[emptyThread, "a thread is malformed"], [badSuggestion, "a suggestion is malformed"], [badLog, "an edit log entry is malformed"]] as const) {
+      const res = await fetch(`${SERVER()}/api/v1/docs/shapes/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${BOT}` }, body: new Uint8Array(body) });
+      expect([res.status, ((await res.json()) as any).error.message]).toEqual([400, expect.stringContaining(why)]);
+    }
+    // Normal comments still work, so the stored document was not touched.
+    expect((await http("/shapes/comment", BOT, { text: "Some", body: "one" })).status).toBe(200);
+    expect((await http("/shapes/comment", BOT, { text: "text", body: "two" })).status).toBe(200);
+    expect(((await (await http("/shapes/threads", ADA)).json()) as unknown[]).length).toBe(2);
+  });
+
   test("checkpoints from many clients at once all land", async () => {
     await http("", ADA, { id: "race", markdown: "# Race\n\nStart." });
     const base = new Uint8Array(await (await fetch(`${SERVER()}/api/v1/docs/race/state`, { headers: { authorization: `Bearer ${ADA}` } })).arrayBuffer());

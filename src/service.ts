@@ -10,6 +10,10 @@ const CATALOG = "documents";
 
 /** A room refuses a message over 1 MiB. A document past this size cannot seed a room, so it cannot be saved from one. */
 export const MAX_LIVE_BYTES = 1_000_000;
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isString = (v: unknown): v is string => typeof v === "string";
+const isWho = (v: unknown): boolean => isObject(v) && PRINCIPAL_KINDS.includes(v.kind as PrincipalKind) && isString(v.name) && v.name !== "";
+const isAnchor = (v: unknown): boolean => isObject(v) && isString(v.text) && isObject(v.start) && isObject(v.end);
 const ROOTS = new Set(["default", "edits", "suggestions", "threads", "applied"]);
 
 /** What the catalog keeps for each document. The author kind stays, so machine-made work stays labeled. */
@@ -94,18 +98,30 @@ export class DocsService {
   }
 
   /**
-   * The encoded document, once it reads back. Yjs does not check the type at a root, so an update can put text
-   * where the editor expects blocks, and then no command can read the document again.
+   * The encoded document, once it reads back and every stored entry has the shape the commands rely on. Yjs does not
+   * check types, so an update can put text where the editor expects blocks, or a thread with no messages, and then a
+   * command fails on every later call.
    */
   private checked(id: string, doc: AgenticDoc): Uint8Array {
+    const refuse = (what: string) => new DocError("INVALID_INPUT", `the update would leave document "${id}" unreadable: ${what}`);
     try {
       doc.toMarkdown();
-      const log = doc.edits() as unknown[];
-      if (!log.every((e) => typeof e === "object" && e !== null && PRINCIPAL_KINDS.includes((e as { author?: { kind?: never } }).author?.kind as never))) throw new Error("edit log");
+      if (!doc.edits().every((e) => isObject(e) && isWho(e.author) && isString(e.at) && isString(e.op))) throw refuse("an edit log entry is malformed");
+      for (const [, t] of doc.ydoc.getMap<Y.Map<unknown>>("threads")) {
+        const messages = t instanceof Y.Map ? t.get("messages") : undefined;
+        const ok = t instanceof Y.Map && isAnchor(t.get("anchor")) && ["open", "resolved"].includes(t.get("status") as string) && messages instanceof Y.Array && messages.length > 0 &&
+          messages.toArray().every((m) => isObject(m) && isString(m.id) && isString(m.at) && isString(m.body) && isWho(m.author));
+        if (!ok) throw refuse("a thread is malformed");
+      }
+      for (const [, f] of doc.ydoc.getMap<Y.Map<unknown>>("suggestions")) {
+        const ok = f instanceof Y.Map && ["insert", "replace", "delete"].includes(f.get("kind") as string) && ["pending", "accepted", "rejected"].includes(f.get("status") as string) &&
+          isAnchor(f.get("anchor")) && isString(f.get("replacement")) && isString(f.get("createdAt")) && isWho(f.get("author"));
+        if (!ok) throw refuse("a suggestion is malformed");
+      }
       new Suggestions(doc).list();
       new Threads(doc).list();
-    } catch {
-      throw new DocError("INVALID_INPUT", `the update would leave document "${id}" unreadable: a part holds the wrong kind of content`);
+    } catch (error) {
+      throw error instanceof DocError ? error : refuse("a part holds the wrong kind of content");
     }
     return doc.encode();
   }
