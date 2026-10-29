@@ -1,4 +1,4 @@
-import { normalizeTextDoc, readDocx, readOdt, writeOdt } from "agentic-formats";
+import { normalizeTextDoc, readDocx, readOdt, writeDocx, writeOdt } from "agentic-formats";
 import { describe, expect, it } from "vitest";
 import { AgenticDoc, DocError } from "./index.js";
 import { exportFile, fromTextDoc, importFile, toTextDoc } from "./formats.js";
@@ -129,5 +129,24 @@ describe("file formats", () => {
     });
     const doc = AgenticDoc.fromBlocks(blocks, ada);
     expect(doc.toJSON().content?.map((b) => b.type)).toEqual(["table", "bulletList"]);
+  });
+
+  it("bold or linked code text in a file imports as code, and the lost mark is named", () => {
+    const { bytes } = writeDocx({
+      blocks: [{ type: "paragraph", content: [{ type: "text", text: "npm ci", marks: ["bold", "code"] }, { type: "text", text: " and " }, { type: "text", text: "docs", marks: ["code"], href: "https://example.com" }] }],
+    });
+    const { doc, warnings } = importFile(bytes, "docx", ada);
+    expect(doc.toMarkdown().trim()).toBe("`npm ci` and `docs`");
+    expect(warnings.join(" ")).toMatch(/code text/);
+  });
+
+  it("Markdown bytes that are not UTF-8 fail with INVALID_INPUT", () => {
+    expect(() => importFile(new Uint8Array([0xff, 0xfe, 0x80]), "md", ada)).toThrow(expect.objectContaining({ code: "INVALID_INPUT" }));
+  });
+
+  it("an image type the editor cannot hold is named in warnings", () => {
+    const { blocks, warnings } = fromTextDoc({ blocks: [{ type: "paragraph", content: [{ type: "image", data: new Uint8Array([60]), mime: "image/svg+xml" as never, alt: "s" }] }] });
+    expect(JSON.stringify(blocks)).toContain("[image: s]");
+    expect(warnings.join(" ")).toMatch(/image/);
   });
 });

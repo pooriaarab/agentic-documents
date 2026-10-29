@@ -156,7 +156,10 @@ export function fromTextDoc(model: TextDoc): { blocks: PmNode[]; title?: string;
         case "break":
           return [{ type: "hardBreak" }];
         case "image":
-          if (!MODEL_IMAGE.test(node.mime)) return text(`[image${node.alt ? `: ${node.alt}` : ""}]`);
+          if (!MODEL_IMAGE.test(node.mime)) {
+            warn("an image that is not a PNG, JPEG, or GIF is kept as its alt text");
+            return text(`[image${node.alt ? `: ${node.alt}` : ""}]`);
+          }
           return [{ type: "image", attrs: { src: `data:${node.mime};base64,${toBase64(node.data)}`, alt: node.alt ?? null, title: null } }];
         case "footnote":
           warn("a footnote is kept as text in brackets");
@@ -170,6 +173,11 @@ export function fromTextDoc(model: TextDoc): { blocks: PmNode[]; title?: string;
           const href = node.href === undefined ? undefined : safeHref(node.href);
           if (node.href !== undefined && !href) warn("a link that is not a web, mail, or relative address is left out; the text stays");
           if (href) marks.push({ type: "link", attrs: { href } });
+          // The code mark holds no other mark in this schema, so code text keeps only that one.
+          if (marks.length > 1 && marks.some((m) => m.type === "code")) {
+            warn("a mark or a link on code text is left out; the text stays as code");
+            return text(node.text, [{ type: "code" }]);
+          }
           return text(node.text, marks);
         }
         default:
@@ -233,7 +241,12 @@ export function importFile(input: string | Uint8Array, format: ImportFormat, aut
   if (!IMPORT_FORMATS.includes(format)) throw new DocError("INVALID_INPUT", `import format must be one of ${IMPORT_FORMATS.join(", ")}`);
   const maxBytes = options.limits?.maxInputBytes ?? DEFAULT_LIMITS.maxInputBytes;
   if (format === "md") {
-    const markdown = typeof input === "string" ? input : new TextDecoder("utf-8", { fatal: true }).decode(input);
+    let markdown: string;
+    try {
+      markdown = typeof input === "string" ? input : new TextDecoder("utf-8", { fatal: true }).decode(input);
+    } catch {
+      throw new DocError("INVALID_INPUT", "a md file must be UTF-8 text");
+    }
     if (new TextEncoder().encode(markdown).length > maxBytes) throw new DocError("INVALID_INPUT", `the file is larger than ${maxBytes} bytes`);
     return { doc: AgenticDoc.fromMarkdown(markdown, author, options.doc), warnings: [] };
   }

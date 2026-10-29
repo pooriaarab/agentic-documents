@@ -198,7 +198,7 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data: Uint8Arra
 - Each result has `warnings`: one line for each kind of content that the other side cannot hold. The text of that
   content stays.
 - A file that is not valid, or that goes past a limit in `limits` (the agentic-formats defaults), fails with
-  `INVALID_INPUT`. A link that is not a web, mail, or relative address is dropped, and its text stays.
+  `INVALID_INPUT`. For `md`, only `maxInputBytes` applies. A link that is not a web, mail, or relative address is dropped, and its text stays.
 - `toTextDoc(blocks)` and `fromTextDoc(model)` are the mapping itself, for an app that works with the model.
 
 ## Features
@@ -332,7 +332,7 @@ Limits of live editing:
 - File formats through `agentic-documents/formats`: a quote becomes plain paragraphs, a code block becomes a paragraph
   of code text, a horizontal rule is left out, a numbered list starts at 1, and a task list becomes a list that starts
   each item with `☐` or `☑`. On import, underline, superscript, and subscript are left out, and a footnote becomes
-  text in brackets. Each one is named in `warnings`.
+  text in brackets, and code text keeps only its code mark. Each one is named in `warnings`.
 - ODT export: comments and suggestions are not written. A code block loses its language. A table
   cell span is not written (the model has none yet). A task list becomes a bullet list that starts each
   item with `☐` or `☑`. A remote image is not linked, because an office program would ask its host
