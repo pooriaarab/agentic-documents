@@ -98,6 +98,37 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   residency check off.
 - Run it locally with `npx wrangler dev`. Set `WRANGLER_SEND_METRICS=false` to turn off wrangler telemetry.
 
+## SDK
+
+`agentic-documents/client` is a typed client for the Worker HTTP API. It uses only `fetch`, so it runs in
+browsers, Workers, and Node 22. The token sets the author and the role.
+
+```ts
+import { createClient, DocsApiError } from "agentic-documents/client";
+
+const docs = createClient({ baseUrl: "https://docs.example.com", token: process.env.AGENTIC_DOCS_TOKEN! });
+await docs.create({ id: "plan", markdown: "# Plan" });
+const [section] = await docs.outline("plan");
+await docs.replace("plan", { section: section.id, content: "Ship it." });
+console.log(await docs.read("plan"));
+
+try {
+  await docs.read("missing", {}, { signal: AbortSignal.timeout(5000) });
+} catch (error) {
+  if (error instanceof DocsApiError) console.log(error.code, error.status); // NO_DOCUMENT 404
+}
+```
+
+- One method per route: `create`, `read`, `outline`, `edits`, `insert`, `replace`, `delete`, `append`,
+  `suggest`, `suggestions`, `accept`, `reject`, `comment`, `reply`, `resolve`, `reopen`, `threads`,
+  `export`, `room`, `me`, `health`, `state`, and `checkpoint`. The WebSocket route is not a method. Use
+  `LiveDoc` from `agentic-documents/live` for it.
+- Every method takes an optional `{ signal }` last. An abort rejects with what `fetch` throws.
+- An API error throws `DocsApiError` with `code` (the API error code), `status` (the HTTP status), and
+  `matches`. A reply that is not an API error has the code `HTTP_ERROR`.
+- The client never retries. A write is not safe to send twice.
+- Pass `fetch` to use your own, for a Worker service binding or for tests.
+
 ## Features
 
 - A Yjs document that a Tiptap editor can open. It uses the y-prosemirror layout.
