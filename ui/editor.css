@@ -23,6 +23,8 @@
 .adoc .prose table { border-collapse: collapse; }
 .adoc .prose th, .adoc .prose td { border: 1px solid var(--ad-color-border-strong); padding: var(--ad-space-1) var(--ad-space-2); }
 .adoc .prose img { max-width: 100%; }
+/* A selected image is one node, and the next key replaces it. Show that it is selected. */
+.adoc .prose img.ProseMirror-selectednode { outline: 2px solid var(--ad-color-focus); outline-offset: 2px; }
 .adoc .prose ul[data-type="taskList"] { list-style: none; padding-inline-start: var(--ad-space-2); }
 .adoc .prose ul[data-type="taskList"] li { display: flex; gap: var(--ad-space-2); }
 
