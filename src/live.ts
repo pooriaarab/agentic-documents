@@ -87,11 +87,14 @@ export class LiveDoc {
         if (stored.ok) {
           const state = new Uint8Array(await stored.arrayBuffer());
           if (state.length > MAX_LIVE_BYTES) throw new DocError("INVALID_INPUT", `the stored document is over ${MAX_LIVE_BYTES} bytes, the most a live room takes`);
-          Y.applyUpdate(client.doc, state);
+          // Seed only what the room lacks. Another principal may hold the client ids of the stored text already.
+          Y.applyUpdate(client.doc, Y.diffUpdate(state, Y.encodeStateVector(client.doc)));
         } else if (stored.status !== 404) throw await refusal(stored, "could not read the stored document");
         await client.flush();
         // A room drops a viewer's seed, and that is no refusal of an edit. An editor's refused seed is an error.
-        if (me.role === "editor" && client.denied.length > 0) throw new DocError("FORBIDDEN", `the room refused the stored document: ${client.denied[0]}`);
+        // A seed that lost the race to another seeder of the same stored text is no refusal either.
+        const refused = client.denied.filter((reason) => !reason.includes("belongs to another principal"));
+        if (me.role === "editor" && refused.length > 0) throw new DocError("FORBIDDEN", `the room refused the stored document: ${refused[0]}`);
       }
     } catch (error) {
       // Never leave the client open: with reconnect it would retry the seed for ever.
