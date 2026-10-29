@@ -128,6 +128,7 @@ export interface AppOptions {
   live?: (env: WorkerEnv) => Realtime;
 }
 
+const MAX_CHECKPOINT_BYTES = 1536 * 1024; // the room refuses a document past this size
 const DOC_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 export function createApp(source: ServiceSource, options: AppOptions = {}): Hono<AppEnv> {
@@ -194,6 +195,22 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
     }
     return parsed as Record<string, unknown>;
   }
+
+  const serviceOf = (c: Context<AppEnv>) => (typeof source === "function" ? source(c.env ?? {}) : Promise.resolve(source));
+
+  // A live room reads its start state here and saves its state back. These are sync plumbing, not commands.
+  app.get("/api/v1/docs/:id/state", async (c) => {
+    const state = await (await serviceOf(c)).state(c.req.param("id"));
+    return c.body(new Uint8Array(state), 200, { "content-type": "application/octet-stream" });
+  });
+  app.post("/api/v1/docs/:id/checkpoint", async (c) => {
+    if (c.get("role") === "viewer") throw new DocError("FORBIDDEN", "this token is a viewer; it cannot change a document");
+    if (Number(c.req.header("content-length") ?? 0) > MAX_CHECKPOINT_BYTES) throw new DocError("INVALID_INPUT", `the update is over ${MAX_CHECKPOINT_BYTES} bytes`);
+    const update = new Uint8Array(await c.req.arrayBuffer());
+    if (update.length > MAX_CHECKPOINT_BYTES) throw new DocError("INVALID_INPUT", `the update is over ${MAX_CHECKPOINT_BYTES} bytes`);
+    await (await serviceOf(c)).checkpoint(c.req.param("id"), update, c.get("author"));
+    return c.json({ ok: true });
+  });
 
   const create = commands.find((c) => c.name === "new")!;
   app.post("/api/v1/docs", async (c) => run(c, create, await body(c)));

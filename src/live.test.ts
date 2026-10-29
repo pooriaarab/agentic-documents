@@ -203,3 +203,62 @@ describe("config that fails closed", () => {
   });
 
 });
+
+describe("persistence through the Store and Blobs ports", () => {
+  test("a room starts from the stored document, and a save lands in the store with the agent's label", async () => {
+    expect((await http("", ADA, { id: "stored", markdown: "# Brief\n\nStart here." })).status).toBe(200);
+    // Two clients join at once. Both seed the room. The text must appear once.
+    const [human, agent] = await Promise.all([join_("stored", ADA), join_("stored", BOT)]);
+    await until(() => human.doc.toMarkdown() === agent.doc.toMarkdown() && human.doc.toMarkdown().includes("Start here."), "both to read the brief");
+    expect(human.doc.toMarkdown().match(/Start here/g)).toHaveLength(1);
+
+    await agent.edit((d, a) => d.append("Agent paragraph.", a));
+    await human.edit((d, a) => d.append("Human paragraph.", a));
+    await until(() => agent.doc.toMarkdown().includes("Human paragraph."), "the agent to see the human");
+    await agent.save();
+    await human.save();
+
+    const stored = await (await http("/stored/read", ADA)).text();
+    expect(stored).toContain("Start here.");
+    expect(stored).toContain("Agent paragraph.");
+    expect(stored).toContain("Human paragraph.");
+    const edits = (await (await http("/stored/edits", ADA)).json()) as { op: string; author: { kind: string; name: string } }[];
+    expect(edits.filter((e) => e.op === "append").map((e) => `${e.author.kind}:${e.author.name}`).sort()).toEqual(["agent_of_human:scribe", "human:Ada"]);
+    await Promise.all([human.leave(), agent.leave()]);
+  });
+
+  test("a save creates the document when the room has no stored copy, and a viewer cannot save", async () => {
+    const agent = await join_("fresh", BOT);
+    await agent.edit((d, a) => d.append("# Born live\n\nFrom a room.", a));
+    await agent.save();
+    expect(await (await http("/fresh/read", ADA)).text()).toContain("From a room.");
+    const viewer = await join_("fresh", VIEWER);
+    expect(viewer.doc.toMarkdown()).toContain("From a room.");
+    expect(viewer.denied).toEqual([]);
+    await expect(viewer.save()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const raw = await fetch(`${SERVER()}/api/v1/docs/fresh/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${VIEWER}` }, body: new Uint8Array() });
+    expect(raw.status).toBe(403);
+    await Promise.all([agent.leave(), viewer.leave()]);
+  });
+
+  test("a bad checkpoint is refused and the stored document stays", async () => {
+    const bad = await fetch(`${SERVER()}/api/v1/docs/fresh/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: new Uint8Array([255, 255, 255, 9, 9]) });
+    expect(bad.status).toBe(400);
+    expect(await (await http("/fresh/read", ADA)).text()).toContain("From a room.");
+  });
+
+  test("text written over HTTP keeps its author in the log, and the room list names only who sent updates in the room", async () => {
+    await http("", BOT, { id: "http-made", markdown: "# Machine text\n\nWritten over HTTP." });
+    const human = await join_("http-made", ADA);
+    const log = human.doc.edits().map((e) => `${e.author.kind}:${e.author.name}`);
+    expect(log).toEqual(["agent_of_human:scribe"]);
+    const room = (await (await http("/http-made/room", ADA)).json()) as { contributors: { kind: string }[] };
+    expect(room.contributors.map((c) => c.kind)).toEqual(["human"]); // the seeding client. The room never saw the agent.
+    await human.leave();
+  });
+
+  test("an update over the size limit is refused before it is read", async () => {
+    const big = await fetch(`${SERVER()}/api/v1/docs/fresh/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: new Uint8Array(1536 * 1024 + 1) });
+    expect(big.status).toBe(400);
+  });
+});

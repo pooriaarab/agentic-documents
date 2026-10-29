@@ -1,3 +1,4 @@
+import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, Store } from "agentic-identity";
 
@@ -41,6 +42,43 @@ export class DocsService {
     const key = this.key(id);
     const created = await this.blobs.put(key, AgenticDoc.fromMarkdown(markdown, author, this.options).encode(), { ifNoneMatch: "*" });
     if (!created) throw new DocError("DOCUMENT_EXISTS", `document "${id}" already exists`);
+    await this.catalog(id, author);
+  }
+
+  /** The stored document as a Yjs update. A live client seeds its room from it. */
+  async state(id: string): Promise<Uint8Array> {
+    const found = await this.blobs.get(this.key(id));
+    if (!found) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
+    return found.data;
+  }
+
+  /**
+   * Merge a Yjs update from a live room into the stored document, and create the document when it
+   * has none. A merge is safe to repeat and to run in any order. The save is conditional, so two
+   * checkpoints at once both land.
+   */
+  async checkpoint(id: string, update: Uint8Array, author: Principal): Promise<void> {
+    const key = this.key(id);
+    try {
+      Y.applyUpdate(new Y.Doc(), update); // a bad update must not reach storage
+    } catch {
+      throw new DocError("INVALID_INPUT", "the update is not a Yjs update");
+    }
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+      const found = await this.blobs.get(key);
+      if (!found) {
+        if (!(await this.blobs.put(key, update, { ifNoneMatch: "*" }))) continue;
+        await this.catalog(id, author);
+        return;
+      }
+      const doc = AgenticDoc.fromUpdate(found.data, this.options);
+      doc.applyUpdate(update);
+      if (await this.blobs.put(key, doc.encode(), { ifMatch: found.version })) return;
+    }
+    throw new DocError("CONFLICT", `document "${id}" kept changing; try again`);
+  }
+
+  private async catalog(id: string, author: Principal): Promise<void> {
     // The blob is the document. The catalog entry follows it, and a repeat leaves the first entry alone.
     await this.store.transaction(async (tx) => {
       if ((await tx.get(CATALOG, id)) === null) await tx.put(CATALOG, id, { createdBy: { kind: author.kind, name: author.name }, createdAt: Date.now() });
