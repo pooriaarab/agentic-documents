@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0
+
+### Breaking changes
+
+The API of this package does not change. The change is in the dependency.
+
+- **Dependencies.** `agentic-identity` moves from `^0.3.0` to `^0.4.0`. In 0.4 a grant is keyed on the
+  principal kind and the id, so a person and an agent with the same id hold separate roles. Grants
+  written by 0.3 are not honored until you run `migrateGrants`. A host that shares documents through
+  `createSharing` must pass `{ kind, id }` to `grant` and `revokeGrant`.
+
+### Added
+
+- Tests that a person and an agent with the same id get separate roles, and that `deleteResource`
+  removes the grants.
+- This package has no grant call and no command that deletes a whole document or erases a person. A
+  host that deletes a document must call `deleteResource` for it, and must delete the document and its
+  catalog entry itself. If `deleteResource` fails, run it again. If it throws `EraseRefusedError`,
+  remove the child resources or the extra owners first. Do not reuse the document id until it
+  succeeds. The `agentic-identity` person erase does not remove document content, and author names
+  stay in the edit log, the threads, and the suggestions.
+
 ## 0.2.0
 
 ### Breaking changes
