@@ -21,13 +21,13 @@ npm install agentic-documents
 | Import | Use it for |
 | --- | --- |
 | `agentic-documents` | The document model, text operations, threads, suggestions, the service, the file store, export, the sharing API, and their types. See [Quick start](#quick-start). |
+| `agentic-documents/worker` | The HTTP API as a Hono app. See [Worker subpath](#worker-subpath). |
+| `agentic-documents/live` | `LiveDoc`, the client for a live room. See [Live editing](#live-editing). |
 | `agentic-documents/client` | A typed client for the Worker API. See [SDK](#sdk). |
+| `agentic-documents/formats` | Import and export files. See [File formats](#file-formats). |
 | `agentic-documents/ui` | Mount the editor, or the whole app, in your page. See [Embed the editor](#embed-the-editor) and [Mount the whole app](#mount-the-whole-app). |
 | `agentic-documents/ui.css` | The base styles of the editor. Load it after `agentic-design/styles.css` and with `agentic-documents/ui`. See [Embed the editor](#embed-the-editor). |
 | `agentic-documents/app.css` | The layout styles of the whole app. Load it after `agentic-documents/ui.css`. See [Mount the whole app](#mount-the-whole-app). |
-| `agentic-documents/formats` | Import and export files. See [File formats](#file-formats). |
-| `agentic-documents/worker` | The HTTP API as a Hono app. See [Worker subpath](#worker-subpath). |
-| `agentic-documents/live` | `LiveDoc`, the client for a live room. See [Live editing](#live-editing). |
 | `agentic-documents/live-worker` | The HTTP API with live rooms, as a Worker. It exports `SyncRoom`. See [Live editing](#live-editing). |
 
 ## Quick start
