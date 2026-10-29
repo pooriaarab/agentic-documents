@@ -1,7 +1,8 @@
 import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
-import type { Blobs, Store } from "agentic-identity";
+import type { Blobs, PrincipalContext, Store } from "agentic-identity";
 import { isPerson, Suggestions, Threads } from "./review.js";
+import { contextOf, StoreSharing, type DocSharing } from "./share.js";
 
 const ATTEMPTS = 64;
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -52,18 +53,22 @@ export interface DocsPorts {
 
 /** What every command needs: make a document, read it, and change it. A live room can stand behind it as well as the ports. */
 export interface DocAccess {
-  create(id: string, markdown: string, author: Principal): Promise<void>;
+  /** `context` is the sign-in of the author. Without it, the author alone sets who owns the document. */
+  create(id: string, markdown: string, author: Principal, context?: PrincipalContext): Promise<void>;
   read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T>;
   write<T>(id: string, run: (doc: AgenticDoc) => T, author?: Principal): Promise<T>;
   list(): Promise<DocSummary[]>;
   rename(id: string, title: string, author: Principal): Promise<void>;
-  remove(id: string, author: Principal): Promise<void>;
+  remove(id: string, author: Principal, context?: PrincipalContext): Promise<void>;
+  /** Grants, invites, and links. Each call needs an owner of the document. */
+  readonly sharing: DocSharing;
 }
 
 /** Loads and saves documents as Yjs updates in a Blobs port. The CLI, MCP server, and API share it. */
 export class DocsService implements DocAccess {
   private readonly blobs: Blobs;
   private readonly store: Store;
+  readonly sharing: StoreSharing;
 
   constructor(
     ports: DocsPorts,
@@ -71,6 +76,10 @@ export class DocsService implements DocAccess {
   ) {
     this.blobs = ports.blobs;
     this.store = ports.store;
+    this.sharing = new StoreSharing(ports.store, {
+      exists: async (id) => (await this.blobs.head(this.key(id))) !== null,
+      creator: async (id) => (await this.info(id).catch(() => null))?.createdBy,
+    });
   }
 
   private key(id: string): string {
@@ -78,11 +87,12 @@ export class DocsService implements DocAccess {
     return `${id}.ydoc`;
   }
 
-  async create(id: string, markdown: string, author: Principal): Promise<void> {
+  async create(id: string, markdown: string, author: Principal, context?: PrincipalContext): Promise<void> {
     const key = this.key(id);
     const created = await this.blobs.put(key, AgenticDoc.fromMarkdown(markdown, author, this.options).encode(), { ifNoneMatch: "*" });
     if (!created) throw new DocError("DOCUMENT_EXISTS", `document "${id}" already exists`);
     await this.catalog(id, author);
+    await this.sharing.register(context ?? contextOf(author), id);
   }
 
   /** The stored document as a Yjs update. A live client seeds its room from it. */
@@ -234,12 +244,13 @@ export class DocsService implements DocAccess {
   }
 
   /** Delete the document and its catalog entry. An agent needs the remove scope. A live room keeps its own copy of the text. */
-  async remove(id: string, author: Principal): Promise<void> {
+  async remove(id: string, author: Principal, context?: PrincipalContext): Promise<void> {
     const key = this.key(id);
     if (!isPerson(author) && author.scopes?.includes(REMOVE_SCOPE) !== true) throw new DocError("FORBIDDEN", `an agent needs the ${REMOVE_SCOPE} scope to remove a document`);
     if (!(await this.blobs.head(key))) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
     await this.store.delete(CATALOG, id);
     await this.blobs.delete(key);
+    await this.sharing.erase(context ?? contextOf(author), id);
   }
 
   /** Who created the document and when, or null when it has no catalog entry (made before the catalog, or a failed catalog write). */

@@ -2,6 +2,15 @@
 
 ## 0.8.0
 
+### Added
+
+- Sharing, built on the grant, invite, and link primitives of `agentic-identity`. New commands: `grants`, `grant`,
+  `revoke`, `invites`, `invite`, `link`, and `unlink`. They are in the CLI, the MCP server (`doc_grants` and so on),
+  and the HTTP API (`GET /docs/:id/grants`, `POST /docs/:id/grant`, and so on). Only an owner may use them, and an
+  agent also needs the `docs:admin` scope. The person who creates a document owns it, and an agent that creates one
+  for a person makes that person the owner. A link token shows once. An invite list shows no email address.
+- `DocsService.sharing` and the `DocSharing` type.
+
 ### Removed
 
 - **Breaking.** `DOCX_MIME`, `ODT_MIME`, `FILE_FORMATS`, and `IMPORT_FORMATS` are no longer exported. `ODT_MIME` also

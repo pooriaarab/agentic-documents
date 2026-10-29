@@ -7,6 +7,7 @@ import { commands, type Command } from "./commands.js";
 import { DocError, parseAuthor, type DocErrorCode, type Principal } from "./doc.js";
 import type { ExportResult } from "./export.js";
 import { DocsService, MAX_LIVE_BYTES } from "./service.js";
+import { contextOf } from "./share.js";
 
 export interface WorkerEnv {
   /**
@@ -74,6 +75,8 @@ export type DocRole = Extract<Role, "editor" | "viewer">;
 interface Identity {
   principal: Principal;
   role: DocRole;
+  /** Who the token stands for, with the chain and scopes of agentic-identity. Sharing reads it. */
+  context: PrincipalContext;
 }
 
 /** One entry's identity: `"kind:name"`, or `{ "as": "kind:name", "scopes": [...], "role": "viewer" }`. */
@@ -82,7 +85,10 @@ function identityOf(entry: unknown): Identity | undefined {
   if (object?.role !== undefined && object.role !== "editor" && object.role !== "viewer") return undefined;
   const role = (object?.role ?? "editor") as DocRole;
   const principal = principalOf(entry, object);
-  return principal && { principal, role };
+  if (!principal) return undefined;
+  // A viewer token owns nothing and shares nothing, whatever its kind.
+  const context = role === "viewer" ? { ...contextOf(principal), scopes: [] } : contextOf(principal);
+  return { principal, role, context };
 }
 
 function principalOf(entry: unknown, object: { as?: unknown; scopes?: unknown } | undefined): Principal | undefined {
@@ -135,7 +141,7 @@ const fail = (code: string, message: string, status: number, matches: unknown[] 
 /** A service, or a function that makes one from the Worker bindings. */
 export type ServiceSource = DocsService | ((env: WorkerEnv) => Promise<DocsService>);
 
-type AppEnv = { Bindings: WorkerEnv; Variables: { author: Principal; role: DocRole } };
+type AppEnv = { Bindings: WorkerEnv; Variables: { author: Principal; role: DocRole; context: PrincipalContext } };
 
 export interface AppOptions {
   /** Makes the live-room server from the Worker bindings. Without it, the ws route answers 404. */
@@ -149,7 +155,7 @@ function identityOfContext(context: PrincipalContext): Identity | undefined {
   try {
     const role: DocRole = hasScope(context.scopes, "docs:write") ? "editor" : "viewer";
     const scopes = hasScope(context.scopes, "docs:admin") ? ["docs:accept", "docs:remove"] : [];
-    return { principal: { kind: context.kind, name: context.principalId, ...(scopes.length ? { scopes } : {}) }, role };
+    return { principal: { kind: context.kind, name: context.principalId, ...(scopes.length ? { scopes } : {}) }, role, context };
   } catch {
     return undefined; // a scope the helper cannot read grants nothing
   }
@@ -235,6 +241,7 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
     if (!identity) return fail("UNAUTHENTICATED", "send a valid bearer token", 401);
     c.set("author", identity.principal);
     c.set("role", identity.role);
+    c.set("context", identity.context);
     await next();
   });
   // Who the token stands for. A live client reads its author kind here, so it never claims one.
@@ -263,7 +270,7 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
   async function run(c: Context<AppEnv>, command: Command, input: Record<string, unknown>) {
     try {
       if (!command.readOnly && c.get("role") === "viewer") throw new DocError("FORBIDDEN", "this token is a viewer; it cannot change a document");
-      const result = await command.run(await (typeof source === "function" ? source(c.env ?? {}) : source), input, c.get("author"));
+      const result = await command.run(await (typeof source === "function" ? source(c.env ?? {}) : source), input, c.get("author"), c.get("context"));
       if (command.name === "export") {
         const { data, contentType, encoding, format, warnings } = result as ExportResult;
         const images = input.remoteImages === true || input.remoteImages === "true" ? "data: https:" : "data:";
