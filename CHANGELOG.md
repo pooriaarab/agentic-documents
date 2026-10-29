@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.1
+
+### Added
+
+- The README has an import example for `agentic-documents/live-worker`, the last subpath export without one. It shows the `SyncRoom` export that the Worker's main module needs.
+- A test checks that the README names every subpath export in `package.json` with an import example, and every root export in `src/index.ts`. A new export with no README section fails `npm test`.
+
 ## 0.12.0
 
 ### Added
