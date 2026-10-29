@@ -47,7 +47,8 @@ suggestions also needs `--scopes docs:accept` (or `AGENTIC_DOCS_SCOPES`). Docume
 
 ```sh
 export AGENTIC_DOCS_AS=agent_of_human:scribe
-npx agentic-documents new plan --markdown "# Plan\n\nShip on Friday."
+printf '# Plan\n\nShip on Friday.\n' > plan.md
+npx agentic-documents new plan --file plan.md
 npx agentic-documents outline plan
 npx agentic-documents replace plan --text Friday --content Monday
 npx agentic-documents suggest plan --text Monday --replacement Tuesday
