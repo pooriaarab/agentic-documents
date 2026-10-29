@@ -211,6 +211,9 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     if (value === "") chain().extendMarkRange("link").unsetLink().run();
     else if (!/^(https?:\/\/|mailto:)\S+$/i.test(value)) return setLinkError("Use a web address that starts with https:// or http://, or a mailto: address.");
     else chain().extendMarkRange("link").setLink({ href: value }).run();
+    // Put the caret after the link. A selection left open is replaced by the next key, and the key can arrive before the
+    // editor has read the caret that a caret key set, so a quick Enter would delete the words that got the link.
+    editor?.commands.setTextSelection(editor.state.selection.to);
     refocus.current = true;
     setLinking(false);
   }
@@ -219,10 +222,12 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     if (linking || !refocus.current) return;
     refocus.current = false;
     // The dialog may give focus back after this runs, so try a few times until the text has it.
+    // Focus the view itself. The focus command moves focus in a later frame and writes the old selection back then,
+    // over a caret that the person has moved since.
     let tries = 0;
     const timer = setInterval(() => {
       if (editor?.isFocused || ++tries > 10) return clearInterval(timer);
-      editor?.commands.focus();
+      editor?.view.focus();
     }, 40);
     return () => clearInterval(timer);
   }, [linking, editor]);
