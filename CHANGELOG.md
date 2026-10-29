@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Removed
+
+- **Breaking.** `DOCX_MIME`, `ODT_MIME`, `FILE_FORMATS`, and `IMPORT_FORMATS` are no longer exported. Nothing in the
+  package used them outside `agentic-documents/formats`. The `FileFormat` and `ImportFormat` types stay. Read the
+  content type of an export from `exportFile`, and the format list from `EXPORT_FORMATS`.
+
 ### Changed
 
 - The Worker signs in with `agentic-identity` keys from the D1 database by default (`createStoreAuth`). A scope of

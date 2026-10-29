@@ -7,12 +7,12 @@ import type { PmNode } from "./markdown.js";
 import { DATA_IMAGE, fromBase64, toBase64 } from "./package.js";
 import { safeHref } from "./xml.js";
 
-export const IMPORT_FORMATS = ["md", "odt", "docx"] as const;
+const IMPORT_FORMATS = ["md", "odt", "docx"] as const;
 export type ImportFormat = (typeof IMPORT_FORMATS)[number];
-export const FILE_FORMATS = ["md", "html", "odt", "docx"] as const;
+const FILE_FORMATS = ["md", "html", "odt", "docx"] as const;
 export type FileFormat = (typeof FILE_FORMATS)[number];
 
-export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const CONTENT_TYPES: Record<FileFormat, string> = {
   md: "text/markdown; charset=utf-8",
   html: "text/html; charset=utf-8",
@@ -264,8 +264,6 @@ export function importFile(input: string | Uint8Array, format: ImportFormat, aut
     warnings: [...read.warnings, ...mapped.warnings],
   };
 }
-
-export const ODT_MIME = CONTENT_TYPES.odt;
 
 /** Write blocks as an OpenDocument text file (.odt). It drops the warnings; use `exportFile` or `exportDoc` to read what the file cannot hold. */
 export function exportOdt(blocks: PmNode[]): Uint8Array {
