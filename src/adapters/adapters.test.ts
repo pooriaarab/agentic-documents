@@ -1,7 +1,7 @@
 // The file adapters run the shared contract suites from agentic-identity. The suites open two
 // instances on one backing dataset, so a guard that only covers one instance turns them red.
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runBlobsContract, runStoreContract } from "agentic-identity/testing";
@@ -95,5 +95,15 @@ describe("file blobs from an older release", () => {
     await expect(blobs.get("bad")).rejects.toThrow(/damaged|cannot read/);
     await blobs.delete("bad");
     expect(await blobs.get("bad")).toBeNull();
+  });
+
+  it("takes over a stale move lock and still reads the old blob", async () => {
+    const dir = fresh();
+    writeLegacy(dir, "k", new TextEncoder().encode("x"));
+    const lock = join(dir, `${createHash("sha256").update("k").digest("hex")}.lock`);
+    writeFileSync(lock, "dead-writer");
+    const long = new Date(Date.now() - 600_000);
+    utimesSync(lock, long, long);
+    expect(new TextDecoder().decode((await createFileBlobs(dir).get("k"))?.data)).toBe("x");
   });
 });

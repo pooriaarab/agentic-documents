@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { link, mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DocError } from "../errors.js";
 
 /** A blob file from release 0.9 and earlier: `<dir>/<sha256(key)>`, a 4-byte length, a JSON header, then the bytes. */
 const HEADER = 4;
-const STALE_MS = 30_000;
+// A move reads, writes one blob, and removes one file. It takes milliseconds, so two minutes marks a dead holder.
+const STALE_MS = 120_000;
 const WAIT_MS = 10_000;
 const legacyPath = (dir: string, key: string) => resolve(dir, createHash("sha256").update(key).digest("hex"));
 const code = (error: unknown) => (error as NodeJS.ErrnoException).code;
@@ -34,7 +35,32 @@ export const hasLegacyBlob = (dir: string, key: string) => stat(legacyPath(dir, 
 export const removeLegacyBlob = (dir: string, key: string) => rm(legacyPath(dir, key), { force: true });
 
 /** Keep an old file that lost to a newer blob. Nothing reads it again. */
-export const setAsideLegacyBlob = (dir: string, key: string) => rename(legacyPath(dir, key), `${legacyPath(dir, key)}.superseded`).catch((error) => (code(error) === "ENOENT" ? undefined : Promise.reject(error)));
+export const setAsideLegacyBlob = (dir: string, key: string) => rename(legacyPath(dir, key), `${legacyPath(dir, key)}.superseded-${randomUUID()}`).catch((error) => (code(error) === "ENOENT" ? undefined : Promise.reject(error)));
+
+/** True when the lock is gone, or was stale and is now moved away. An unreadable or future-dated lock is live. */
+async function clearStale(lock: string): Promise<boolean> {
+  let token: string;
+  let age: number;
+  try {
+    token = await readFile(lock, "utf8");
+    age = Date.now() - (await stat(lock)).mtimeMs;
+  } catch (error) {
+    if (code(error) === "ENOENT") return true;
+    throw error;
+  }
+  if (!(age > STALE_MS)) return false; // also false for NaN
+  const moved = `${lock}.stale-${randomUUID()}`;
+  try {
+    await rename(lock, moved); // only one taker wins this rename
+  } catch (error) {
+    if (code(error) === "ENOENT") return true;
+    throw error;
+  }
+  // A fresh lock may have replaced the stale one between the read and the rename. Put it back.
+  if ((await readFile(moved, "utf8").catch(() => token)) !== token) await link(moved, lock).catch(() => undefined);
+  await rm(moved, { force: true });
+  return true;
+}
 
 /**
  * Run `run` while this process holds the lock for one key. The move of an old blob and a delete of that key
@@ -48,14 +74,20 @@ export async function withLegacyLock<T>(dir: string, key: string, run: () => Pro
   for (;;) {
     try {
       const file = await open(lock, "wx");
-      await file.writeFile(token).finally(() => file.close());
+      try {
+        await file.writeFile(token);
+      } catch (error) {
+        await rm(lock, { force: true }); // a lock with no token would block this key until it goes stale
+        throw error;
+      } finally {
+        await file.close();
+      }
       break;
     } catch (error) {
       if (code(error) !== "EEXIST") throw error;
-      const age = await stat(lock).then((s) => Date.now() - s.mtimeMs, () => 0);
-      if (age > STALE_MS) await rm(lock, { force: true }); // NaN never passes, so an unreadable age counts as live
-      else if (Date.now() >= deadline) throw new DocError("LOCKED", "another writer holds this document; try again");
-      else await new Promise((done) => setTimeout(done, 5 + Math.random() * 20));
+      if (await clearStale(lock)) continue;
+      if (Date.now() >= deadline) throw new DocError("LOCKED", "another writer holds this document; try again");
+      await new Promise((done) => setTimeout(done, 5 + Math.random() * 20));
     }
   }
   try {
