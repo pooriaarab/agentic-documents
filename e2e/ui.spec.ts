@@ -16,6 +16,39 @@ async function createDocument(page: Page, title: string): Promise<string> {
   return idOf(page);
 }
 
+const PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+test("an image gets alt text, or is marked decorative, and both reach the stored document", async ({ browser }) => {
+  const ada = await newPage(await browser.newContext(), ADA);
+  const id = await createDocument(ada, "Pictures");
+  const read = async () => (await fetch(`${url()}/api/v1/docs/${id}/read`, { headers: { authorization: `Bearer ${ADA}` } })).text();
+  await textbox(ada).click();
+
+  await ada.getByRole("button", { name: "Image" }).click();
+  const dialog = ada.getByRole("dialog", { name: "Insert image" });
+  await dialog.getByLabel("Image address").fill(PIXEL);
+  await dialog.getByRole("button", { name: "Insert" }).click();
+  await expect(dialog.getByText("Describe the image")).toBeVisible(); // no alt text and not decorative
+  await dialog.getByRole("textbox", { name: "Alt text" }).fill("A red dot");
+  await dialog.getByRole("button", { name: "Insert" }).click();
+  await expect(textbox(ada).locator("img[src^=data]")).toHaveAttribute("alt", "A red dot");
+  await expectAccessible(ada);
+  await expect.poll(read).toContain("![A red dot](data:image/png");
+
+  // With the image selected, the same button changes it. The decorative choice writes an empty alt.
+  await textbox(ada).locator("img[src^=data]").click();
+  await ada.getByRole("button", { name: "Image" }).click();
+  const edit = ada.getByRole("dialog", { name: "Image" });
+  await expect(edit.getByRole("textbox", { name: "Alt text" })).toHaveValue("A red dot");
+  await edit.getByLabel("Decorative image").check();
+  await expectAccessible(ada);
+  await edit.getByRole("button", { name: "Apply" }).click();
+  await expect(textbox(ada).locator("img[src^=data]")).toHaveAttribute("alt", "");
+  await expect.poll(read).toContain("![](data:image/png");
+  await expectAccessible(ada);
+  await ada.context().close();
+});
+
 test("the share dialog lists, changes, and removes roles, invites, and makes a link, for an owner only", async ({ browser }) => {
   const ada = await newPage(await browser.newContext(), ADA);
   const id = await createDocument(ada, "Shared plan");
@@ -353,6 +386,12 @@ for (const theme of themes) {
 
     await page.getByRole("button", { name: "Link" }).click();
     await expect(page.getByRole("dialog", { name: "Link" })).toBeVisible();
+    await expectAccessible(page);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Image" }).click();
+    await expect(page.getByRole("dialog", { name: "Insert image" })).toBeVisible();
+    await page.getByRole("button", { name: "Insert" }).click(); // empty fields show their errors
+    await expect(page.getByText("Describe the image")).toBeVisible();
     await expectAccessible(page);
     await page.keyboard.press("Escape");
     for (const [open, dialog] of [["Rename", "Rename document"], ["Delete", "Delete document"]]) {

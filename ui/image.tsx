@@ -1,0 +1,55 @@
+import { useEffect, useState } from "react";
+import type { Editor } from "@tiptap/core";
+import { Button, Dialog, DialogClose, Input } from "agentic-design/react";
+
+/** The sources the engine renders: web addresses, and small embedded pictures. */
+const SOURCE = /^(https?:\/\/\S+|data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+)$/i;
+
+/**
+ * Insert an image, or change the one that is selected. Every image has alt text (WCAG 1.1.1): a description, or the
+ * decorative choice, which writes an empty alt so a screen reader skips the image.
+ */
+export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | undefined; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [src, setSrc] = useState("");
+  const [alt, setAlt] = useState("");
+  const [decorative, setDecorative] = useState(false);
+  const [error, setError] = useState<{ src?: string; alt?: string }>({});
+  const editing = open && editor?.isActive("image") === true;
+
+  useEffect(() => {
+    if (!open) return;
+    const now = editor?.getAttributes("image") ?? {};
+    const current = editor?.isActive("image") ? (now.alt as string | null) : null;
+    setSrc(typeof now.src === "string" ? now.src : "");
+    setAlt(current ?? "");
+    setDecorative(current === "");
+    setError({});
+  }, [open, editor]);
+
+  function apply() {
+    const address = src.trim();
+    const text = alt.trim();
+    const problem = { src: SOURCE.test(address) ? undefined : "Use a web address that starts with https:// or http://, or an embedded PNG, JPEG, GIF, or WebP image.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
+    if (problem.src || problem.alt) return setError(problem);
+    const attrs = { src: address, alt: decorative ? "" : text };
+    if (editor?.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();
+    else editor?.chain().focus().insertContent({ type: "image", attrs }).run();
+    onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} title={editing ? "Image" : "Insert image"} description="Alt text tells people who cannot see the image what it shows.">
+      <form className="adoc form" onSubmit={(e) => (e.preventDefault(), apply())}>
+        <Input label="Image address" value={src} onChange={(e) => setSrc(e.target.value)} error={error.src} placeholder="https://" autoComplete="off" />
+        <Input label="Alt text" value={decorative ? "" : alt} onChange={(e) => setAlt(e.target.value)} error={error.alt} disabled={decorative} autoComplete="off" />
+        <label className="check">
+          <input type="checkbox" checked={decorative} onChange={(e) => setDecorative(e.target.checked)} /> Decorative image, with no description
+        </label>
+        <div className="form-actions">
+          <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
+          <Button type="submit">{editing ? "Apply" : "Insert"}</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}

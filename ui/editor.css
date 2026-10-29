@@ -96,3 +96,4 @@
 .adoc .ProseMirror-hideselection * {
   caret-color: transparent;
 }
+.adoc .check { display: flex; gap: var(--agd-space-2); align-items: center; }

@@ -10,6 +10,7 @@ import { Component, useEffect, useReducer, useRef, useState, type ReactNode } fr
 import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, Toolbar, ToolbarButton, ToolbarSeparator, usableName, type PresenceEntry } from "agentic-design/react";
 import { isMachine } from "../src/kinds.js";
 import type { LiveSession } from "./live.js";
+import { ImageDialog } from "./image.js";
 import { AgentText } from "./marks.js";
 
 /** Who uses the editor. The name shows in presence. The kind says if it is a person or an agent. */
@@ -74,6 +75,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
   const [linking, setLinking] = useState(false);
   const [href, setHref] = useState("");
   const [linkError, setLinkError] = useState<string>();
+  const [picturing, setPicturing] = useState(false);
   const refocus = useRef(false);
   const tell = useRef(onEditor);
   tell.current = onEditor;
@@ -218,6 +220,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           {tool("Numbered list", listIcon(true), pressed("orderedList"), () => chain().toggleOrderedList().run())}
           <ToolbarSeparator />
           {tool("Link", glyph("↗"), pressed("link"), openLink)}
+          {tool("Image", glyph("▣"), pressed("image"), () => setPicturing(true))}
         </Toolbar>
         <div className="editor-meta">
           <PresenceStack entries={entries} label="People and agents here" />
@@ -241,6 +244,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           </div>
         </form>
       </Dialog>
+      <ImageDialog editor={editor} open={picturing} onOpenChange={setPicturing} />
     </section>
   );
 }
