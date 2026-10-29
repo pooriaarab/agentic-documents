@@ -6,6 +6,7 @@ Keywords: documents, editor, rich-text, tiptap, yjs, collaboration, agents.
 
 - SDK: import { AgenticDoc } from "agentic-documents".
 - Read as Markdown, read an outline, edit by section id or exact text.
+- Remote client: import { createClient } from "agentic-documents/client"; createClient({ baseUrl, token, fetch? }). It has one method per HTTP route. An error is a DocsApiError with a code and a status. Every call takes { signal }. The client never retries.
 - CLI: npx agentic-documents <command> <id>. MCP: npx agentic-documents mcp --as <kind>:<name>.
 - Every edit carries an author kind and name.
 

@@ -54,6 +54,10 @@
       "types": "./dist/live.d.ts",
       "import": "./dist/live.js"
     },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
     "./live-worker": {
       "types": "./dist/live-worker.d.ts",
       "import": "./dist/live-worker.js"
