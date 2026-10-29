@@ -267,6 +267,7 @@ const editor = mountEditor(element, {
   `SyncClient` does. A list that `onPeers` updates but `peers` does not leaves the carets undrawn.
 - The editor binds again only when `doc` or `presence` changes. A new `host` object with the same two keeps it as is.
   So keep the same `presence` object between renders: a new one rebuilds the editor, and the caret and the selection go.
+- With `host`, `id` only names the editor: nothing loads by it. A new `id` in `update` still builds a new editor.
   It reads `onStatus` once each time it binds.
 - `onEditor` is read when the editor is made. That callback gets `null` when the editor goes, after the editor is
   destroyed, so do not read from it then. A new `onEditor` in
