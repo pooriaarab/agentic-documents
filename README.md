@@ -500,8 +500,10 @@ Limits of live editing:
 - The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
   shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
   overwrite each other. The CLI and MCP server keep the same data in local files.
-- The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. Files from an older release that sit
-  directly in `<dir>` are not read.
+- The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. The catalog is `<dir>/store/store.json`,
+  from `agentic-identity/file`. The first write after an upgrade imports the catalog of release 0.8 once. Files from an
+  older release that sit directly in `<dir>` are not read. The catalog store waits for a rival process with a short
+  lock, runs a write again up to 64 times, then fails with `StoreConflictError`. The wait blocks the process.
 - A key's role comes from its scopes: `editor` with a scope that covers `docs:write`, `viewer` without one. A
   development token (see [Sign-in](#sign-in)) sets its own role instead. A viewer cannot call a write command or write
   in a live room. The role is not per document: the Worker does not check the roles that sharing stores yet.
