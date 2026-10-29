@@ -333,6 +333,27 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Arra
   as advisory. The room's own record of who sent updates in the room is at `GET /api/v1/docs/:id/room`. It does not cover
   text written over HTTP, the CLI, or MCP before the room opened: the client that seeds the room appears there.
 
+## Worker subpath
+
+`agentic-documents/worker` is the HTTP API as a Hono app. Use it to run the API in your own Worker. It exports:
+
+| Export | Use it for |
+| --- | --- |
+| `default` | A Worker `{ fetch }` over D1 and R2, with no live rooms. |
+| `createApp(source, options?)` | The Hono app. `source` is a `DocsService`, or a function from the bindings to one. `options.live` makes the live-room server. `options.auth` makes the `Auth` port. |
+| `serviceFor(env)` | The `DocsService` over the `DB` and `DOCS` bindings, after the region check. |
+| `regionOf(env)` | The region claim from `AGENTIC_DOCS_REGION`. It throws `MISCONFIGURED` for a missing or unsafe claim. |
+| `WorkerEnv`, `AppOptions`, `ServiceSource`, `DocRole` | Types. |
+
+```ts
+import { createApp, serviceFor, type WorkerEnv } from "agentic-documents/worker";
+
+const app = createApp(serviceFor);
+export default { fetch: (request: Request, env: WorkerEnv, ctx: unknown) => app.fetch(request, env, ctx as never) };
+```
+
+For live rooms, deploy `agentic-documents/live-worker` instead (see [Live editing](#live-editing)).
+
 ## Sign-in
 
 The Worker reads Bearer keys with `createStoreAuth` from `agentic-identity`. The principals and the keys live in
