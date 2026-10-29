@@ -299,10 +299,11 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Arra
 ## Sharing
 
 A document has roles: `viewer`, `commenter`, `editor`, and `owner`. Grants, invites, and links come from
-`agentic-identity`. Only an owner may use them. The person who creates a document owns it. Over the HTTP API, an agent
-that creates a document for a person makes that person the owner. Over the HTTP API, a caller also needs the
-`docs:admin` scope (or `*:admin`), a person or an agent alike. The CLI and the MCP server give a person that scope; an
-agent needs it with `--scopes docs:admin`. A development token gives a person that scope too. Everyone else gets
+`agentic-identity`. Only an owner may use them. The person who creates a document owns it. Over the HTTP API, with
+`agentic-identity` keys, an agent that creates a document for a person makes that person the owner. Over the HTTP API,
+a caller also needs the `docs:admin` scope (or `*:admin`). That holds for a person and for an agent. In local mode, the
+CLI and the MCP server give a person that scope, and an agent needs `--scopes docs:admin`. With `--live`, the token sets
+the scopes. A development token gives a person with the `editor` role that scope too. Everyone else gets
 `FORBIDDEN` (HTTP 403), and an agent cannot grant itself a role.
 
 ```sh
@@ -315,13 +316,11 @@ npx agentic-documents unlink plan --link <link id>
 ```
 
 The same commands are MCP tools (`doc_grant` and so on), HTTP routes (`POST /api/v1/docs/:id/grant`), and SDK methods
-(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document can have
-no owner record. It happens to a document made before sharing, to one whose author had no `docs:write` scope when it
-was made, and to one whose author name is not a valid grant name (1 to 128 letters, digits, `-`, and `_`). On the first
-share call, its creator becomes the owner when the caller is that creator, acting for itself, with a write scope. A
-document with no creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that
-acts for a person, cannot be claimed. A rename can record a creator for a document with no creator, so check again after
-a rename.
+(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document can have no owner record. This happens to a document made before sharing. It also happens when its author
+had no `docs:write` scope, or when its author name is not a valid grant name (1 to 128 letters, digits, `-`, and `_`).
+The creator claims such a document with a write scope, when the caller is that creator, acting for itself. A document
+with no creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for
+a person, cannot be claimed. A rename can record a creator for a document with no creator, so check again after a rename.
 
 ## Features
 
