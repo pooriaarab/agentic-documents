@@ -31,7 +31,7 @@ let server: ChildProcess;
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "agentic-documents-worker-"));
   const config = join(dir, "wrangler.jsonc");
-  writeFileSync(config, JSON.stringify({ name: "docs-e2e", main: resolve("src/worker.ts"), compatibility_date: "2026-01-01", compatibility_flags: ["nodejs_compat"], d1_databases: [{ binding: "DB", database_name: "docs-e2e", database_id: "00000000-0000-0000-0000-000000000000" }], r2_buckets: [{ binding: "DOCS", bucket_name: "docs-e2e", jurisdiction: "eu" }], vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS), AGENTIC_DOCS_REGION: "unknown" } }));
+  writeFileSync(config, JSON.stringify({ name: "docs-e2e", main: resolve("src/worker.ts"), compatibility_date: "2026-01-01", compatibility_flags: ["nodejs_compat"], d1_databases: [{ binding: "DB", database_name: "docs-e2e", database_id: "00000000-0000-0000-0000-000000000000" }], r2_buckets: [{ binding: "DOCS", bucket_name: "docs-e2e", jurisdiction: "eu" }], vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" } }));
   const [port, inspector] = [await freePort(), await freePort()];
   BASE = `http://127.0.0.1:${port}`;
   // Its own process group: workerd children outlive a kill of wrangler alone.
@@ -69,7 +69,7 @@ describe("worker failures", () => {
     const env = { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS) };
     const ask = (extra: object) =>
       worker.fetch(new Request("http://x/api/v1/docs/a/read", { headers: { authorization: `Bearer ${ADA}` } }), { ...env, DB: {}, DOCS: {}, ...extra } as never, {});
-    for (const extra of [{}, { AGENTIC_DOCS_REGION: "EU" }, { AGENTIC_DOCS_REGION: "mars" }, { AGENTIC_DOCS_REGION: "eu", DB: undefined }]) {
+    for (const extra of [{}, { AGENTIC_DOCS_REGION: "EU" }, { AGENTIC_DOCS_REGION: "mars" }, { AGENTIC_DOCS_REGION: "unknown" }, { AGENTIC_DOCS_REGION: "eu", DB: undefined }]) {
       const res = await ask(extra);
       expect([res.status, ((await res.json()) as any).error.code]).toEqual([500, "MISCONFIGURED"]);
     }

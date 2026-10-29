@@ -3,6 +3,7 @@
 import { describe, expect, test } from "vitest";
 import { Suggestions } from "./review.js";
 import { createMemoryBlobs, createMemoryStore } from "agentic-identity";
+import type { Doc } from "agentic-identity";
 import { DocsService } from "./service.js";
 
 const bot = { kind: "agent_of_human", name: "scribe" } as const;
@@ -21,6 +22,15 @@ describe("catalog", () => {
     await a.create("doc", "# Hi", bot);
     expect(await b.info("doc")).toMatchObject({ createdBy: { kind: "agent_of_human", name: "scribe" } });
     expect(await b.info("other")).toBeNull();
+  });
+
+  test("a damaged catalog entry is an error, not a guess", async () => {
+    const store = createMemoryStore();
+    const service = new DocsService({ blobs: createMemoryBlobs(), store });
+    for (const entry of <Doc[]>[{ x: 1 }, { createdBy: { kind: "admin", name: "x" }, createdAt: 1 }, { createdBy: { kind: "human", name: "x" }, createdAt: "now" }]) {
+      await store.put("documents", "bad", entry);
+      await expect(service.info("bad")).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    }
   });
 
   test("a lost create race leaves the winner's catalog entry", async () => {

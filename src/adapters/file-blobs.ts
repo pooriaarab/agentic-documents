@@ -34,20 +34,12 @@ function unpack(file: Buffer): BlobObject {
 }
 
 /**
- * Blobs kept as files under one directory. File names are key hashes, so no key leaves the folder.
- * A write takes a lock file, checks the condition again, then writes a temp file and renames it into
- * place. A reader never sees a torn file, and two processes cannot both pass the version check.
+ * A lock for one file path, shared by every process that uses the same directory. `run` gets a check
+ * that says whether this writer still holds the lock. A stale lock is taken over.
  */
-export function createFileBlobs(dir: string, options: FileBlobsOptions = {}): Blobs {
-  const root = resolve(dir);
+export function createLocker(root: string, options: Pick<FileBlobsOptions, "lockStaleMs" | "lockTimeoutMs"> = {}) {
   const staleMs = options.lockStaleMs ?? 10_000;
   const timeoutMs = options.lockTimeoutMs ?? 5_000;
-  const now = options.now ?? Date.now;
-  const path = (key: string) => {
-    if (key === "") throw new Error("blob key must not be empty");
-    return resolve(root, createHash("sha256").update(key).digest("hex"));
-  };
-
   /** True when the lock is gone, or was stale and is now removed. An unreadable or future-dated lock is live. */
   async function clearStale(lock: string): Promise<boolean> {
     let token: string;
@@ -97,6 +89,22 @@ export function createFileBlobs(dir: string, options: FileBlobsOptions = {}): Bl
       if (await held()) await rm(lock, { force: true });
     }
   }
+  return locked;
+}
+
+/**
+ * Blobs kept as files under one directory. File names are key hashes, so no key leaves the folder.
+ * A write takes a lock file, checks the condition again, then writes a temp file and renames it into
+ * place. A reader never sees a torn file, and two processes cannot both pass the version check.
+ */
+export function createFileBlobs(dir: string, options: FileBlobsOptions = {}): Blobs {
+  const root = resolve(dir);
+  const locked = createLocker(root, options);
+  const now = options.now ?? Date.now;
+  const path = (key: string) => {
+    if (key === "") throw new Error("blob key must not be empty");
+    return resolve(root, createHash("sha256").update(key).digest("hex"));
+  };
 
   async function read(full: string): Promise<BlobObject | null> {
     try {

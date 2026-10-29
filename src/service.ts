@@ -1,4 +1,4 @@
-import { AgenticDoc, DocError, type DocOptions, type Principal } from "./doc.js";
+import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, Store } from "agentic-identity";
 
 const ATTEMPTS = 64;
@@ -8,7 +8,7 @@ const CATALOG = "documents";
 
 /** What the catalog keeps for each document. The author kind stays, so machine-made work stays labeled. */
 export interface DocInfo {
-  createdBy: { kind: string; name: string };
+  createdBy: { kind: PrincipalKind; name: string };
   createdAt: number;
 }
 
@@ -47,10 +47,16 @@ export class DocsService {
     });
   }
 
-  /** Who created the document and when, or null for a document made before the catalog existed. */
+  /** Who created the document and when, or null when it has no catalog entry (made before the catalog, or a failed catalog write). */
   async info(id: string): Promise<DocInfo | null> {
     this.key(id);
-    return (await this.store.get(CATALOG, id)) as DocInfo | null;
+    const entry = (await this.store.get(CATALOG, id)) as Partial<DocInfo> | null;
+    if (entry === null) return null;
+    const { createdBy, createdAt } = entry;
+    if (!createdBy || !PRINCIPAL_KINDS.includes(createdBy.kind) || typeof createdBy.name !== "string" || typeof createdAt !== "number") {
+      throw new DocError("INVALID_INPUT", `the catalog entry for "${id}" is damaged`);
+    }
+    return { createdBy, createdAt };
   }
 
   async read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T> {

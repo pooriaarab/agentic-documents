@@ -10,20 +10,14 @@ import { createFileStore } from "./file-store.js";
 
 const fresh = () => mkdtempSync(join(tmpdir(), "docs-fs-"));
 const shared = new Map<string, string>();
+// Instances that share a name share one directory, so they see one dataset.
+const dirFor = (name: string | undefined) => (name === undefined ? fresh() : (shared.get(name) ?? shared.set(name, fresh()).get(name)!));
 
-runStoreContract((options) => {
-  // Stores that share a name share one directory and one live dataset.
-  const dir = options.shared === undefined ? fresh() : (shared.get(options.shared) ?? shared.set(options.shared, fresh()).get(options.shared)!);
-  return createFileStore(dir, options);
-});
-// Blobs always share the directory, so two instances see one dataset.
-runBlobsContract((options) => {
-  const dir = options.shared === undefined ? fresh() : (shared.get(`b-${options.shared}`) ?? shared.set(`b-${options.shared}`, fresh()).get(`b-${options.shared}`)!);
-  return createFileBlobs(dir, options);
-});
+runStoreContract((options) => createFileStore(dirFor(options.shared), options));
+runBlobsContract((options) => createFileBlobs(dirFor(options.shared === undefined ? undefined : `b-${options.shared}`), options));
 
-describe("file store journal", () => {
-  it("keeps committed writes across a restart and drops rolled-back ones", async () => {
+describe("file store", () => {
+  it("keeps committed writes in a new instance and drops rolled-back ones", async () => {
     const dir = fresh();
     const one = createFileStore(dir);
     await one.put("docs", "a", { v: 1 });

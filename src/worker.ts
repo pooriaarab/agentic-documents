@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { parseRegion } from "agentic-identity";
+import { assertRegion, parseRegion } from "agentic-identity";
 import { D1_SCHEMA, createD1Store, createR2Blobs, type D1Like, type R2Like } from "agentic-identity/cloudflare";
 import { commands, type Command } from "./commands.js";
 import { DocError, parseAuthor, PRINCIPAL_KINDS, type DocErrorCode, type Principal } from "./doc.js";
@@ -9,9 +9,11 @@ import { DocsService } from "./service.js";
 export interface WorkerEnv {
   /**
    * Where the data lives: "eu" or "us". It is a claim you make at deploy time, with no default.
-   * "unknown" skips the region check. Local D1 reports no region, so use it only under `wrangler dev`.
+   * "unknown" skips the region check. Local D1 reports no region, so "unknown" needs `AGENTIC_DOCS_UNSAFE_REGION=1` too.
    */
   AGENTIC_DOCS_REGION?: string;
+  /** Set to "1" to accept the region "unknown" under `wrangler dev`. Never set it in production. */
+  AGENTIC_DOCS_UNSAFE_REGION?: string;
   /** D1 database: the catalog of documents. Create it with `wrangler d1 create agentic-documents --location weur`. */
   DB?: D1Like;
   /** R2 bucket: each document as a Yjs update. Create it with `--jurisdiction eu`. */
@@ -155,7 +157,7 @@ export function createApp(source: ServiceSource): Hono<{ Bindings: WorkerEnv; Va
   app.notFound(() => fail("NOT_FOUND", "no such route", 404));
   app.onError((error) => {
     if (error instanceof DocError) return fail(error.code, error.message, STATUS[error.code] ?? 400, error.matches);
-    console.error(error instanceof Error ? `${error.name}: ${error.message}` : "error");
+    console.error(error instanceof Error ? error.name : "error");
     return fail("INTERNAL", "the server could not finish the request", 500);
   });
   return app;
@@ -173,6 +175,9 @@ async function serviceFor(env: WorkerEnv): Promise<DocsService> {
     region = parseRegion(env.AGENTIC_DOCS_REGION);
   } catch {
     throw new DocError("MISCONFIGURED", 'set AGENTIC_DOCS_REGION to "eu" or "us" ("unknown" only for local development)');
+  }
+  if (region === "unknown" && env.AGENTIC_DOCS_UNSAFE_REGION !== "1") {
+    throw new DocError("MISCONFIGURED", 'the region "unknown" turns the residency check off; set AGENTIC_DOCS_UNSAFE_REGION=1 to accept that for local development');
   }
   const db = env.DB;
   let ready = schemas.get(db);

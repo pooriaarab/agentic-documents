@@ -39,7 +39,7 @@ describe("cli failures", () => {
     const run = cli(["new", "noauthor", "--markdown", "x"], null);
     expect(run.code).toBe(1);
     expect(run.err).toContain("INVALID_AUTHOR");
-    expect(existsSync(join(dir, "blobs"))).toBe(false);
+    expect(existsSync(join(dir, "blobs")) || existsSync(join(dir, "store"))).toBe(false);
   });
 
   test("an unknown author kind fails", () => {
@@ -51,7 +51,7 @@ describe("cli failures", () => {
     expect(run.code).toBe(2);
     expect(run.err).toContain("invalid document id");
     expect(existsSync(join(dir, "..", "evil.ydoc"))).toBe(false);
-    expect(existsSync(join(dir, "blobs"))).toBe(false);
+    expect(existsSync(join(dir, "blobs")) || existsSync(join(dir, "store"))).toBe(false);
   });
 
   test("a missing document, a repeated new, and an unknown command fail", () => {
