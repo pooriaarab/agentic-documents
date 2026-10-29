@@ -4,6 +4,8 @@
 
 ### Breaking changes
 
+The API of this package does not change. The change is in the dependency.
+
 - **Dependencies.** `agentic-identity` moves from `^0.3.0` to `^0.4.0`. In 0.4 a grant is keyed on the
   principal kind and the id, so a person and an agent with the same id hold separate roles. Grants
   written by 0.3 are not honored until you run `migrateGrants`. A host that shares documents through
@@ -12,8 +14,9 @@
 ### Added
 
 - Tests that a person and an agent with the same id get separate roles, and that `deleteResource`
-  removes the grants. This package has no grant call and no delete command of its own. A host that
-  deletes a document or erases a person must call `deleteResource` for it.
+  removes the grants. This package has no grant call and no command that deletes a whole document. A host
+  that deletes a document or erases a person must call `deleteResource` for it. If it fails, run it
+  again, and do not reuse the id until it succeeds.
 
 ## 0.2.0
 
