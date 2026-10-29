@@ -1,7 +1,10 @@
 import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
-import type { Blobs, Store } from "agentic-identity";
+import type { Blobs, PrincipalContext, Store } from "agentic-identity";
 import { isPerson, Suggestions, Threads } from "./review.js";
+import { safeContextOf, StoreSharing, type DocSharing } from "./share.js";
+
+
 
 const ATTEMPTS = 64;
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -52,18 +55,22 @@ export interface DocsPorts {
 
 /** What every command needs: make a document, read it, and change it. A live room can stand behind it as well as the ports. */
 export interface DocAccess {
-  create(id: string, markdown: string, author: Principal): Promise<void>;
+  /** `context` is the sign-in of the author. Without it, the author alone sets who owns the document. */
+  create(id: string, markdown: string, author: Principal, context?: PrincipalContext): Promise<void>;
   read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T>;
   write<T>(id: string, run: (doc: AgenticDoc) => T, author?: Principal): Promise<T>;
   list(): Promise<DocSummary[]>;
   rename(id: string, title: string, author: Principal): Promise<void>;
   remove(id: string, author: Principal): Promise<void>;
+  /** Grants, invites, and links. Each call needs an owner of the document. */
+  readonly sharing: DocSharing;
 }
 
 /** Loads and saves documents as Yjs updates in a Blobs port. The CLI, MCP server, and API share it. */
 export class DocsService implements DocAccess {
   private readonly blobs: Blobs;
   private readonly store: Store;
+  readonly sharing: StoreSharing;
 
   constructor(
     ports: DocsPorts,
@@ -71,6 +78,10 @@ export class DocsService implements DocAccess {
   ) {
     this.blobs = ports.blobs;
     this.store = ports.store;
+    this.sharing = new StoreSharing(ports.store, {
+      exists: async (id) => (await this.blobs.head(this.key(id))) !== null,
+      creator: async (id) => (await this.info(id).catch(() => null))?.createdBy,
+    });
   }
 
   private key(id: string): string {
@@ -78,11 +89,23 @@ export class DocsService implements DocAccess {
     return `${id}.ydoc`;
   }
 
-  async create(id: string, markdown: string, author: Principal): Promise<void> {
+  async create(id: string, markdown: string, author: Principal, context?: PrincipalContext): Promise<void> {
     const key = this.key(id);
     const created = await this.blobs.put(key, AgenticDoc.fromMarkdown(markdown, author, this.options).encode(), { ifNoneMatch: "*" });
     if (!created) throw new DocError("DOCUMENT_EXISTS", `document "${id}" already exists`);
     await this.catalog(id, author);
+    await this.registered(id, key, author, context);
+  }
+
+  /** Make the owner record. When the erase of old sharing data fails, undo the document that was just made, so it never has the old owners. */
+  private async registered(id: string, key: string, author: Principal, context: PrincipalContext | undefined): Promise<void> {
+    try {
+      await this.sharing.register(context ?? safeContextOf(author), id);
+    } catch (error) {
+      await this.store.delete(CATALOG, id);
+      await this.blobs.delete(key);
+      throw error;
+    }
   }
 
   /** The stored document as a Yjs update. A live client seeds its room from it. */
@@ -97,7 +120,7 @@ export class DocsService implements DocAccess {
    * has none. A merge is safe to repeat and to run in any order. The save is conditional, so two
    * checkpoints at once both land.
    */
-  async checkpoint(id: string, update: Uint8Array, author: Principal, options: { create?: boolean } = {}): Promise<void> {
+  async checkpoint(id: string, update: Uint8Array, author: Principal, options: { create?: boolean; context?: PrincipalContext } = {}): Promise<void> {
     const key = this.key(id);
     const scratch = new Y.Doc();
     try {
@@ -119,6 +142,7 @@ export class DocsService implements DocAccess {
         this.fits(id, fresh);
         if (!(await this.blobs.put(key, fresh, { ifNoneMatch: "*" }))) continue;
         await this.catalog(id, author);
+        await this.registered(id, key, author, options.context);
         return;
       }
       const doc = AgenticDoc.fromUpdate(found.data, this.options);
@@ -238,6 +262,7 @@ export class DocsService implements DocAccess {
     const key = this.key(id);
     if (!isPerson(author) && author.scopes?.includes(REMOVE_SCOPE) !== true) throw new DocError("FORBIDDEN", `an agent needs the ${REMOVE_SCOPE} scope to remove a document`);
     if (!(await this.blobs.head(key))) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
+    await this.sharing.erase(id); // first, so a failure leaves the document in place and the remove can run again
     await this.store.delete(CATALOG, id);
     await this.blobs.delete(key);
   }

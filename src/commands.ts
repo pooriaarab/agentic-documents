@@ -1,8 +1,10 @@
+import type { PrincipalContext } from "agentic-identity";
 import { z } from "zod";
 import { DocError, type Principal, type Target, type TextTarget } from "./doc.js";
 import { EXPORT_FORMATS, exportDoc } from "./export.js";
 import { Suggestions, Threads } from "./review.js";
 import type { DocAccess } from "./service.js";
+import { contextOf, INVITE_ROLES, parseSubject, ROLES } from "./share.js";
 
 /** One table drives the CLI, the MCP server, and the HTTP API, so they stay the same. */
 export interface Command {
@@ -10,7 +12,7 @@ export interface Command {
   description: string;
   shape: z.ZodRawShape;
   readOnly: boolean;
-  run(service: DocAccess, input: Record<string, unknown>, author: Principal | undefined): Promise<unknown>;
+  run(service: DocAccess, input: Record<string, unknown>, author: Principal | undefined, context?: PrincipalContext): Promise<unknown>;
 }
 
 const id = z.string().describe("Document id.");
@@ -52,28 +54,33 @@ function command<S extends z.ZodRawShape>(
   description: string,
   readOnly: boolean,
   shape: S,
-  run: (service: DocAccess, input: z.infer<z.ZodObject<S>>, author: Principal) => unknown,
+  run: (service: DocAccess, input: z.infer<z.ZodObject<S>>, author: Principal, context?: PrincipalContext) => unknown,
 ): Command {
   return {
     name,
     description,
     shape,
     readOnly,
-    async run(service, raw, author) {
+    async run(service, raw, author, context) {
       const parsed = z.object(shape).strict().safeParse(raw);
       if (!parsed.success) {
         throw new DocError("INVALID_INPUT", parsed.error.issues.map((i) => `${i.path.join(".") || "input"}: ${i.message}`).join("; "));
       }
-      return run(service, parsed.data, author as Principal);
+      return run(service, parsed.data, author as Principal, context);
     },
   };
 }
 
 const ok = () => ({ ok: true });
+const role = z.enum(ROLES).describe("viewer, commenter, editor, or owner. Roles are stored but reads and writes do not check them yet.");
+const inviteRole = z.enum(INVITE_ROLES).describe("viewer, commenter, or editor. An invite never makes an owner.");
+const flag = z.union([z.boolean(), z.enum(["true", "false"])]).transform((v) => v === true || v === "true");
+const to = z.string().describe("Who: human:<id> for a person, agent:<id> for an agent.");
+const OWNER_ONLY = " Only an owner may.";
 
 export const commands: Command[] = [
-  command("new", "Create a document, from Markdown if given.", false, { id, markdown: z.string().optional() }, async (s, i, a) => {
-    await s.create(i.id, i.markdown ?? "", a);
+  command("new", "Create a document, from Markdown if given. You own it.", false, { id, markdown: z.string().optional() }, async (s, i, a, c) => {
+    await s.create(i.id, i.markdown ?? "", a, c);
     return { id: i.id };
   }),
   command("list", "List documents with their titles, creators, and last edits.", true, {}, (s) => s.list()),
@@ -141,4 +148,32 @@ export const commands: Command[] = [
   command("export", "Export the document as Markdown (md), self-contained HTML (html), or OpenDocument text (odt, base64). HTML shows no remote image unless remoteImages is true.", true, { id, format: z.enum(EXPORT_FORMATS), remoteImages: z.union([z.boolean(), z.enum(["true", "false"])]).optional() }, (s, i) =>
     s.read(i.id, (d) => exportDoc(d, i.format, { remoteImages: i.remoteImages === true || i.remoteImages === "true" })),
   ),
+  command("grants", "List who holds a role on a document." + OWNER_ONLY, true, { id }, (s, i, a, c) => s.sharing.grants(c ?? contextOf(a), i.id)),
+  command("grant", "Give a person or an agent a role on a document. It replaces the role they hold." + OWNER_ONLY, false, { id, to, role }, async (s, i, a, c) => {
+    await s.sharing.grant(c ?? contextOf(a), i.id, parseSubject(i.to), i.role);
+    return ok();
+  }),
+  command("revoke", "Take a role away from a person or an agent." + OWNER_ONLY, false, { id, to }, async (s, i, a, c) => {
+    await s.sharing.revoke(c ?? contextOf(a), i.id, parseSubject(i.to));
+    return ok();
+  }),
+  command("invites", "List the invites on a document. It shows no email address." + OWNER_ONLY, true, { id }, (s, i, a, c) => s.sharing.invites(c ?? contextOf(a), i.id)),
+  command(
+    "invite",
+    "Invite a person by email, or an agent by handle, to a document." + OWNER_ONLY,
+    false,
+    { id, role: inviteRole, email: z.string().optional(), handle: z.string().optional(), expiresInMs: z.coerce.number().int().optional().describe("How long the invite lasts, in milliseconds.") },
+    async (s, i, a, c) => s.sharing.invite(c ?? contextOf(a), i.id, { role: i.role, email: i.email, handle: i.handle, expiresInMs: i.expiresInMs }),
+  ),
+  command(
+    "link",
+    "Make a share link token for a document. The token shows once." + OWNER_ONLY,
+    false,
+    { id, role: inviteRole, expiresAt: z.coerce.number().int().optional().describe("When the link ends, in epoch milliseconds."), signedInOnly: flag.optional().describe("Only a signed-in visitor may use it.") },
+    async (s, i, a, c) => s.sharing.link(c ?? contextOf(a), i.id, { role: i.role, expiresAt: i.expiresAt, signedInOnly: i.signedInOnly }),
+  ),
+  command("unlink", "Revoke a share link." + OWNER_ONLY, false, { id, link: z.string().describe("Link id.") }, async (s, i, a, c) => {
+    await s.sharing.unlink(c ?? contextOf(a), i.id, i.link);
+    return ok();
+  }),
 ];

@@ -3,6 +3,7 @@ import { SyncClient, type Peer } from "agentic-realtime/client";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal } from "./doc.js";
 import { DOC_ERROR_CODES } from "./errors.js";
 import { MAX_LIVE_BYTES, type DocAccess, type DocSummary } from "./service.js";
+import type { DocSharing, GrantInput } from "./share.js";
 
 export interface LiveOptions {
   /** The Worker address, such as `https://docs.example.com`. */
@@ -156,7 +157,24 @@ function unreachable(error: unknown): DocError {
  * change as the token's author, saves to the stored document, and leaves. A read joins and leaves.
  */
 export class LiveService implements DocAccess {
-  constructor(private readonly options: Pick<LiveOptions, "server" | "token" | "name" | "doc">) {}
+  /** Sharing is kept by the server, so each call goes to the HTTP API. The server reads who you are from the token and ignores any context here. */
+  readonly sharing: DocSharing;
+
+  constructor(private readonly options: Pick<LiveOptions, "server" | "token" | "name" | "doc">) {
+    const who = (to: GrantInput) => `${to.kind}:${to.id}`;
+    const path = (id: string, command: string) => `/api/v1/docs/${encodeURIComponent(id)}/${command}`;
+    const post = async (id: string, command: string, body: object) => (await this.call(path(id, command), { method: "POST", body })).json() as Promise<never>;
+    const get = async (id: string, command: string) => (await this.call(path(id, command), { method: "GET" })).json() as Promise<never>;
+    this.sharing = {
+      grants: (_ctx, id) => get(id, "grants"),
+      grant: async (_ctx, id, to, role) => void (await post(id, "grant", { to: who(to), role })),
+      revoke: async (_ctx, id, to) => void (await post(id, "revoke", { to: who(to) })),
+      invites: (_ctx, id) => get(id, "invites"),
+      invite: (_ctx, id, input) => post(id, "invite", input),
+      link: (_ctx, id, input) => post(id, "link", input),
+      unlink: async (_ctx, id, link) => void (await post(id, "unlink", { link })),
+    };
+  }
 
   private async join(id: string): Promise<LiveDoc> {
     try {

@@ -41,7 +41,14 @@ change it in a call.
 | `doc_insert`, `doc_replace`, `doc_delete`, `doc_append` | Change text or sections. |
 | `doc_suggest`, `doc_suggestions`, `doc_accept`, `doc_reject` | Suggested edits. |
 | `doc_comment`, `doc_reply`, `doc_resolve`, `doc_reopen`, `doc_threads` | Comment threads. |
+| `doc_grants`, `doc_grant`, `doc_revoke` | List, give, and take away a role (`viewer`, `commenter`, `editor`, `owner`). `to` is `human:<id>` or `agent:<id>`. |
+| `doc_invites`, `doc_invite` | List invites. Invite by `email`, or an agent by `handle`. |
+| `doc_link`, `doc_unlink` | Make a share link token (it shows once), or revoke a link by id. |
 | `doc_export` | Export as `md`, `html`, or `odt` (base64 file). |
+
+Only an owner shares a document, and an agent needs the `docs:admin` scope too. A refusal is `FORBIDDEN`. Never try to
+grant yourself a role. Roles are stored, but reads and writes do not check them yet, nothing opens a link token, and
+nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role. A document with no owner record (made before sharing, with no creator in the catalog or made by an agent that acts for a person) cannot be shared.
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
 

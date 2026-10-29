@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Sharing, built on the grant, invite, and link primitives of `agentic-identity`. New commands: `grants`, `grant`,
+  `revoke`, `invites`, `invite`, `link`, and `unlink`. They are in the CLI, the MCP server (`doc_grants` and so on),
+  and the HTTP API (`GET /docs/:id/grants`, `POST /docs/:id/grant`, and so on). Only an owner may use them, and an
+  agent also needs the `docs:admin` scope. The person who creates a document owns it, and an agent that creates one
+  for a person makes that person the owner. A link token shows once. An invite list shows no email address. Removing a document erases
+  its sharing data. Roles are stored and audited. Reads and writes do not check them yet. A document made before
+  sharing, with no creator in the catalog or made by an agent that acts for a person, has no owner and cannot be
+  claimed.
+- `DocsService.sharing` and the `DocSharing` type.
+
 ## 0.8.0
 
 ### Removed
