@@ -33,6 +33,14 @@ test("in a table, the Table tool adds and removes rows and columns, and deletes 
   await expect(text.locator("tr").first().locator("th")).toHaveCount(2);
   await change("Delete row");
   await expect(text.locator("tr")).toHaveCount(2);
+
+  // In the header row, no row goes above it and it is not deleted, since Markdown makes the first row the header.
+  await text.getByText("Owner").click();
+  await changes.click();
+  await expect(page.getByRole("menuitem", { name: "Add row below" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Add row above" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Delete row" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await changes.click();
   await expectAccessible(page);
   await page.getByRole("menuitem", { name: "Delete table" }).click();
@@ -103,6 +111,19 @@ test("Download Markdown saves the text, and Import Markdown replaces it for ever
   await bar(page).getByRole("button", { name: "Undo" }).click();
   await expect(textbox(page)).toContainText("First draft.");
   await other.context().close();
+  await page.context().close();
+});
+
+test("once the document is removed and the editor is read only, Import Markdown is gone", async ({ browser }) => {
+  const { page, id } = await open(browser, "Soon gone.");
+  await textbox(page).click();
+  await page.keyboard.type(" More.");
+  await createClient({ baseUrl: url(), token: ADA }).remove(id);
+  await page.keyboard.type(" Again.");
+  await expect(page.getByRole("status").filter({ hasText: "was removed" })).toBeVisible();
+  await page.getByRole("button", { name: "More actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Download Markdown" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Import Markdown" })).toHaveCount(0);
   await page.context().close();
 });
 

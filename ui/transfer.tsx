@@ -47,6 +47,7 @@ export function ImportDialog({ editor, open, onOpenChange, remote }: { editor: E
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!editor) return;
+    if (!editor.isEditable) return setError("This document is read only now, so the file cannot replace its text.");
     if (!file) return setError("Choose a Markdown file.");
     if (file.size > MAX_MARKDOWN_BYTES) return setError("Use a file of 2 MB or less.");
     let markdown: string;

@@ -37,6 +37,15 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
   const [title, setTitle] = useState<{ id: string; title: string } | { id: string; error: unknown }>();
   const [dialog, setDialog] = useState<"rename" | "delete" | "share" | "import">();
   const [editor, setEditor] = useState<Editor | null>(null);
+  // The editor turns read only when the document is removed. The menu follows it.
+  const [writable, setWritable] = useState(false);
+  useEffect(() => {
+    if (!editor) return setWritable(false);
+    const check = () => setWritable(editor.isEditable);
+    check();
+    editor.on("update", check);
+    return () => void editor.off("update", check);
+  }, [editor]);
   const [attempt, setAttempt] = useState(0);
   const room = useMemo(() => roomOf(id, token, baseUrl), [id, token, baseUrl]);
   // A save on leave never makes a document, so after a delete it fails with NO_DOCUMENT and the document stays deleted.
@@ -60,7 +69,8 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
   const themes: [ThemePreference, string][] = [["system", "System theme"], ["light", "Light theme"], ["dark", "Dark theme"]];
   const more: MenuItem[] = [
     ...(editor ? [{ label: "Download Markdown", onSelect: () => downloadMarkdown(editor, title.title) }] : []),
-    ...(editor && me.role === "editor" ? [{ label: "Import Markdown", onSelect: () => setDialog("import") }] : []),
+    // Not once the editor is read only, for example after someone removed the document: that text cannot be saved.
+    ...(editor && writable && me.role === "editor" ? [{ label: "Import Markdown", onSelect: () => setDialog("import") }] : []),
     ...(editor ? ["separator" as const] : []),
     ...(me.role === "editor" ? [{ label: "Rename", onSelect: () => setDialog("rename") }, { label: "Delete", danger: true, onSelect: () => setDialog("delete") }, "separator" as const] : []),
     ...themes.map(([value, label]) => ({ label: preference === value ? `${label} (in use)` : label, onSelect: () => setPreference(value) })),

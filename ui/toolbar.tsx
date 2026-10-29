@@ -34,14 +34,16 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
   const on = (name: string, attrs?: object) => editor.isActive(name, attrs);
   // A block that is not a paragraph or a heading, such as a code block, or a selection over several kinds, is "Other".
   const style = STYLES.find((s) => s.active(editor));
-  // In a table, the Table tool opens the table changes. Elsewhere it puts in a new table.
+  // In a table, the Table tool opens the table changes. Elsewhere it puts in a new table. Markdown makes the first row
+  // the header, so in the header row there is no row above it to add, and the row is not deleted.
+  const header = on("tableHeader");
   const tables: MenuItem[] = [
-    { label: "Add row above", onSelect: () => chain().addRowBefore().run() },
+    ...(header ? [] : [{ label: "Add row above", onSelect: () => chain().addRowBefore().run() }]),
     { label: "Add row below", onSelect: () => chain().addRowAfter().run() },
     { label: "Add column before", onSelect: () => chain().addColumnBefore().run() },
     { label: "Add column after", onSelect: () => chain().addColumnAfter().run() },
     "separator",
-    { label: "Delete row", onSelect: () => chain().deleteRow().run() },
+    ...(header ? [] : [{ label: "Delete row", onSelect: () => chain().deleteRow().run() }]),
     { label: "Delete column", onSelect: () => chain().deleteColumn().run() },
     "separator",
     { label: "Delete table", danger: true, onSelect: () => chain().deleteTable().run() },
