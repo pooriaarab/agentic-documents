@@ -1,21 +1,30 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
 ### Removed
 
-- **Breaking.** `DOCX_MIME`, `ODT_MIME`, `FILE_FORMATS`, and `IMPORT_FORMATS` are no longer exported. Nothing in the
-  package used them outside `agentic-documents/formats`. The `FileFormat` and `ImportFormat` types stay. No runtime
-  list replaces them. Import takes `md`, `odt`, and `docx`. Export takes `md`, `html`, `odt`, and `docx`.
+- **Breaking.** `DOCX_MIME`, `ODT_MIME`, `FILE_FORMATS`, and `IMPORT_FORMATS` are no longer exported. `ODT_MIME` also
+  leaves the root `agentic-documents` entry. Nothing else in the package used them. The `FileFormat` and
+  `ImportFormat` types stay. No runtime list replaces them. Import takes `md`, `odt`, and `docx`. Export takes `md`,
+  `html`, `odt`, and `docx`.
 
 ### Changed
 
-- The Worker signs in with `agentic-identity` keys from the D1 database by default (`createStoreAuth`). A scope of
-  `docs:write` makes an editor, no write scope makes a viewer, and `docs:admin` grants an agent `docs:accept` and
-  `docs:remove`. `createApp` takes an `auth` option to bring your own `Auth` port.
+- **Breaking.** The Worker signs in with `agentic-identity` keys from the D1 database by default (`createStoreAuth`).
+  A deployment that only sets `AGENTIC_DOCS_TOKENS` now gets 401 on every request until you add principals and keys
+  to the database. A scope of `docs:write` makes an editor, no write scope makes a viewer, and `docs:admin` grants a
+  principal `docs:accept` and `docs:remove`. `createApp` takes an `auth` option to bring your own `Auth` port. A
+  Worker with no `AGENTIC_DOCS_REGION` now answers 500 `MISCONFIGURED` before it checks the sign-in.
 - **Breaking.** `AGENTIC_DOCS_TOKENS` is ignored unless `AGENTIC_DOCS_UNSAFE_TOKENS=1` is set. It is a development
   fallback. Set the new variable where you still use the table. Without a D1 database or the switch, the Worker
   answers 500 `MISCONFIGURED`.
+- **Breaking.** `agentic-realtime` moves from `^0.1.0` to `^0.4.1`. Its types change, so a custom `live` option
+  typed against 0.1 must move to 0.4. Realtime 0.4 refuses an update that uses the client ids of another principal.
+  Run the live Worker and its clients on 0.8.0 together.
+- `agentic-design` moves from `^0.1.0` to `^0.3.1`, and `agentic-formats` from `^0.2.0` to `^0.3.0`.
+- A live join seeds only the parts of the stored document that the room lacks. Two principals that join at the same
+  time no longer fail: the second seed is not refused.
 
 ## 0.7.1
 
