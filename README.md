@@ -99,7 +99,7 @@ npm install agentic-documents
 ```
 
 Add the D1 and R2 bindings from the sample `wrangler.jsonc`, and set `AGENTIC_DOCS_TOKENS` as a secret.
-The Worker answers `/api` and `/health`, and serves the UI for the other paths. If you deploy from a clone
+The Worker serves the files in `dist/ui` first. It answers `/api`, `/health`, and any other path. If you deploy from a clone
 with the sample `wrangler.jsonc`, run `npm run build` before `wrangler deploy`. The build writes `dist/ui`,
 and the sample file reads it.
 
