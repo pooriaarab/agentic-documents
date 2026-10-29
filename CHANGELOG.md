@@ -9,6 +9,10 @@
   join a room. `client` is optional with `host`. `onEditor` gives the app the Tiptap editor. The editor no longer
   injects an inline style. `ui.css` has its base rules.
 
+### Changed
+
+- The file blob store now comes from `agentic-identity/file`. `createFileBlobs(dir, options)` and `FileBlobsOptions` keep their names and are re-exported. `createFileBlobs` takes `urlBase` and `urlSecret`, and `signedUrl` needs both (it gives a signed HTTP URL, not a `file:` path). The lock options `lockStaleMs` and `lockTimeoutMs` are gone, because the shared store manages its own lock. `agentic-identity` moves to `^0.8.0`.
+
 ### Fixed
 
 - zod moves to 4.6.7 to fix GHSA-mrhx-c7xc-m3w5, a high advisory (memory exhaustion when validating oversized constrained collections). The direct dependency moves from `^3.25.0` to `^4.6.7`. An npm `overrides` entry moves `agentic-design` and `agentic-formats` to zod 4.6.7 in this repo's install and build. npm ignores `overrides` in a published package, so an install of this package still gets zod 3 under those two packages until they accept zod 4. The `@modelcontextprotocol/sdk` floor moves from `^1.12.0` to `^1.23.0`, because earlier SDK releases depend on zod 3.

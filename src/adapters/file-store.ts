@@ -1,7 +1,13 @@
-import { StoreConflictError, type AdapterOptions, type Doc, type Store } from "agentic-identity";
-import { createFileStore as createIdentityFileStore } from "agentic-identity/file";
+import { StoreConflictError, type AdapterOptions, type Blobs, type Doc, type Store } from "agentic-identity";
+import { createFileBlobs as createIdentityFileBlobs, createFileStore as createIdentityFileStore, type FileBlobsOptions as IdentityFileBlobsOptions } from "agentic-identity/file";
 import { join } from "node:path";
-import { createFileBlobs } from "./file-blobs.js";
+
+export type FileBlobsOptions = Omit<IdentityFileBlobsOptions, "dir">;
+
+/** Blobs kept as files under `dir`, from `agentic-identity/file`. */
+export function createFileBlobs(dir: string, options: FileBlobsOptions = {}): Blobs {
+  return createIdentityFileBlobs({ ...options, dir });
+}
 
 const ATTEMPTS = 64;
 const META = "migrations";

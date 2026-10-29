@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runBlobsContract, runStoreContract } from "agentic-identity/testing";
 import { describe, expect, it } from "vitest";
-import { createFileBlobs } from "./file-blobs.js";
-import { createFileStore } from "./file-store.js";
+import { createFileBlobs, createFileStore } from "./file-store.js";
 
 const fresh = () => mkdtempSync(join(tmpdir(), "docs-fs-"));
 const shared = new Map<string, string>();
@@ -14,7 +13,7 @@ const shared = new Map<string, string>();
 const dirFor = (name: string | undefined) => (name === undefined ? fresh() : (shared.get(name) ?? shared.set(name, fresh()).get(name)!));
 
 runStoreContract((options) => createFileStore(dirFor(options.shared), options));
-runBlobsContract((options) => createFileBlobs(dirFor(options.shared === undefined ? undefined : `b-${options.shared}`), options));
+runBlobsContract((options) => createFileBlobs(dirFor(options.shared === undefined ? undefined : `b-${options.shared}`), { ...options, urlBase: "https://blobs.test/files", urlSecret: "s".repeat(32) }));
 
 describe("file store", () => {
   it("keeps committed writes in a new instance and drops rolled-back ones", async () => {

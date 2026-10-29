@@ -2,8 +2,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { createFileBlobs } from "./adapters/file-blobs.js";
-import { createFileStore } from "./adapters/file-store.js";
+import { createFileBlobs, createFileStore } from "./adapters/file-store.js";
 import { commands } from "./commands.js";
 import { DocError, parseAuthor } from "./doc.js";
 import type { ExportResult } from "./export.js";
