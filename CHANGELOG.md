@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+
+- The local file `Store` is now `createFileStore` from `agentic-identity/file` (0.7). The catalog moves to
+  `<dir>/store/store.json`. The first write after the upgrade imports the old catalog once. The options
+  `lockStaleMs` and `lockTimeoutMs` no longer apply to the store. A write that loses a race runs again up to 64 times.
+
 ### Added
 
 - Sharing, built on the grant, invite, and link primitives of `agentic-identity`. New commands: `grants`, `grant`,
