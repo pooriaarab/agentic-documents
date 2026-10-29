@@ -2,6 +2,10 @@
 
 ## 0.11.1
 
+### Added
+
+- The README has a table of every subpath export in `package.json`, with what each one is for.
+
 ### Changed
 
 - `agentic-identity` moves from `^0.8.0` to `^0.9.0`, `agentic-design` from `^0.4.0` to `^0.6.0`, `agentic-realtime` from `^0.4.1` to `^0.4.4`, and `agentic-formats` from `^0.3.0` to `^0.4.2`. `agentic-design` 0.5.0 and 0.6.0 change the look and make `Tabs` use a roving tab index. `agentic-realtime` 0.4.4 uses `agentic-identity` 0.9.0, so the lockfile has one copy of it.
