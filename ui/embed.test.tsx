@@ -63,10 +63,22 @@ describe("mountEditor", () => {
     const { client, saves } = fakeClient("Hello");
     const box = await mount({ id: "plan", client, principal: ada });
     await act(async () => void editorOf(box).commands.insertContentAt(editorOf(box).state.doc.content.size - 1, " world"));
-    await act(async () => mounted!.unmount());
+    const leaving = mounted!.unmount();
     mounted = undefined;
-    await vi.waitFor(() => expect(saves).toHaveLength(1));
-    expect(saves[0]).toEqual({ id: "plan", markdown: "Hello world\n", create: false });
+    await act(async () => leaving); // unmount settles once the save is done
+    expect(saves).toEqual([{ id: "plan", markdown: "Hello world\n", create: false }]);
+  });
+
+  it("unmount rejects when the last save fails, so the host knows the change is lost", async () => {
+    const { client } = fakeClient("Hello");
+    client.checkpoint = vi.fn(async () => {
+      throw Object.assign(new Error("refused"), { code: "FORBIDDEN" });
+    });
+    const box = await mount({ id: "plan", client, principal: ada });
+    await act(async () => void editorOf(box).commands.insertContentAt(1, "Oh. "));
+    const leaving = mounted!.unmount();
+    mounted = undefined;
+    await expect(leaving).rejects.toThrow("refused");
   });
 
   it("leaving without a change saves nothing", async () => {
@@ -74,14 +86,13 @@ describe("mountEditor", () => {
     await mount({ id: "plan", client, principal: ada });
     await act(async () => mounted!.unmount());
     mounted = undefined;
-    await new Promise((r) => setTimeout(r, 50));
     expect(client.checkpoint).not.toHaveBeenCalled();
   });
 
-  it("a viewer, or a role it does not know, reads the text but cannot change it", async () => {
-    for (const role of ["viewer", "owner"]) {
+  it("a viewer, a role it does not know, or no role reads the text but cannot change it", async () => {
+    for (const role of ["viewer", "owner", undefined]) {
       const { client } = fakeClient("Hello");
-      const box = await mount({ id: "plan", client, principal: { ...ada, role: role as "viewer" } });
+      const box = await mount({ id: "plan", client, principal: { kind: "human", name: "Vic", ...(role ? { role: role as "viewer" } : {}) } });
       expect(box.getAttribute("contenteditable")).toBe("false");
       expect(host.textContent).toContain("Read only.");
       expect(host.querySelector<HTMLButtonElement>('button[aria-label="Bold"]')?.disabled).toBe(true);
@@ -91,10 +102,24 @@ describe("mountEditor", () => {
     }
   });
 
-  it("an agent principal shows as an agent in presence", async () => {
-    const { client } = fakeClient("Hello");
-    await mount({ id: "plan", client, principal: { kind: "agent_of_human", name: "Scribe" } });
+  it("an agent principal shows as an agent, and the text it types is marked and logged as agent work", async () => {
+    const { client, saves } = fakeClient("Hello");
+    const box = await mount({ id: "plan", client, principal: { kind: "agent_of_human", name: "Scribe", role: "editor" } });
     expect(host.querySelector(".ad-stack__summary")?.textContent).toBe("1 agent");
+    await act(async () => void editorOf(box).commands.insertContentAt(editorOf(box).state.doc.content.size - 1, " from a bot"));
+    await vi.waitFor(() => expect(box.querySelector(".agent-text")?.textContent).toBe(" from a bot"));
+    const leaving = mounted!.unmount();
+    mounted = undefined;
+    await act(async () => leaving);
+    expect(saves[0].markdown).toBe("Hello from a bot\n");
+  });
+
+  it("a person's typed text is not marked as agent work", async () => {
+    const { client } = fakeClient("Hello");
+    const box = await mount({ id: "plan", client, principal: ada });
+    await act(async () => void editorOf(box).commands.insertContentAt(1, "Hi. "));
+    await new Promise((r) => setTimeout(r, 150)); // the marks are drawn after a short wait
+    expect(box.querySelector(".agent-text")).toBeNull();
   });
 
   it("a principal with no kind, an unknown kind, or no name is refused before anything loads", () => {
@@ -119,10 +144,12 @@ describe("mountEditor", () => {
     await vi.waitFor(() => expect(client.state).toHaveBeenCalledTimes(2));
   });
 
-  it("update opens another document in the same place", async () => {
+  it("update opens another document in the same place, and a bad principal keeps the editor as it is", async () => {
     const { client } = fakeClient("First");
     const box = await mount({ id: "one", client, principal: ada });
     await vi.waitFor(() => expect(box.textContent).toContain("First"));
+    expect(() => mounted!.update({ id: "two", client, principal: { name: "Ada" } as never })).toThrow(TypeError);
+    expect(host.querySelector('[role="textbox"]')?.textContent).toContain("First");
     await act(async () => mounted!.update({ id: "two", client: fakeClient("Second").client, principal: ada }));
     await vi.waitFor(() => expect(host.querySelector('[role="textbox"]')?.textContent).toContain("Second"));
   });

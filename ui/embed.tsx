@@ -13,7 +13,7 @@ export type { EditorClient, EditorRoom, LiveSession };
 export interface EmbedPrincipal {
   kind: PrincipalKind;
   name: string;
-  /** `viewer` opens the text read only. Any value other than `editor` or no value counts as `viewer`. */
+  /** Only `editor` can change the text. Any other value, or no value, opens it read only. */
   role?: "editor" | "viewer";
 }
 
@@ -27,6 +27,8 @@ export interface DocumentEditorOptions {
   room?: EditorRoom;
   /** Called when the document cannot open, with the error. */
   onError?: (error: unknown) => void;
+  /** Called when the editor closes a document, with a promise that settles when the last save and the leave are done. It rejects when that save fails. */
+  onLeave?: (done: Promise<void>) => void;
 }
 
 /** A principal must have a known kind and a name. A missing kind is an error, never a default. */
@@ -40,14 +42,17 @@ export type SessionState = { state: "loading" } | { state: "error"; error: unkno
 
 /**
  * Open a document for an editor, and close it when the component goes. On leave it saves first, but only when this tab
- * changed something and may write. A save never makes a document, so a removed document stays removed.
+ * changed something and may write. A save never makes a document, so a removed document stays removed. `onLeave` gets a
+ * promise that settles when the leave is done. It rejects when the save fails. With no `onLeave`, a failure is dropped.
  */
-export function useEditorSession(client: EditorClient, id: string, name: string, editable: boolean, room: EditorRoom | undefined, attempt: number): SessionState {
+export function useEditorSession(client: EditorClient, id: string, name: string, editable: boolean, room: EditorRoom | undefined, attempt: number, onLeave?: (done: Promise<void>) => void): SessionState {
   const [load, setLoad] = useState<SessionState>({ state: "loading" });
   // The room is an object the app may make on each render. Only its values decide when to join again.
   const roomKey = room ? JSON.stringify([room.url, room.token ?? ""]) : "";
   const roomRef = useRef(room);
   roomRef.current = room;
+  const leaveRef = useRef(onLeave);
+  leaveRef.current = onLeave;
   useEffect(() => {
     let cancelled = false;
     let live: LiveSession | undefined;
@@ -62,9 +67,19 @@ export function useEditorSession(client: EditorClient, id: string, name: string,
     );
     return () => {
       cancelled = true;
-      if (live) void (!editable || !live.dirty ? Promise.resolve() : live.save().catch(() => undefined)).finally(() => live?.close());
+      const open = live;
+      if (!open) return;
+      const done = (async () => {
+        try {
+          if (editable && open.dirty) await open.save();
+        } finally {
+          await open.close();
+        }
+      })();
+      if (leaveRef.current) leaveRef.current(done);
+      else done.catch(() => undefined);
     };
-  }, [client, id, name, editable, roomKey, attempt]);
+  }, [client, id, name, editable, roomKey, room?.WebSocket, attempt]);
   return load;
 }
 
@@ -77,11 +92,11 @@ const describe = (error: unknown): string => {
 };
 
 /** The editor for one document, with its toolbar, presence, and save state. */
-export function DocumentEditor({ id, client, principal, room, onError }: DocumentEditorOptions) {
+export function DocumentEditor({ id, client, principal, room, onError, onLeave }: DocumentEditorOptions) {
   checkPrincipal(principal);
-  const editable = principal.role === undefined || principal.role === "editor";
+  const editable = principal.role === "editor";
   const [attempt, setAttempt] = useState(0);
-  const load = useEditorSession(client, id, principal.name, editable, room, attempt);
+  const load = useEditorSession(client, id, principal.name, editable, room, attempt, onLeave);
   const reported = useRef<unknown>(undefined);
   useEffect(() => {
     if (load.state === "error" && reported.current !== load.error) {
@@ -106,20 +121,29 @@ export function DocumentEditor({ id, client, principal, room, onError }: Documen
 }
 
 export interface MountedEditor {
-  /** Show another document, principal, or room in the same place. */
+  /** Show another document, principal, or room in the same place. A bad principal throws and keeps the editor as it is. */
   update(options: DocumentEditorOptions): void;
-  /** Remove the editor. It saves this tab's changes first, then leaves the room. */
-  unmount(): void;
+  /** Remove the editor. It saves this tab's changes, then leaves the room. The promise rejects when that save fails. */
+  unmount(): Promise<void>;
 }
 
 /** Render the editor into an element, for an app that does not use React itself. */
 export function mountEditor(element: HTMLElement, options: DocumentEditorOptions): MountedEditor {
   checkPrincipal(options.principal);
   const root = createRoot(element);
-  const render = (next: DocumentEditorOptions) => root.render(<DocumentEditor key={next.id} {...next} />);
+  const leaving = new Set<Promise<void>>();
+  const track = (done: Promise<void>) => {
+    leaving.add(done);
+    void done.catch(() => undefined).finally(() => leaving.delete(done));
+  };
+  const render = (next: DocumentEditorOptions) =>
+    root.render(<DocumentEditor key={next.id} {...next} onLeave={(done) => (track(done), next.onLeave?.(done))} />);
   render(options);
   return {
     update: (next) => (checkPrincipal(next.principal), render(next)),
-    unmount: () => root.unmount(),
+    unmount: async () => {
+      root.unmount(); // runs the cleanup now, so every leave is tracked before the wait
+      await Promise.all(leaving);
+    },
   };
 }

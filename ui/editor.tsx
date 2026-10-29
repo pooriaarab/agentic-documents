@@ -114,8 +114,14 @@ export function Surface({ live, editable, principal: me }: { live: LiveSession; 
         },
       );
     };
+    let labeled = false;
     const changed = (_update: Uint8Array, origin: unknown) => {
       if (editable && !gone && origin === ySyncPluginKey) { // only changes made in this editor are saved from this tab
+        if (!labeled && isMachine(me.kind)) {
+          // Text carries the Yjs client id of its writer. This entry ties this client to an agent, so its text is marked.
+          labeled = true;
+          live.doc.getArray("edits").push([{ op: "live", at: new Date().toISOString(), author: { kind: me.kind, name: me.name }, client: live.doc.clientID, inserted: 0, deleted: 0 }]);
+        }
         live.touch();
         setSaved("saving");
         clearTimeout(timer);
@@ -133,7 +139,7 @@ export function Surface({ live, editable, principal: me }: { live: LiveSession; 
       offPeers?.();
       editor.destroy();
     };
-  }, [live, editable, me.name]);
+  }, [live, editable, me.name, me.kind]);
 
   const entries: PresenceEntry[] = [{ id: "me", name: me.name, kind: isMachine(me.kind) ? "agent" : "person" }, ...peers.map(entryOf)];
   const pressed = (name: string, attrs?: object) => editor?.isActive(name, attrs) ?? false;

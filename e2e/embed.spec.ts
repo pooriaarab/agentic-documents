@@ -54,12 +54,16 @@ test("two host pages co-edit one document through the embedded editor, and the s
   await bob.context().close();
 });
 
-test("an agent in the room shows as an agent, and a viewer token opens the text read only", async ({ browser }) => {
+test("an agent in the room shows as an agent, its typed text is marked, and a viewer token opens the text read only", async ({ browser }) => {
   const id = `embed-roles-${Date.now()}`;
   await sdk(ADA).create({ id, markdown: "Shared text." });
   const ada = await host(browser, ADA, id);
   const bot = await host(browser, BOT, id);
   await expect(ada.locator(".ad-stack__summary")).toContainText("1 agent");
+  // Text the agent types in its embedded editor is marked as agent work for the person.
+  await typeAtEnd(bot, " Agent line.");
+  await expect(textbox(ada).locator(".agent-text", { hasText: "Agent line." })).toHaveCount(1);
+  await expect(textbox(ada).locator(".agent-text", { hasText: "Shared" })).toHaveCount(0);
   const vic = await host(browser, VIC, id);
   await expect(textbox(vic)).toHaveAttribute("contenteditable", "false");
   await expect(vic.getByText(/Read only\./)).toBeVisible();

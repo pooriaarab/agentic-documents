@@ -225,19 +225,22 @@ const editor = mountEditor(document.getElementById("editor")!, {
   principal,
   room: { url: "wss://docs.example.com/api/v1/docs/plan/ws", token },
 });
-// Later: editor.update({ ...options, id: "other" }), or editor.unmount() to save this tab's changes and leave.
+// Later: editor.update({ ...options, id: "other" }), or await editor.unmount() to save this tab's changes and leave.
 ```
 
-- In a React app, render `<DocumentEditor id client principal room onError />` instead.
+- In a React app, render `<DocumentEditor id client principal room onError onLeave />` instead. `onLeave` gets the
+  promise of the last save.
 - `client` needs only `state` and `checkpoint`. A client from `createClient` has them, or pass your own.
 - `principal` needs a `kind` (one of the principal kinds) and a `name`. A missing or unknown kind throws a
-  `TypeError`. It is never given a default. A `role` other than `editor` opens the text read only. The server still
-  checks every write against the token.
+  `TypeError`. It is never given a default. Only the `role` `editor` can change the text. Any other role, or no role,
+  opens it read only. The server still checks every write against the token.
+- When an agent principal types, the editor writes one `live` entry to the edit log for its Yjs client. The editor
+  and the web UI then mark that text as agent work for everyone who opens the document.
 - `room.url` is the WebSocket address of the document room. In a browser the token goes in a WebSocket subprotocol.
   Pass `room.WebSocket` for a room that takes its token another way. Without a room, the editor saves through the
   client and shows no other people.
-- The editor saves 1.5 seconds after this tab changes the text, and again on `unmount`. A save never makes a
-  document, so a removed document stays removed.
+- The editor saves 1.5 seconds after this tab changes the text, and again on `unmount`. The promise from `unmount`
+  rejects when that last save fails. A save never makes a document, so a removed document stays removed.
 - The styles sit under the `.adoc` class and use the agentic-design tokens. Load `agentic-design/styles.css` first.
 - File import and export are in `agentic-documents/formats` (see [File formats](#file-formats)).
 

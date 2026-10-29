@@ -42,7 +42,8 @@ export interface Section {
 }
 
 export interface EditEntry {
-  op: "create" | "append" | "insert" | "replace" | "delete";
+  /** `live` ties the editor client of an agent to that agent, so the text the client types is marked as its work. Its counts stay 0. */
+  op: "create" | "append" | "insert" | "replace" | "delete" | "live";
   at: string;
   author: Principal;
   /** Counts of characters (text targets) or blocks (section targets). Never content. */
