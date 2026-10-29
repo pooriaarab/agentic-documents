@@ -95,6 +95,7 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
       if (dismissed.current !== undefined && (closed === undefined || closed >= size || editor.state.doc.textBetween(closed, closed + 1) !== "/" || (hit && hit.from !== closed))) dismissed.current = undefined;
       if (!hit || (dismissed.current !== undefined && hit.from === closed)) return setOpen(undefined);
       const at = editor.view.coordsAtPos(hit.from);
+      if (at.bottom < 0 || at.top > window.innerHeight) return setOpen(undefined); // the slash is scrolled out of view
       setOpen((old) => {
         if (old?.query !== hit.query) setActive(0);
         // Below the slash, or above it when there is more room there. A list longer than the room shows a window of it.
