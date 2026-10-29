@@ -15,8 +15,9 @@ The API of this package does not change. The change is in the dependency.
 
 - Tests that a person and an agent with the same id get separate roles, and that `deleteResource`
   removes the grants. This package has no grant call and no command that deletes a whole document. A host
-  that deletes a document must call `deleteResource` for it. To erase a person, revoke the grants
-  that name that person with `revokeGrant`. If `deleteResource` fails, run it again. If it throws
+  that deletes a document must call `deleteResource` for it. To erase a person, use the `agentic-identity`
+  erase (`DELETE /me`). It removes the person, their agents, their grants, and each resource that only
+  they own. If `deleteResource` fails, run it again. If it throws
   `EraseRefusedError`, remove the child resources or the extra owners first. Do not reuse the id
   until it succeeds.
 
