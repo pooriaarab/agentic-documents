@@ -10,6 +10,7 @@ import { Component, useEffect, useReducer, useRef, useState, type ReactNode } fr
 import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, Toolbar, ToolbarButton, ToolbarSeparator, usableName, type PresenceEntry } from "agentic-design/react";
 import { isMachine } from "../src/kinds.js";
 import type { LiveSession } from "./live.js";
+import { ImageDialog } from "./image.js";
 import { AgentText } from "./marks.js";
 
 /** Who uses the editor. The name shows in presence. The kind says if it is a person or an agent. */
@@ -74,6 +75,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
   const [linking, setLinking] = useState(false);
   const [href, setHref] = useState("");
   const [linkError, setLinkError] = useState<string>();
+  const [picturing, setPicturing] = useState(false);
   const refocus = useRef(false);
   const tell = useRef(onEditor);
   tell.current = onEditor;
@@ -170,7 +172,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
       {numbered ? <path d="M3 4.5l1-.5v4M3 11.5h2l-2 2.5h2.2" strokeLinejoin="round" /> : <path d="M3.5 5h.01M3.5 10h.01M3.5 15h.01" strokeWidth="2.6" />}
     </svg>
   );
-  const tool = (label: string, icon: ReactNode, active: boolean, run: () => void) => <ToolbarButton label={label} icon={icon} pressed={active} onClick={run} disabled={!editable} />;
+  const tool = (label: string, icon: ReactNode, active: boolean | undefined, run: () => void) => <ToolbarButton label={label} icon={icon} pressed={active} onClick={run} disabled={!editable} />;
 
   function openLink() {
     setHref((editor?.getAttributes("link").href as string | undefined) ?? "");
@@ -218,6 +220,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           {tool("Numbered list", listIcon(true), pressed("orderedList"), () => chain().toggleOrderedList().run())}
           <ToolbarSeparator />
           {tool("Link", glyph("↗"), pressed("link"), openLink)}
+          {/* It opens a dialog, so it has no pressed state. */}
+          {tool("Image", glyph("▣"), undefined, () => setPicturing(true))}
         </Toolbar>
         <div className="editor-meta">
           <PresenceStack entries={entries} label="People and agents here" />
@@ -241,6 +245,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           </div>
         </form>
       </Dialog>
+      <ImageDialog editor={editor} doc={live.doc} open={picturing} onOpenChange={setPicturing} />
     </section>
   );
 }
