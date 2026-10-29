@@ -79,7 +79,8 @@
     "test": "vitest run",
     "clean": "rm -rf dist",
     "ci:local": "npm run build && npm run typecheck && npm test && playwright test",
-    "e2e": "npm run build && playwright test"
+    "e2e": "npm run build && playwright test",
+    "deploy:demo": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy --config wrangler.demo.jsonc"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

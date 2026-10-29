@@ -1,0 +1,19 @@
+// The live demo on workers.dev. Deploy with `npm run deploy:demo`. See "Live demo" in the README.
+{
+  "name": "agentic-documents-demo",
+  "main": "src/live-worker.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    // The database and the bucket have the eu jurisdiction.
+    "AGENTIC_DOCS_REGION": "eu"
+  },
+  "assets": { "directory": "./dist/ui" },
+  "durable_objects": { "bindings": [{ "name": "SYNC_ROOM", "class_name": "SyncRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncRoom"] }],
+  // Set the tokens as a secret: `WRANGLER_SEND_METRICS=false npx wrangler secret put AGENTIC_DOCS_TOKENS --config wrangler.demo.jsonc`. Never put them in this file.
+  "d1_databases": [{ "binding": "DB", "database_name": "agentic-documents-demo-eu", "database_id": "d018dd7a-60cc-438c-b17d-cb8bffe3efee" }],
+  "r2_buckets": [{ "binding": "DOCS", "bucket_name": "agentic-documents-demo-data", "jurisdiction": "eu" }]
+}
