@@ -216,7 +216,7 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
     if (!(c.req.header("sec-websocket-protocol") ?? "").split(",").some((p) => p.trim() === WS_PROTOCOL)) return opened;
     const room = await opened;
     const socket = (room as Response & { webSocket?: unknown }).webSocket;
-    return socket ? new Response(null, { status: 101, webSocket: socket, headers: { "sec-websocket-protocol": WS_PROTOCOL } } as ResponseInit) : room;
+    return socket ? new Response(null, { status: 101, webSocket: socket, headers: new Headers([...room.headers, ["sec-websocket-protocol", WS_PROTOCOL]]) } as ResponseInit) : room;
   });
 
   async function run(c: Context<AppEnv>, command: Command, input: Record<string, unknown>) {

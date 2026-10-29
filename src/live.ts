@@ -183,7 +183,11 @@ export class LiveService implements DocAccess {
   // The catalog lives in the store, not in a room, so these go to the HTTP API.
   async list(): Promise<DocSummary[]> {
     const body: unknown = await (await this.call("/api/v1/docs", { method: "GET" })).json().catch(() => undefined);
-    const row = (r: unknown) => typeof r === "object" && r !== null && typeof (r as DocSummary).id === "string" && typeof (r as DocSummary).title === "string" && typeof (r as DocSummary).updatedAt === "number";
+    const who = (w: unknown) => typeof w === "object" && w !== null && PRINCIPAL_KINDS.includes((w as Principal).kind) && typeof (w as Principal).name === "string";
+    const row = (r: unknown) => {
+      const d = r as DocSummary;
+      return typeof r === "object" && r !== null && typeof d.id === "string" && typeof d.title === "string" && typeof d.createdAt === "number" && typeof d.updatedAt === "number" && who(d.createdBy) && who(d.updatedBy);
+    };
     if (!Array.isArray(body) || !body.every(row)) throw new DocError("INVALID_INPUT", "the server sent a document list that is not valid");
     return body as DocSummary[];
   }

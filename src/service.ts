@@ -12,7 +12,7 @@ const CATALOG = "documents";
 export const MAX_LIVE_BYTES = 1_000_000;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === "string";
-const isWho = (v: unknown): boolean => isObject(v) && PRINCIPAL_KINDS.includes(v.kind as PrincipalKind) && isString(v.name) && v.name !== "";
+const isWho = (v: unknown): v is { kind: PrincipalKind; name: string } => isObject(v) && PRINCIPAL_KINDS.includes(v.kind as PrincipalKind) && isString(v.name) && v.name !== "";
 const isAnchor = (v: unknown): boolean => isObject(v) && isString(v.text) && isObject(v.start) && isObject(v.end);
 const ROOTS = new Set(["default", "edits", "suggestions", "threads", "applied"]);
 
@@ -197,13 +197,12 @@ export class DocsService implements DocAccess {
     do {
       const page = await this.store.query(CATALOG, { orderBy: { field: "createdAt", direction: "desc" }, limit: 100, cursor });
       for (const { id, data } of page.items) {
-        const entry = data as Partial<DocInfo>;
+        const entry = (isObject(data) ? data : {}) as Partial<DocInfo>;
         const { createdBy, createdAt } = entry;
-        if (!createdBy || !PRINCIPAL_KINDS.includes(createdBy.kind) || typeof createdBy.name !== "string" || typeof createdAt !== "number") continue;
+        if (!isWho(createdBy) || typeof createdAt !== "number") continue;
         const by = entry.updatedBy;
-        if (by !== undefined && (!PRINCIPAL_KINDS.includes(by.kind) || typeof by.name !== "string")) continue; // a damaged field is skipped, never guessed
-        const updatedBy = by ?? createdBy;
-        found.push({ id, title: typeof entry.title === "string" && entry.title !== "" ? entry.title : id, createdBy, createdAt, updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : createdAt, updatedBy });
+        if (by !== undefined && !isWho(by)) continue; // a damaged field is skipped, never guessed
+        found.push({ id, title: typeof entry.title === "string" && entry.title !== "" ? entry.title : id, createdBy, createdAt, updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : createdAt, updatedBy: by ?? createdBy });
       }
       cursor = page.nextCursor;
     } while (cursor !== undefined && found.length < MAX_LISTED);

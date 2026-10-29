@@ -61,6 +61,8 @@ describe("catalog as a side record", () => {
     await service.create("good", "# Good", bot);
     await service.create("hurt", "# Hurt", bot);
     await store.put("documents", "hurt", { createdBy: { kind: "human", name: "x" }, createdAt: 1, updatedBy: { kind: "admin", name: "x" } });
+    await service.create("null", "# Null", bot);
+    await store.put("documents", "null", { createdBy: { kind: "human", name: "x" }, createdAt: 2, updatedBy: null });
     expect((await service.list()).map((r) => r.id)).toEqual(["good"]);
     await store.delete("documents", "good");
     await service.rename("good", "Back", ada);
