@@ -148,21 +148,28 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     setPeers(live.sync.peers);
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false; // set when the editor goes, so a late result starts nothing
+    let gone = false; // set when someone deleted the document
     const save = () => {
       timer = undefined;
       setSaved("saving");
       live.save().then(
-        () => setSaved("saved"),
+        () => !stopped && setSaved("saved"),
         (error: unknown) => {
-          if (error instanceof DocsApiError && error.code === "NO_DOCUMENT") return setSaved("removed"); // someone deleted it: stop saving
+          if (stopped) return;
+          if (error instanceof DocsApiError && error.code === "NO_DOCUMENT") {
+            gone = true;
+            editor.setEditable(false); // text that can never be saved is not left open for typing
+            return setSaved("removed");
+          }
           setSaved("failed");
           timer = setTimeout(save, 5000); // try again, so a stale stored copy does not wait for the next keystroke
         },
       );
     };
     const changed = (_update: Uint8Array, origin: unknown) => {
-      if (editable && origin === ySyncPluginKey) { // only changes made in this editor are saved from this tab
-        live.dirty = true;
+      if (editable && !gone && origin === ySyncPluginKey) { // only changes made in this editor are saved from this tab
+        live.touch();
         setSaved("saving");
         clearTimeout(timer);
         timer = setTimeout(save, SAVE_AFTER_MS);
@@ -172,6 +179,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     setConnection(live.status());
     const offStatus = live.onStatus(setConnection);
     return () => {
+      stopped = true;
       live.doc.off("update", changed);
       offStatus();
       if (timer) clearTimeout(timer);

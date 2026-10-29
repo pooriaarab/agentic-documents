@@ -135,6 +135,15 @@ describe("client against the real Worker", () => {
     expect(plain.status).toBe(401);
   });
 
+  test("checkpoint makes a missing document unless create is false", async () => {
+    const ada = as(ADA);
+    const update = Y.encodeStateAsUpdate((() => { const d = new Y.Doc(); d.getXmlFragment("default"); d.getMap("applied").set("x", 1); return d; })());
+    expect((await fails(ada.checkpoint("cp-missing", update, { create: false }))).code).toBe("NO_DOCUMENT");
+    expect((await fails(ada.read("cp-missing"))).code).toBe("NO_DOCUMENT");
+    expect(await ada.checkpoint("cp-missing", update)).toEqual({ ok: true });
+    expect(await ada.read("cp-missing")).toBeDefined();
+  });
+
   test("an auth failure is a typed 401", async () => {
     for (const token of ["nope", `x-${"x".repeat(40)}`]) {
       const error = await fails(as(token).outline("plan"));

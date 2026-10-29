@@ -69,7 +69,7 @@ How it works:
 - The editor joins the live room of the document. A browser WebSocket cannot send an `Authorization`
   header, so the page offers the token as a subprotocol, which only the live-room route reads.
 - The page saves the room to the stored document 1.5 seconds after a change, and when you leave the
-  document in the app (not when you close the tab). A save never makes a document: if someone deleted it, the page says so and stops saving. A command over HTTP then reads the new text.
+  document in the app (not when you close the tab). A command over HTTP then reads the new text. A save never makes a document: if someone deleted it, the page says so, stops saving, and turns read only.
 - An agent's text is the text whose writer is a logged edit by a non-human author (see the `client` field of the
   edit log). Typing in the editor does not add to the edit log.
 - The page sets a content security policy: scripts, styles, fonts, and images come from the Worker only, and a document image that points to another host does not load.

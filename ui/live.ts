@@ -18,8 +18,10 @@ export interface LiveSession {
   /** The socket state now, and a way to hear when it changes. */
   status: () => Status;
   onStatus: (listener: (status: Status) => void) => () => void;
-  /** True when this tab changed the text and has not saved it yet. */
-  dirty: boolean;
+  /** True when this tab changed the text since the last save that worked. */
+  readonly dirty: boolean;
+  /** Call it when this tab changes the text. */
+  touch(): void;
   /** Merge the room into the stored document. It never makes a document: a removed one fails with NO_DOCUMENT. */
   save(): Promise<void>;
   close(): Promise<void>;
@@ -41,21 +43,22 @@ export async function openSession(api: DocsClient, token: string, id: string, na
   });
   // Open the editor once the room has sent what it holds, so its first update does not land under the first keystroke.
   await sync.whenSynced().catch(() => undefined);
+  let changes = 0;
+  let saved = 0;
   const session: LiveSession = {
     sync,
     doc,
     status: () => status,
     onStatus: (listener) => (listeners.add(listener), () => void listeners.delete(listener)),
-    dirty: false,
+    get dirty() {
+      return changes !== saved;
+    },
+    touch: () => void changes++,
     async save() {
-      session.dirty = false;
-      try {
-        await sync.flush();
-        await api.checkpoint(id, Y.encodeStateAsUpdate(doc), { create: false });
-      } catch (error) {
-        session.dirty = true;
-        throw error;
-      }
+      const mark = changes; // a change made while the save runs stays dirty
+      await sync.flush();
+      await api.checkpoint(id, Y.encodeStateAsUpdate(doc), { create: false });
+      saved = mark;
     },
     close: () => sync.disconnect(),
   };

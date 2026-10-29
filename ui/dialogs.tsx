@@ -53,7 +53,11 @@ export function NewDocument({ open, onOpenChange, onCreated }: Shared & { onCrea
       action={async () => {
         const retry = made.current !== undefined;
         const id = (made.current ??= idFor(title));
-        await api.create({ id }).catch((e: unknown) => (retry && e instanceof DocsApiError && e.code === "DOCUMENT_EXISTS" ? undefined : Promise.reject(e)));
+        await api.create({ id }).catch((e: unknown) => {
+          if (retry && e instanceof DocsApiError && e.code === "DOCUMENT_EXISTS") return; // the first try made it
+          made.current = undefined; // a failed create makes nothing, so the next try picks a new id
+          return Promise.reject(e);
+        });
         if (title.trim()) await api.rename(id, { title });
         onCreated(id);
       }}>

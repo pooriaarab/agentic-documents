@@ -70,6 +70,18 @@ describe("catalog as a side record", () => {
   });
 });
 
+describe("checkpoint", () => {
+  test("makes a missing document by default, and create:false fails with NO_DOCUMENT and writes nothing", async () => {
+    const service = new DocsService({ blobs: createMemoryBlobs(), store: createMemoryStore() });
+    const update = AgenticDoc.fromMarkdown("# Room", bot).encode();
+    await expect(service.checkpoint("gone", update, ada, { create: false })).rejects.toMatchObject({ code: "NO_DOCUMENT" });
+    expect(await service.list()).toEqual([]);
+    await service.checkpoint("gone", update, ada);
+    expect(await service.read("gone", (d) => d.toMarkdown())).toContain("Room");
+    await service.checkpoint("gone", update, ada, { create: false }); // an existing document still merges
+  });
+});
+
 describe("concurrent writers", () => {
   test("ten creators of one id across two services: one wins, nine get DOCUMENT_EXISTS", async () => {
     const { a, b } = pair();
