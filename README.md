@@ -199,8 +199,8 @@ Limits of live editing:
   by person, use `createSharing` from `agentic-identity` 0.4. A grant names its subject by kind
   (`human` or `agent`) and id, so a person and an agent with the same id hold separate roles. When you
   delete a document, call `deleteResource` on its resource so its grants do not outlive it. If
-  `deleteResource` fails, treat the delete as failed and run it again. Do not reuse the id until it
-  succeeds. This package has no command that deletes a whole document.
+  `deleteResource` fails, treat the delete as failed and run it again. If it throws `EraseRefusedError`,
+  remove the child resources or the extra owners first. Do not reuse the id until it succeeds. This package has no command that deletes a whole document.
 - The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
   shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
   overwrite each other. The CLI and MCP server keep the same data in local files.
