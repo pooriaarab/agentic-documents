@@ -48,7 +48,7 @@ change it in a call.
 
 Only an owner shares a document. Over HTTP every caller needs the `docs:admin` scope. In the CLI and the MCP server, an agent needs it too. A refusal is `FORBIDDEN`. Never try to
 grant yourself a role. Roles are stored, but reads and writes do not check them yet, nothing opens a link token, and
-nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role. A document with no owner record (made before sharing, or by an author with no `docs:write` scope) is claimed by its creator, when the caller is that creator and has a write scope. A document with no creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for a person, cannot be claimed.
+nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role. A document with no owner record (made before sharing, or by an author with no `docs:write` scope) is claimed by its creator, when the caller is that creator and has a write scope. A document with no creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for a person, cannot be claimed. A rename can record a creator for one with no creator.
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
 
