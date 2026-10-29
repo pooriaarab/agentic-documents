@@ -14,12 +14,13 @@ The API of this package does not change. The change is in the dependency.
 ### Added
 
 - Tests that a person and an agent with the same id get separate roles, and that `deleteResource`
-  removes the grants. This package has no grant call and no command that deletes a whole document. A host
-  that deletes a document must call `deleteResource` for it. To erase a person, use the `agentic-identity`
-  erase (`DELETE /me`). It removes the person, their agents, their grants, and each resource that only
-  they own. If `deleteResource` fails, run it again. If it throws
-  `EraseRefusedError`, remove the child resources or the extra owners first. Do not reuse the id
-  until it succeeds.
+  removes the grants.
+- This package has no grant call and no command that deletes a whole document or erases a person. A
+  host that deletes a document must call `deleteResource` for it, and must delete the document and its
+  catalog entry itself. If `deleteResource` fails, run it again. If it throws `EraseRefusedError`,
+  remove the child resources or the extra owners first. Do not reuse the document id until it
+  succeeds. The `agentic-identity` person erase does not remove document content, and author names
+  stay in the edit log, the threads, and the suggestions.
 
 ## 0.2.0
 
