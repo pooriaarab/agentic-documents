@@ -7,6 +7,10 @@ const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 const CATALOG = "documents";
 
+/** A room refuses a message over 1 MiB. A document past this size cannot seed a room, so it cannot be saved from one. */
+export const MAX_LIVE_BYTES = 1_000_000;
+const ROOTS = new Set(["default", "edits", "suggestions", "threads", "applied"]);
+
 /** What the catalog keeps for each document. The author kind stays, so machine-made work stays labeled. */
 export interface DocInfo {
   createdBy: { kind: PrincipalKind; name: string };
@@ -59,23 +63,36 @@ export class DocsService {
    */
   async checkpoint(id: string, update: Uint8Array, author: Principal): Promise<void> {
     const key = this.key(id);
+    const scratch = new Y.Doc();
     try {
-      Y.applyUpdate(new Y.Doc(), update); // a bad update must not reach storage
+      Y.applyUpdate(scratch, update); // a bad update must not reach storage
     } catch {
       throw new DocError("INVALID_INPUT", "the update is not a Yjs update");
     }
+    if (scratch.store.clients.size === 0 || scratch.store.pendingStructs || scratch.store.pendingDs) {
+      throw new DocError("INVALID_INPUT", "the update is empty or lacks the changes it depends on");
+    }
+    for (const root of scratch.share.keys()) if (!ROOTS.has(root)) throw new DocError("INVALID_INPUT", `the update holds a part this package does not use: "${root}"`);
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       const found = await this.blobs.get(key);
       if (!found) {
-        if (!(await this.blobs.put(key, update, { ifNoneMatch: "*" }))) continue;
+        const fresh = AgenticDoc.fromUpdate(update, this.options).encode();
+        this.fits(id, fresh);
+        if (!(await this.blobs.put(key, fresh, { ifNoneMatch: "*" }))) continue;
         await this.catalog(id, author);
         return;
       }
       const doc = AgenticDoc.fromUpdate(found.data, this.options);
       doc.applyUpdate(update);
-      if (await this.blobs.put(key, doc.encode(), { ifMatch: found.version })) return;
+      const merged = doc.encode();
+      this.fits(id, merged);
+      if (await this.blobs.put(key, merged, { ifMatch: found.version })) return;
     }
     throw new DocError("CONFLICT", `document "${id}" kept changing; try again`);
+  }
+
+  private fits(id: string, state: Uint8Array): void {
+    if (state.length > MAX_LIVE_BYTES) throw new DocError("INVALID_INPUT", `document "${id}" would pass ${MAX_LIVE_BYTES} bytes, the most a live room takes`);
   }
 
   private async catalog(id: string, author: Principal): Promise<void> {

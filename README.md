@@ -132,7 +132,8 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
   agent work stays labeled. The log holds no content. Over the CLI, MCP, and HTTP the server or
   the operator sets the author. In a live room a client writes its own log entries, suggestion decisions, and
-  threads, so treat all three there as advisory. The room's own record of who sent updates in the room is at `GET /api/v1/docs/:id/room`. It does not cover
+  threads. A save merges them into the stored document. So after a live client saves, treat all three
+  as advisory. The room's own record of who sent updates in the room is at `GET /api/v1/docs/:id/room`. It does not cover
   text written over HTTP, the CLI, or MCP before the room opened: the client that seeds the room appears there.
 
 ## Rules for text matching

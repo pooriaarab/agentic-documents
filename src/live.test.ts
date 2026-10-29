@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { SyncClient } from "agentic-realtime/client";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import * as Y from "yjs";
 import { AgenticDoc, DocError } from "./doc.js";
 import { LiveDoc } from "./live.js";
 
@@ -257,8 +258,62 @@ describe("persistence through the Store and Blobs ports", () => {
     await human.leave();
   });
 
-  test("an update over the size limit is refused before it is read", async () => {
-    const big = await fetch(`${SERVER()}/api/v1/docs/fresh/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: new Uint8Array(1536 * 1024 + 1) });
-    expect(big.status).toBe(400);
+  test("an update over the size limit is refused, with or without a length header", async () => {
+    const big = new Uint8Array(1_000_001);
+    const sized = await fetch(`${SERVER()}/api/v1/docs/fresh/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: big });
+    expect([sized.status, ((await sized.json()) as any).error.message]).toEqual([400, expect.stringContaining("over 1000000 bytes")]);
+    // A chunked body has no content-length. The server cuts it off at the cap.
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < 11; i++) controller.enqueue(new Uint8Array(100_000));
+        controller.close();
+      },
+    });
+    const chunked = await fetch(`${SERVER()}/api/v1/docs/fresh/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: stream, duplex: "half" } as RequestInit);
+    expect([chunked.status, ((await chunked.json()) as any).error.message]).toEqual([400, expect.stringContaining("over 1000000 bytes")]);
+  });
+
+  test("a valid update with an empty body, an unknown root, or missing parts is refused", async () => {
+    const post = (id: string, body: Uint8Array) => fetch(`${SERVER()}/api/v1/docs/${id}/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: new Uint8Array(body) });
+    const alien = new Y.Doc();
+    alien.getText("evil").insert(0, "x");
+    const later = new Y.Doc();
+    later.getText("default").insert(0, "a");
+    const mark = Y.encodeStateVector(later);
+    later.getText("default").insert(1, "b");
+    for (const body of [new Uint8Array([0, 0]), Y.encodeStateAsUpdate(alien), Y.encodeStateAsUpdate(later, mark)]) {
+      expect((await post("shape", body)).status).toBe(400);
+    }
+    expect((await http("/shape/read", ADA)).status).toBe(404);
+  });
+
+  test("checkpoints from many clients at once all land", async () => {
+    await http("", ADA, { id: "race", markdown: "# Race\n\nStart." });
+    const base = new Uint8Array(await (await fetch(`${SERVER()}/api/v1/docs/race/state`, { headers: { authorization: `Bearer ${ADA}` } })).arrayBuffer());
+    const sends = Array.from({ length: 6 }, (_, i) => {
+      const replica = AgenticDoc.fromUpdate(base);
+      replica.append(`Line ${i}.`, { kind: "agent_of_human", name: `w${i}` });
+      return fetch(`${SERVER()}/api/v1/docs/race/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${BOT}` }, body: new Uint8Array(replica.encode()) });
+    });
+    for (const res of await Promise.all(sends)) expect(res.status).toBe(200);
+    const text = await (await http("/race/read", ADA)).text();
+    for (let i = 0; i < 6; i++) expect(text).toContain(`Line ${i}.`);
+  });
+
+  test("a saved log is client-written: an editor can post a forged author, so the log stays advisory", async () => {
+    const base = new Uint8Array(await (await fetch(`${SERVER()}/api/v1/docs/race/state`, { headers: { authorization: `Bearer ${BOT}` } })).arrayBuffer());
+    const forged = AgenticDoc.fromUpdate(base);
+    forged.append("Forged.", { kind: "human", name: "Ada" });
+    await fetch(`${SERVER()}/api/v1/docs/race/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${BOT}` }, body: new Uint8Array(forged.encode()) });
+    const edits = (await (await http("/race/edits", ADA)).json()) as { author: { kind: string; name: string } }[];
+    expect(edits.some((e) => e.author.kind === "human" && e.author.name === "Ada" && edits.length > 1)).toBe(true);
+  });
+
+  test("a stored document too big for a room fails the join with a clear error and leaves no client behind", async () => {
+    await http("", ADA, { id: "huge", markdown: "# Huge" });
+    expect((await http("/huge/append", ADA, { content: "x".repeat(1_200_000) })).status).toBe(200);
+    await expect(join_("huge", ADA, { reconnect: { initialMs: 50, maxMs: 100 } })).rejects.toMatchObject({ code: "INVALID_INPUT", message: expect.stringContaining("most a live room takes") });
+    const saved = await fetch(`${SERVER()}/api/v1/docs/huge/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: new Uint8Array(await (await fetch(`${SERVER()}/api/v1/docs/huge/state`, { headers: { authorization: `Bearer ${ADA}` } })).arrayBuffer()) });
+    expect(saved.status).toBe(400);
   });
 });

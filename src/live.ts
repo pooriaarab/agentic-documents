@@ -1,6 +1,8 @@
 import * as Y from "yjs";
 import { SyncClient, type Peer } from "agentic-realtime/client";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocErrorCode, type DocOptions, type Principal } from "./doc.js";
+import { DOC_ERROR_CODES } from "./errors.js";
+import { MAX_LIVE_BYTES } from "./service.js";
 
 export interface LiveOptions {
   /** The Worker address, such as `https://docs.example.com`. */
@@ -24,14 +26,20 @@ export interface Me {
   role: "editor" | "viewer";
 }
 
+/** The server's error as a DocError. The code must be one this package knows. */
+async function refusal(response: Response, fallback: string): Promise<DocError> {
+  const { error } = (await response.json().catch(() => ({}))) as { error?: { code?: unknown; message?: unknown } };
+  const code = DOC_ERROR_CODES.find((known) => known === error?.code) ?? "INVALID_INPUT";
+  return new DocError(code, typeof error?.message === "string" ? error.message : `${fallback} (${response.status})`);
+}
+
 const base = (server: string) => server.replace(/\/$/, "");
 
 export async function whoAmI(server: string, token: string): Promise<Me> {
   const response = await fetch(`${base(server)}/api/v1/me`, { headers: { authorization: `Bearer ${token}` } });
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) throw new DocError("FORBIDDEN", `the server refused the token (${response.status})`);
-    const { error } = (await response.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
-    throw new DocError((error?.code as DocErrorCode) ?? "INVALID_INPUT", error?.message ?? `the server could not say who the token is (${response.status})`);
+    throw await refusal(response, "the server could not say who the token is");
   }
   const body = (await response.json()) as { kind?: unknown; name?: unknown; scopes?: unknown; role?: unknown };
   const { kind, name, scopes, role } = body;
@@ -71,16 +79,23 @@ export class LiveDoc {
         ...init,
         headers: { ...init.headers, authorization: `Bearer ${options.token}` },
       });
-    if (options.seed !== false) {
-      const stored = await api("/state");
-      if (stored.ok) Y.applyUpdate(client.doc, new Uint8Array(await stored.arrayBuffer()));
-      else if (stored.status !== 404) {
-        await client.disconnect();
-        throw new DocError("INVALID_INPUT", `could not read the stored document (${stored.status})`);
+    try {
+      if (options.seed !== false) {
+        const stored = await api("/state");
+        if (stored.ok) {
+          const state = new Uint8Array(await stored.arrayBuffer());
+          if (state.length > MAX_LIVE_BYTES) throw new DocError("INVALID_INPUT", `the stored document is over ${MAX_LIVE_BYTES} bytes, the most a live room takes`);
+          Y.applyUpdate(client.doc, state);
+        } else if (stored.status !== 404) throw await refusal(stored, "could not read the stored document");
+        await client.flush();
+        // A room drops a viewer's seed, and that is no refusal of an edit. An editor's refused seed is an error.
+        if (me.role === "editor" && client.denied.length > 0) throw new DocError("FORBIDDEN", `the room refused the stored document: ${client.denied[0]}`);
       }
-      await client.flush();
+    } catch (error) {
+      // Never leave the client open: with reconnect it would retry the seed for ever.
+      await client.disconnect();
+      throw error instanceof DocError ? error : new DocError("INVALID_INPUT", `could not open the room: ${error instanceof Error ? error.message : String(error)}`);
     }
-    // A viewer's seed is dropped by the room. That is no refusal of an edit.
     return new LiveDoc(new AgenticDoc(client.doc, options.doc), me, client, api, client.denied.length);
   }
 
@@ -89,7 +104,7 @@ export class LiveDoc {
     if (this.me.role === "viewer") throw new DocError("FORBIDDEN", "this token is a viewer; it cannot change a document");
     await this.client.flush();
     const saved = await this.api("/checkpoint", { method: "POST", headers: { "content-type": "application/octet-stream" }, body: new Uint8Array(this.doc.encode()) });
-    if (!saved.ok) throw new DocError("INVALID_INPUT", `the server did not save the document (${saved.status})`);
+    if (!saved.ok) throw await refusal(saved, "the server did not save the document");
   }
 
   /** The other people and agents in the room. `machine` is true for an agent. */
