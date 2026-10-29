@@ -55,7 +55,7 @@ test("on a host document an agent shows as an agent, its text is marked, and a v
   await sdk(ADA).create({ id, markdown: "Shared text." });
   const ada = await host(browser, ADA, id, { kind: "human", name: "Ada" });
   const bot = await host(browser, BOT, id, { kind: "agent_of_human", name: "Scribe" });
-  await expect(ada.locator(".ad-stack__summary")).toContainText("1 agent");
+  await expect(ada.locator(".agd-stack__summary")).toContainText("1 agent");
   await typeAtEnd(bot, " Agent line.");
   await expect(textbox(ada).locator(".agent-text", { hasText: "Agent line." })).toHaveCount(1);
   await expect(textbox(ada).locator(".agent-text", { hasText: "Shared" })).toHaveCount(0);

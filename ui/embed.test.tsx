@@ -131,7 +131,7 @@ describe("mountEditor", () => {
   it("an agent principal shows as an agent, and the text it types is marked and logged as agent work", async () => {
     const { client, saves } = fakeClient("Hello");
     const box = await mount({ id: "plan", client, principal: { kind: "agent_of_human", name: "Scribe", role: "editor" } });
-    expect(host.querySelector(".ad-stack__summary")?.textContent).toBe("1 agent");
+    expect(host.querySelector(".agd-stack__summary")?.textContent).toBe("1 agent");
     await act(async () => void editorOf(box).commands.insertContentAt(editorOf(box).state.doc.content.size - 1, " from a bot"));
     await vi.waitFor(() => expect(box.querySelector(".agent-text")?.textContent).toBe(" from a bot"));
     const leaving = mounted!.unmount();

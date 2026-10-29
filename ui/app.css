@@ -1,15 +1,15 @@
 /* Layout styles of the web UI. The editor has its own file. Color, type, and space all come from the agentic-design tokens. */
-.page-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ad-space-4); flex-wrap: wrap; margin-block-end: var(--ad-space-6); max-width: var(--ad-size-content); }
-.page-head h1 { margin: 0; font-size: var(--ad-font-size-xl); line-height: var(--ad-line-height-tight); overflow-wrap: anywhere; }
-.page-head h1:focus-visible { outline: 2px solid var(--ad-color-focus); outline-offset: 4px; border-radius: var(--ad-radius-sm); }
-.page-actions { display: flex; gap: var(--ad-space-2); flex-wrap: wrap; }
-.muted { color: var(--ad-color-text-muted); font-size: var(--ad-font-size-sm); margin: 0; }
-.notice { max-width: var(--ad-size-content); }
-.signin { max-width: 24rem; margin: var(--ad-space-24) auto 0; padding: 0 var(--ad-space-4); display: grid; gap: var(--ad-space-4); }
-.signin h1 { margin: 0; font-size: var(--ad-font-size-xl); }
-.form { display: grid; gap: var(--ad-space-4); }
-.form-actions { display: flex; gap: var(--ad-space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-.form-error { color: var(--ad-color-danger-text); margin: 0; font-size: var(--ad-font-size-sm); }
-.section-title { margin: var(--ad-space-2) 0 0; font-size: var(--ad-font-size-md); }
-.people { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ad-space-2); }
-.share-row { display: flex; gap: var(--ad-space-2); align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: var(--agd-space-4); flex-wrap: wrap; margin-block-end: var(--agd-space-6); max-width: var(--agd-size-content); }
+.page-head h1 { margin: 0; font-size: var(--agd-font-size-xl); line-height: var(--agd-line-height-tight); overflow-wrap: anywhere; }
+.page-head h1:focus-visible { outline: 2px solid var(--agd-color-focus); outline-offset: 4px; border-radius: var(--agd-radius-sm); }
+.page-actions { display: flex; gap: var(--agd-space-2); flex-wrap: wrap; }
+.muted { color: var(--agd-color-text-muted); font-size: var(--agd-font-size-sm); margin: 0; }
+.notice { max-width: var(--agd-size-content); }
+.signin { max-width: 24rem; margin: var(--agd-space-24) auto 0; padding: 0 var(--agd-space-4); display: grid; gap: var(--agd-space-4); }
+.signin h1 { margin: 0; font-size: var(--agd-font-size-xl); }
+.form { display: grid; gap: var(--agd-space-4); }
+.form-actions { display: flex; gap: var(--agd-space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.form-error { color: var(--agd-color-danger-text); margin: 0; font-size: var(--agd-font-size-sm); }
+.section-title { margin: var(--agd-space-2) 0 0; font-size: var(--agd-font-size-md); }
+.people { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--agd-space-2); }
+.share-row { display: flex; gap: var(--agd-space-2); align-items: center; justify-content: space-between; flex-wrap: wrap; }

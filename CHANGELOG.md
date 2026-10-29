@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.0
+
+### Changed
+
+- BREAKING: the design class prefix is now `agd-`. The CSS classes, the custom properties, and the data attributes that used the
+  old two-letter prefix change name, so `agentic-documents/ui`, `agentic-documents/ui.css`, and `agentic-documents/app.css` render with the new names. Ad
+  blockers hide elements with the old prefix, so the prefix moved. There is no alias for the old names.
+- `agentic-design` moves from `^0.3.1` to `^0.4.0`, which uses the `agd-` prefix.
+- The `overrides` entry for `agentic-design` is gone. `agentic-design` 0.4.0 depends on zod 4 itself. The `agentic-formats` override stays.
+
 ## 0.10.0
 
 ### Added

@@ -1,42 +1,42 @@
 /* The editor that `agentic-documents/ui` renders. Every rule sits under `.adoc`, so it does not touch the page around it.
    Color, type, and space come from the agentic-design tokens: load `agentic-design/styles.css` first. */
-.adoc.muted, .adoc .muted { color: var(--ad-color-text-muted); font-size: var(--ad-font-size-sm); margin: 0; }
-.adoc.notice, .adoc .notice { max-width: var(--ad-size-content); }
-.adoc.form { display: grid; gap: var(--ad-space-4); }
-.adoc.form .form-actions { display: flex; gap: var(--ad-space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-.adoc .editor-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--ad-space-4); flex-wrap: wrap; max-width: var(--ad-size-content); margin-block-end: var(--ad-space-3); }
-.adoc .editor-meta { display: flex; align-items: center; gap: var(--ad-space-4); flex-wrap: wrap; }
-.adoc .glyph { font-weight: var(--ad-font-weight-semibold); min-width: 1.25rem; text-align: center; }
+.adoc.muted, .adoc .muted { color: var(--agd-color-text-muted); font-size: var(--agd-font-size-sm); margin: 0; }
+.adoc.notice, .adoc .notice { max-width: var(--agd-size-content); }
+.adoc.form { display: grid; gap: var(--agd-space-4); }
+.adoc.form .form-actions { display: flex; gap: var(--agd-space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.adoc .editor-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--agd-space-4); flex-wrap: wrap; max-width: var(--agd-size-content); margin-block-end: var(--agd-space-3); }
+.adoc .editor-meta { display: flex; align-items: center; gap: var(--agd-space-4); flex-wrap: wrap; }
+.adoc .glyph { font-weight: var(--agd-font-weight-semibold); min-width: 1.25rem; text-align: center; }
 .adoc .glyph--b { font-weight: 800; }
 .adoc .glyph--i { font-style: italic; font-family: serif; }
-.adoc .editor-host { max-width: var(--ad-size-content); background: var(--ad-color-surface); border: 1px solid var(--ad-color-border); border-radius: var(--ad-radius-md); }
-.adoc .editor-host:focus-within { outline: 2px solid var(--ad-color-focus); outline-offset: 2px; }
-.adoc .prose { min-height: 20rem; padding: var(--ad-space-6); outline: none; line-height: var(--ad-line-height-normal); overflow-wrap: anywhere; }
+.adoc .editor-host { max-width: var(--agd-size-content); background: var(--agd-color-surface); border: 1px solid var(--agd-color-border); border-radius: var(--agd-radius-md); }
+.adoc .editor-host:focus-within { outline: 2px solid var(--agd-color-focus); outline-offset: 2px; }
+.adoc .prose { min-height: 20rem; padding: var(--agd-space-6); outline: none; line-height: var(--agd-line-height-normal); overflow-wrap: anywhere; }
 .adoc .prose > :first-child { margin-top: 0; }
-.adoc .prose h1 { font-size: var(--ad-font-size-2xl); line-height: var(--ad-line-height-tight); }
-.adoc .prose h2 { font-size: var(--ad-font-size-xl); line-height: var(--ad-line-height-tight); }
-.adoc .prose h3 { font-size: var(--ad-font-size-lg); }
-.adoc .prose a { color: var(--ad-color-accent-text); text-decoration: underline; }
-.adoc .prose blockquote { margin-inline: 0; padding-inline-start: var(--ad-space-4); border-inline-start: 3px solid var(--ad-color-border-strong); }
-.adoc .prose code { font-family: var(--ad-font-family-mono); background: var(--ad-color-surface-sunken); padding: 0 0.25em; border-radius: var(--ad-radius-sm); }
-.adoc .prose pre { background: var(--ad-color-surface-sunken); padding: var(--ad-space-3); border-radius: var(--ad-radius-md); overflow-x: auto; }
+.adoc .prose h1 { font-size: var(--agd-font-size-2xl); line-height: var(--agd-line-height-tight); }
+.adoc .prose h2 { font-size: var(--agd-font-size-xl); line-height: var(--agd-line-height-tight); }
+.adoc .prose h3 { font-size: var(--agd-font-size-lg); }
+.adoc .prose a { color: var(--agd-color-accent-text); text-decoration: underline; }
+.adoc .prose blockquote { margin-inline: 0; padding-inline-start: var(--agd-space-4); border-inline-start: 3px solid var(--agd-color-border-strong); }
+.adoc .prose code { font-family: var(--agd-font-family-mono); background: var(--agd-color-surface-sunken); padding: 0 0.25em; border-radius: var(--agd-radius-sm); }
+.adoc .prose pre { background: var(--agd-color-surface-sunken); padding: var(--agd-space-3); border-radius: var(--agd-radius-md); overflow-x: auto; }
 .adoc .prose table { border-collapse: collapse; }
-.adoc .prose th, .adoc .prose td { border: 1px solid var(--ad-color-border-strong); padding: var(--ad-space-1) var(--ad-space-2); }
+.adoc .prose th, .adoc .prose td { border: 1px solid var(--agd-color-border-strong); padding: var(--agd-space-1) var(--agd-space-2); }
 .adoc .prose img { max-width: 100%; }
 /* A selected image is one node, and the next key replaces it. Show that it is selected. */
-.adoc .prose img.ProseMirror-selectednode { outline: 2px solid var(--ad-color-focus); outline-offset: 2px; }
-.adoc .prose ul[data-type="taskList"] { list-style: none; padding-inline-start: var(--ad-space-2); }
-.adoc .prose ul[data-type="taskList"] li { display: flex; gap: var(--ad-space-2); }
+.adoc .prose img.ProseMirror-selectednode { outline: 2px solid var(--agd-color-focus); outline-offset: 2px; }
+.adoc .prose ul[data-type="taskList"] { list-style: none; padding-inline-start: var(--agd-space-2); }
+.adoc .prose ul[data-type="taskList"] li { display: flex; gap: var(--agd-space-2); }
 
 /* Text an agent wrote: a dotted underline in the agent color and a tint. The legend and the title say it in words. */
-.adoc .agent-text { text-decoration: underline dotted 2px var(--ad-color-agent); text-underline-offset: 3px; background: var(--ad-color-agent-subtle); border-radius: 2px; }
-.adoc .legend { margin-block-start: var(--ad-space-3); }
+.adoc .agent-text { text-decoration: underline dotted 2px var(--agd-color-agent); text-underline-offset: 3px; background: var(--agd-color-agent-subtle); border-radius: 2px; }
+.adoc .legend { margin-block-start: var(--agd-space-3); }
 
 /* The caret of another person or agent. */
-.adoc .caret { position: relative; border-inline-start: 2px solid var(--ad-color-accent); margin-inline: -1px; pointer-events: none; word-break: normal; }
-.adoc .caret--agent { border-inline-start: 2px dashed var(--ad-color-agent); }
-.adoc .caret__tag { position: absolute; top: -1.45em; inset-inline-start: -2px; white-space: nowrap; font-size: var(--ad-font-size-xs); line-height: 1.3; padding: 0 var(--ad-space-1); border-radius: var(--ad-radius-sm) var(--ad-radius-sm) var(--ad-radius-sm) 0; background: var(--ad-color-accent); color: var(--ad-color-text-on-accent); user-select: none; }
-.adoc .caret--agent .caret__tag { background: var(--ad-color-surface); color: var(--ad-color-agent-text); border: 1px solid var(--ad-color-agent); border-radius: 0; }
+.adoc .caret { position: relative; border-inline-start: 2px solid var(--agd-color-accent); margin-inline: -1px; pointer-events: none; word-break: normal; }
+.adoc .caret--agent { border-inline-start: 2px dashed var(--agd-color-agent); }
+.adoc .caret__tag { position: absolute; top: -1.45em; inset-inline-start: -2px; white-space: nowrap; font-size: var(--agd-font-size-xs); line-height: 1.3; padding: 0 var(--agd-space-1); border-radius: var(--agd-radius-sm) var(--agd-radius-sm) var(--agd-radius-sm) 0; background: var(--agd-color-accent); color: var(--agd-color-text-on-accent); user-select: none; }
+.adoc .caret--agent .caret__tag { background: var(--agd-color-surface); color: var(--agd-color-agent-text); border: 1px solid var(--agd-color-agent); border-radius: 0; }
 
 /* The base rules of the editor. The editor does not add them in an inline style, so a page whose content security policy
    forbids inline styles can show it. Long words wrap by the `overflow-wrap: anywhere` of `.prose` above, so a long word
