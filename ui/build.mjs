@@ -18,3 +18,4 @@ await build({
   logLevel: "warning",
 });
 cpSync("ui/index.html", "dist/ui/index.html");
+cpSync("ui/_headers", "dist/ui/_headers");

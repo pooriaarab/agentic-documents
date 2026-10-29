@@ -30,7 +30,8 @@ test("create a document, type, reload, and a second browser sees the edit live",
   await ada.getByRole("button", { name: "Link" }).click();
   await ada.getByLabel("Address").fill("https://example.com/docs");
   await ada.getByRole("button", { name: "Apply" }).click();
-  await ada.keyboard.press("End");
+  await expect(textbox(ada)).toBeFocused(); // writing goes on in the text after the dialog closes
+  await ada.keyboard.press("ArrowRight"); // collapses the selection at its end
   await ada.keyboard.press("Enter");
   await ada.getByRole("button", { name: "H2 heading" }).click();
   await ada.keyboard.type("Risks");
@@ -91,6 +92,32 @@ test("text an agent wrote is marked, and the agent shows as an agent", async ({ 
   await ada.reload();
   await expect(textbox(ada).locator(".agent-text")).toContainText("Agent paragraph.");
   await ada.context().close();
+});
+
+test("deleting from the editor stays deleted, and a bad edit log entry does not blank the page", async ({ page, browser }) => {
+  const violations: string[] = [];
+  page.on("console", (m) => /content security policy|refused to/i.test(m.text()) && violations.push(m.text()));
+  expect((await fetch(url())).headers.get("content-security-policy")).toContain("img-src 'self' data:");
+  await signIn(page, ADA);
+  const id = await createDocument(page, "Short lived");
+  await textbox(page).click();
+  await page.keyboard.type("Gone soon.");
+
+  // Another peer puts junk in the edit log. The room does not check the log.
+  const peer = await LiveDoc.join({ server: url(), id, token: BOB });
+  peer.doc.ydoc.transact(() => peer.doc.ydoc.getArray("edits").push([null as never]));
+  await peer.flush();
+  await peer.leave();
+  await expect(textbox(page)).toContainText("Gone soon.");
+
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Documents", level: 1 })).toBeFocused();
+  await page.waitForTimeout(3000); // longer than the save delay
+  const read = await fetch(`${url()}/api/v1/docs/${id}/read`, { headers: { authorization: `Bearer ${ADA}` } });
+  expect(read.status).toBe(404);
+  expect(violations).toEqual([]);
+  void browser;
 });
 
 test("rename and delete from the list, with the keyboard", async ({ page }) => {
@@ -171,6 +198,7 @@ test("a bad token is refused, and a viewer can read but not write", async ({ pag
   await vic.goto(`${url()}/#/d/${id}`);
   await expect(textbox(vic)).toContainText("Read me.");
   await expect(textbox(vic)).toHaveAttribute("contenteditable", "false");
+  await expectAccessible(vic);
   await expect(vic.getByRole("status").filter({ hasText: "Read only" })).toBeVisible();
   await expect(vic.getByRole("button", { name: "Delete" })).toHaveCount(0);
   await vic.context().close();
@@ -238,6 +266,19 @@ for (const theme of themes) {
     await page.getByRole("button", { name: "Link" }).click();
     await expect(page.getByRole("dialog", { name: "Link" })).toBeVisible();
     await expectAccessible(page);
+    await page.keyboard.press("Escape");
+    for (const [open, dialog] of [["Rename", "Rename document"], ["Delete", "Delete document"]]) {
+      await page.getByRole("button", { name: open, exact: true }).click();
+      await expect(page.getByRole("dialog", { name: dialog })).toBeVisible();
+      await expectAccessible(page);
+      await page.keyboard.press("Escape");
+    }
+    await page.goto(`${url()}/#/`);
+    await expect(page.getByRole("link", { name: "Quarterly plan" }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Actions for Quarterly plan" }).first().click();
+    await expect(page.getByRole("menuitem", { name: "Rename" })).toBeVisible();
+    await expectAccessible(page);
+    await page.keyboard.press("Escape");
     await agent.leave();
     await bob.context().close();
     await context.close();

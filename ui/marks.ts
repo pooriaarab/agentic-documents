@@ -16,7 +16,8 @@ interface Run {
  */
 export function agentRuns(doc: Y.Doc): Run[] {
   const agents = new Set<number>();
-  for (const entry of doc.getArray<{ author?: { kind?: string }; client?: unknown }>("edits").toArray()) {
+  for (const entry of doc.getArray<{ author?: { kind?: string }; client?: unknown } | null>("edits").toArray()) {
+    if (typeof entry !== "object" || entry === null) continue; // the room does not check the log, so skip a bad entry
     if (typeof entry.client === "number" && entry.author?.kind !== undefined && entry.author.kind !== "human") agents.add(entry.client);
   }
   const runs: Run[] = [];

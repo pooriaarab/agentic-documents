@@ -11,7 +11,7 @@
   (`agentic-docs.bearer.<base64url>`) on the live-room route only.
 - A web UI that the Worker serves from `dist/ui` (the `assets` entry in `wrangler.jsonc`): a document list, a
   rich-text editor on the live room, rename, delete, share, presence, and a mark on agent text. It is built on
-  `agentic-design` and the typed client. Playwright tests run it under `wrangler dev` with an axe check
+  `agentic-design` and the typed client. Playwright tests run it under `wrangler dev` with an axe check (WCAG 2.2 AA rules)
   (WCAG 2.2 AA) in the light and the dark theme, and screenshots are in `docs/screenshots`.
 - The saved update may hold the marker root that the Tiptap editor writes when it opens a document.
 - Each edit log entry holds `client`, the Yjs client id of its writer, so a UI can mark agent text.

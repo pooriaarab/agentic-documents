@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { DocsApiError } from "../src/client.js";
 import { Button, Dialog, DialogClose, Input, PresenceChip, type PresenceEntry, type DialogProps } from "agentic-design/react";
 import { describe, isMachine, useSession } from "./api.js";
 
@@ -43,14 +44,15 @@ const idFor = (title: string) => `${title.toLowerCase().normalize("NFKD").replac
 export function NewDocument({ open, onOpenChange, onCreated }: Shared & { onCreated: (id: string) => void }) {
   const { api } = useSession();
   const [title, setTitle] = useState("");
+  const made = useRef<string | undefined>(undefined); // a retry after a failed rename reuses the document that was made
   useEffect(() => {
-    if (open) setTitle("");
+    if (open) (setTitle(""), (made.current = undefined));
   }, [open]);
   return (
     <FormDialog open={open} onOpenChange={onOpenChange} title="New document" submit="Create" onDone={() => onOpenChange?.(false)}
       action={async () => {
-        const id = idFor(title);
-        await api.create({ id });
+        const id = (made.current ??= idFor(title));
+        await api.create({ id }).catch((e: unknown) => (e instanceof DocsApiError && e.code === "DOCUMENT_EXISTS" ? undefined : Promise.reject(e)));
         if (title.trim()) await api.rename(id, { title });
         onCreated(id);
       }}>

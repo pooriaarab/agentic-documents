@@ -37,6 +37,8 @@ export async function openSession(api: DocsClient, token: string, id: string, na
       for (const listener of listeners) listener(next);
     },
   });
+  // Open the editor once the room has sent what it holds, so its first update does not land under the first keystroke.
+  await sync.whenSynced().catch(() => undefined);
   return {
     sync,
     doc,

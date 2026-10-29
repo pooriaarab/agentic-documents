@@ -1,12 +1,13 @@
 import { Editor } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
-import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import StarterKit from "@tiptap/starter-kit";
 import type { Peer, Status } from "agentic-realtime/client";
-import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { Extension } from "@tiptap/core";
+import { ySyncPluginKey, yCursorPlugin } from "@tiptap/y-tiptap";
+import { Component, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, Toolbar, ToolbarButton, ToolbarSeparator, usableName, type PresenceEntry } from "agentic-design/react";
 import { describe, isMachine, useSession } from "./api.js";
 import { PageHeading } from "./focus.js";
@@ -19,19 +20,42 @@ const SAVE_AFTER_MS = 1500;
 
 const entryOf = (peer: Peer): PresenceEntry => ({ id: String(peer.clientId), name: usableName(peer.name) ?? "Unnamed", kind: peer.machine ? "agent" : "person" });
 
-/** The caret of another person or agent. A person's tag is filled, an agent's is outlined and says Agent. */
-function caretFor(peers: () => Peer[]) {
-  return (user: { name?: string; clientId?: number }) => {
-    const peer = peers().find((p) => p.clientId === user.clientId);
-    const agent = peer?.machine === true;
-    const caret = document.createElement("span");
-    caret.className = `caret${agent ? " caret--agent" : ""}`;
-    const tag = document.createElement("span");
-    tag.className = "caret__tag";
-    tag.textContent = `${usableName(user.name) ?? "Unnamed"}${agent ? " · Agent" : ""}`;
-    caret.append(tag);
-    return caret;
-  };
+/**
+ * The caret of another person or agent. The name and the Agent tag come from the peer that the server stamped for that
+ * awareness client id, never from what the peer says about itself. A caret with no such peer is not drawn.
+ */
+function carets(live: LiveSession) {
+  return Extension.create({
+    name: "remoteCarets",
+    addProseMirrorPlugins: () => [
+      yCursorPlugin(live.sync.awareness, {
+        cursorBuilder: (_user, clientId) => {
+          const caret = document.createElement("span");
+          const peer = live.sync.peers.find((p) => p.clientId === clientId);
+          if (!peer) return caret;
+          caret.className = `caret${peer.machine ? " caret--agent" : ""}`;
+          const tag = document.createElement("span");
+          tag.className = "caret__tag";
+          tag.textContent = `${usableName(peer.name) ?? "Unnamed"}${peer.machine ? " · Agent" : ""}`;
+          caret.append(tag);
+          return caret;
+        },
+        selectionBuilder: () => ({}),
+      }),
+    ],
+  });
+}
+
+class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? (
+      <div role="alert" className="notice"><EmptyState title="The editor stopped" description="The document has content this page cannot show. Reload to try again." /></div>
+    ) : this.props.children;
+  }
 }
 
 export function EditorView({ id, go }: { id: string; go: (hash: string) => void }) {
@@ -39,6 +63,7 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [dialog, setDialog] = useState<"rename" | "delete" | "share">();
   const [attempt, setAttempt] = useState(0);
+  const removed = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,9 +82,10 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
     })();
     return () => {
       cancelled = true;
-      if (live) void live.save().catch(() => undefined).finally(() => live?.close());
+      // A save after a delete would make the document again, and a viewer cannot save.
+      if (live) void (removed.current || me.role === "viewer" ? Promise.resolve() : live.save().catch(() => undefined)).finally(() => live?.close());
     };
-  }, [api, token, id, me.name, attempt]);
+  }, [api, token, id, me.name, me.role, attempt]);
 
   if (load.state === "loading") return <p role="status" className="muted">Opening document…</p>;
   if (load.state === "error") {
@@ -80,9 +106,9 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
           {me.role === "editor" && <Button variant="danger" onClick={() => setDialog("delete")}>Delete</Button>}
         </div>
       </div>
-      <Surface live={live} editable={me.role === "editor"} />
+      <Boundary><Surface live={live} editable={me.role === "editor"} /></Boundary>
       <RenameDocument id={id} current={title} open={dialog === "rename"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => void api.list().then((docs) => setLoad((l) => (l.state === "ready" ? { ...l, title: docs.find((d) => d.id === id)?.title ?? id } : l)))} />
-      <DeleteDocument id={id} name={title} open={dialog === "delete"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => go("#/")} />
+      <DeleteDocument id={id} name={title} open={dialog === "delete"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => ((removed.current = true), go("#/"))} />
       <ShareDocument id={id} open={dialog === "share"} onOpenChange={(o) => !o && setDialog(undefined)} />
     </>
   );
@@ -103,15 +129,14 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
   const refocus = useRef(false);
 
   useEffect(() => {
-    const peersNow = () => live.sync.peers;
     const editor = new Editor({
       element: host.current!,
       editable,
       extensions: [
-        StarterKit.configure({ undoRedo: false, underline: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https" } }),
+        StarterKit.configure({ undoRedo: false, underline: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
         Image, TaskList, TaskItem, Table, TableRow, TableCell, TableHeader,
         Collaboration.configure({ document: live.doc, field: "default" }),
-        CollaborationCaret.configure({ provider: { awareness: live.sync.awareness }, user: { name: me.name, color: "#000000", clientId: live.doc.clientID }, render: caretFor(peersNow) as never }),
+        carets(live),
         AgentText,
       ],
       editorProps: { attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "prose" } },
@@ -125,11 +150,17 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     const save = () => {
       timer = undefined;
       setSaved("saving");
-      live.save().then(() => setSaved("saved"), () => setSaved("failed"));
+      live.save().then(
+        () => setSaved("saved"),
+        () => {
+          setSaved("failed");
+          timer = setTimeout(save, 5000); // try again, so a stale stored copy does not wait for the next keystroke
+        },
+      );
     };
-    const changed = () => {
+    const changed = (_update: Uint8Array, origin: unknown) => {
       setAgentText(agentRuns(live.doc).length > 0);
-      if (editable) {
+      if (editable && origin === ySyncPluginKey) { // only changes made in this editor are saved from this tab
         setSaved("saving");
         clearTimeout(timer);
         timer = setTimeout(save, SAVE_AFTER_MS);
@@ -178,8 +209,13 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
   useEffect(() => {
     if (linking || !refocus.current) return;
     refocus.current = false;
-    const timer = setTimeout(() => editor?.commands.focus(), 30);
-    return () => clearTimeout(timer);
+    // The dialog may give focus back after this runs, so try a few times until the text has it.
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (editor?.isFocused || ++tries > 10) return clearInterval(timer);
+      editor?.commands.focus();
+    }, 40);
+    return () => clearInterval(timer);
   }, [linking, editor]);
 
   return (
