@@ -31,7 +31,9 @@ export function BubbleMenu({ editor, editable, onLink }: { editor: Editor; edita
       // Below the selection when the editor bar, or the top of the window, is in the way.
       const bar = editor.view.dom.closest(".agd-doc")?.querySelector(".agd-doc__bar")?.getBoundingClientRect().bottom ?? 0;
       const above = start.top - height - GAP;
-      setAt({ top: above < Math.max(bar, 0) + GAP ? end.bottom + GAP : above, left });
+      const top = above < Math.max(bar, 0) + GAP ? end.bottom + GAP : above;
+      // A selection that runs past the window keeps the menu in view.
+      setAt({ top: Math.max(Math.max(bar, 0) + GAP, Math.min(top, window.innerHeight - height - GAP)), left });
     };
     placed.current = place;
     const blur = ({ event }: { event: FocusEvent }) => {

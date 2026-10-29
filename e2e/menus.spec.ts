@@ -41,12 +41,15 @@ test("the slash menu filters, moves with the arrow keys, and puts in the block",
   await expect(text.locator("h2")).toHaveText("Risks"); // the slash and the word are gone
   await page.keyboard.press("Enter");
 
-  // Escape closes the menu, and it stays closed while the caret stays after that slash.
+  // Escape closes the menu, and it stays closed while that slash is there.
   await page.keyboard.type("1/2");
   await expect(list).toHaveCount(0); // a slash inside a word is not a command
   await page.keyboard.type(" /");
   await expect(list).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(list).toHaveCount(0);
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowRight"); // away and back: it stays closed
   await expect(list).toHaveCount(0);
   await page.keyboard.type("x");
   await expect(list).toHaveCount(0);
@@ -120,6 +123,19 @@ test("a slash that Escape closed stays closed when a peer writes before it", asy
   await page.keyboard.type("x"); // "x" finds Text, so a lost dismissal would open the menu
   await expect(list).toHaveCount(0);
   await peer.leave();
+  await page.context().close();
+});
+
+test("the bubble menu stays in the window when the selection runs past it", async ({ browser }) => {
+  const { page } = await open(browser, Array.from({ length: 60 }, (_, i) => `Line ${i + 1} of a long text.`).join("\n\n"));
+  await page.setViewportSize({ width: 900, height: 500 });
+  await textbox(page).click();
+  await page.keyboard.press("Control+a");
+  const bubble = page.getByRole("toolbar", { name: "Selection" });
+  await expect(bubble).toBeVisible();
+  const box = (await page.locator(".agd-bubble").boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(500);
   await page.context().close();
 });
 
