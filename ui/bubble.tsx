@@ -6,14 +6,15 @@ import { Toolbar, ToolbarButton } from "agentic-design/react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { glyph, icons } from "./icons.js";
 
-/** A tool that an app adds to the bubble menu, such as Comment or Rewrite. */
+/**
+ * A tool that an app adds to the bubble menu, such as Rewrite. It shows with the built-in tools: for a person who can
+ * edit, over a text selection that is not in code, an image, or a cell selection.
+ */
 export interface BubbleAction {
   label: string;
   icon: ReactNode;
   /** Runs with the selection still in place. */
   run: (editor: Editor) => void;
-  /** Show it to a person who cannot change the text too, for example to comment. */
-  readOnly?: boolean;
 }
 
 const GAP = 8;
@@ -31,9 +32,7 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
 
   useEffect(() => {
     const place = () => {
-      // A read-only text cannot take the focus, so there the selection in it is enough.
-      const here = editor.isFocused || box.current?.contains(document.activeElement) || (!editor.isEditable && editor.view.dom.contains(window.getSelection()?.anchorNode ?? null));
-      if (!formattable(editor) || !here) return setAt(undefined);
+      if (!formattable(editor) || (!editor.isFocused && !box.current?.contains(document.activeElement))) return setAt(undefined);
       const { from, to } = editor.state.selection;
       const start = editor.view.coordsAtPos(from);
       const end = editor.view.coordsAtPos(to);
@@ -84,8 +83,7 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
     if (shown) placed.current();
   }, [shown]);
 
-  const tools = actions.filter((a) => editable || a.readOnly);
-  if (!at || (!editable && tools.length === 0)) return null;
+  if (!at || !editable) return null;
   const back = () => editor.view.focus();
   const tool = (label: string, icon: ReactNode, run: () => void, active?: boolean) => (
     <ToolbarButton label={label} icon={icon} pressed={active} onClick={() => (back(), run())} />
@@ -101,16 +99,12 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
       onBlur={(e) => !box.current?.contains(e.relatedTarget as Node | null) && e.relatedTarget !== editor.view.dom && setAt(undefined)}
     >
       <Toolbar label="Selection">
-        {editable && (
-          <>
-            {tool("Bold", glyph("B", "b"), () => chain().toggleBold().run(), editor.isActive("bold"))}
-            {tool("Italic", glyph("I", "i"), () => chain().toggleItalic().run(), editor.isActive("italic"))}
-            {tool("Strikethrough", glyph("S", "s"), () => chain().toggleStrike().run(), editor.isActive("strike"))}
-            {tool("Inline code", glyph("</>", "mono"), () => chain().toggleCode().run(), editor.isActive("code"))}
-            {tool("Link", icons.link, onLink, editor.isActive("link"))}
-          </>
-        )}
-        {tools.map((a) => <ToolbarButton key={a.label} label={a.label} icon={a.icon} onClick={() => a.run(editor)} />)}
+        {tool("Bold", glyph("B", "b"), () => chain().toggleBold().run(), editor.isActive("bold"))}
+        {tool("Italic", glyph("I", "i"), () => chain().toggleItalic().run(), editor.isActive("italic"))}
+        {tool("Strikethrough", glyph("S", "s"), () => chain().toggleStrike().run(), editor.isActive("strike"))}
+        {tool("Inline code", glyph("</>", "mono"), () => chain().toggleCode().run(), editor.isActive("code"))}
+        {tool("Link", icons.link, onLink, editor.isActive("link"))}
+        {actions.map((a, i) => <ToolbarButton key={`${i}-${a.label}`} label={a.label} icon={a.icon} onClick={() => a.run(editor)} />)}
       </Toolbar>
     </div>
   );

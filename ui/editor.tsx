@@ -12,6 +12,7 @@ import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, usableNa
 import * as Y from "yjs";
 import { isMachine } from "../src/kinds.js";
 import { MAX_LIVE_BYTES } from "../src/limits.js";
+import { schema } from "../src/schema.js";
 import type { LiveSession } from "./live.js";
 import { BubbleMenu, type BubbleAction } from "./bubble.js";
 import { CodeBlock } from "./code.js";
@@ -32,11 +33,11 @@ const SAVE_AFTER_MS = 1500;
 export interface EditorExtras {
   /** More slash menu items, after the built-in ones. */
   slashItems?: SlashItem[];
-  /** More bubble menu tools, after the built-in ones. A tool with `readOnly` shows for a person who cannot edit too. */
+  /** More bubble menu tools, after the built-in ones, for a person who can edit. */
   bubbleActions?: BubbleAction[];
   /**
-   * More Tiptap extensions, read when a document opens. Use extensions that add no node or mark, such as plugins,
-   * decorations, and keyboard shortcuts: the stored document keeps only the nodes and marks of `schema`.
+   * More Tiptap extensions, read when a document opens: plugins, decorations, and keyboard shortcuts. One that adds a
+   * node or a mark is refused, since the stored document keeps only the nodes and marks of `schema`.
    */
   extensions?: AnyExtension[];
 }
@@ -140,6 +141,12 @@ export function Surface({ live, editable, principal: me, onEditor, extras }: { l
         handleDrop: (_view, _event, slice, moved) => !moved && !fits(slice), // a move inside the text adds nothing
       },
     });
+    // Fail closed on a host extension that adds a node or a mark: the stored document cannot keep it.
+    const unknown = [...Object.keys(editor.schema.nodes).filter((n) => !schema.nodes[n]), ...Object.keys(editor.schema.marks).filter((m) => !schema.marks[m])];
+    if (unknown.length > 0) {
+      editor.destroy();
+      throw new TypeError(`an editor extension adds what the stored document cannot keep: ${unknown.join(", ")}`);
+    }
     setEditor(editor);
     // The sticky bar covers the top of the window, so the caret is scrolled into view below it. The bar wraps on a narrow
     // window, so the margin follows its height.
