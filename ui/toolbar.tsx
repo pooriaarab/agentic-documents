@@ -1,6 +1,7 @@
 // The formatting toolbar. Ported from the gitmarkdown editor toolbar (MIT, see THIRD_PARTY_NOTICES.md), on the
 // agentic-design toolbar: one tab stop, arrow keys move between the buttons.
 import type { Editor } from "@tiptap/core";
+import { selectedRect } from "@tiptap/pm/tables";
 import { Menu, Toolbar, ToolbarButton, ToolbarGroup, type MenuItem } from "agentic-design/react";
 import type { ReactNode } from "react";
 import { LANGUAGES, languageId, languageName } from "./code.js";
@@ -36,7 +37,10 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
   const style = STYLES.find((s) => s.active(editor));
   // In a table, the Table tool opens the table changes. Elsewhere it puts in a new table. Markdown makes the first row
   // the header, so in the header row there is no row above it to add, and the row is not deleted.
-  const header = on("tableHeader");
+  // The rows and columns the selection covers: a cell selection can span the header row and the rows under it.
+  const rect = on("table") ? selectedRect(editor.state) : undefined;
+  const header = rect?.top === 0;
+  const oneColumn = rect?.map.width === 1;
   const tables: MenuItem[] = [
     ...(header ? [] : [{ label: "Add row above", onSelect: () => chain().addRowBefore().run() }]),
     { label: "Add row below", onSelect: () => chain().addRowAfter().run() },
@@ -44,7 +48,8 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
     { label: "Add column after", onSelect: () => chain().addColumnAfter().run() },
     "separator",
     ...(header ? [] : [{ label: "Delete row", onSelect: () => chain().deleteRow().run() }]),
-    { label: "Delete column", onSelect: () => chain().deleteColumn().run() },
+    // The last column is not deleted on its own: Delete table does that.
+    ...(oneColumn ? [] : [{ label: "Delete column", onSelect: () => chain().deleteColumn().run() }]),
     "separator",
     { label: "Delete table", danger: true, onSelect: () => chain().deleteTable().run() },
   ];
