@@ -2,7 +2,7 @@ import * as Y from "yjs";
 import { SyncClient, type Peer } from "agentic-realtime/client";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal } from "./doc.js";
 import { DOC_ERROR_CODES } from "./errors.js";
-import { MAX_LIVE_BYTES, type DocAccess } from "./service.js";
+import { MAX_LIVE_BYTES, type DocAccess, type DocSummary } from "./service.js";
 
 export interface LiveOptions {
   /** The Worker address, such as `https://docs.example.com`. */
@@ -163,16 +163,34 @@ export class LiveService implements DocAccess {
     }
   }
 
-  /** The room is only a copy, so a new document is made in the store. A room seeds from it on the next join. */
-  async create(id: string, markdown: string): Promise<void> {
-    const response = await fetch(`${base(this.options.server)}/api/v1/docs`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${this.options.token}`, "content-type": "application/json" },
-      body: JSON.stringify({ id, markdown }),
+  private async call(path: string, init: { method: string; body?: object }): Promise<Response> {
+    const response = await fetch(`${base(this.options.server)}${path}`, {
+      method: init.method,
+      headers: { authorization: `Bearer ${this.options.token}`, ...(init.body ? { "content-type": "application/json" } : {}) },
+      body: init.body ? JSON.stringify(init.body) : undefined,
     }).catch((error: unknown) => {
       throw unreachable(error);
     });
     if (!response.ok) throw await refusal(response, "the server refused the request");
+    return response;
+  }
+
+  /** The room is only a copy, so a new document is made in the store. A room seeds from it on the next join. */
+  async create(id: string, markdown: string): Promise<void> {
+    await this.call("/api/v1/docs", { method: "POST", body: { id, markdown } });
+  }
+
+  // The catalog lives in the store, not in a room, so these go to the HTTP API.
+  async list(): Promise<DocSummary[]> {
+    return (await (await this.call("/api/v1/docs", { method: "GET" })).json()) as DocSummary[];
+  }
+
+  async rename(id: string, title: string): Promise<void> {
+    await this.call(`/api/v1/docs/${encodeURIComponent(id)}/rename`, { method: "POST", body: { title } });
+  }
+
+  async remove(id: string): Promise<void> {
+    await this.call(`/api/v1/docs/${encodeURIComponent(id)}/remove`, { method: "POST", body: {} });
   }
 
   async read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T> {

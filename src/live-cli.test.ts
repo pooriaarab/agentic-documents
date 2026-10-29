@@ -39,6 +39,16 @@ const until = async (check: () => boolean, what: string) => {
 };
 
 describe("the CLI in a live room", () => {
+  test("list, rename, and remove go to the server's catalog", async () => {
+    expect((await cli(["new", "cat-cli", "--markdown", "# Catalog"])).code).toBe(0);
+    expect((await cli(["rename", "cat-cli", "--title", "From the CLI"])).code).toBe(0);
+    const listed = JSON.parse((await cli(["list"])).out) as { id: string; title: string }[];
+    expect(listed.find((r) => r.id === "cat-cli")?.title).toBe("From the CLI");
+    expect((await cli(["remove", "cat-cli"])).err).toContain("FORBIDDEN"); // an agent has no docs:remove scope
+    expect((await cli(["remove", "cat-cli"], ADA)).code).toBe(0);
+    expect(JSON.parse((await cli(["list"])).out).map((r: { id: string }) => r.id)).not.toContain("cat-cli");
+  });
+
   test("an agent edits while a person is in the room, and both see the change", async () => {
     expect((await cli(["new", "shared", "--markdown", "# Plan\n\nShip on Friday."])).code).toBe(0);
     const human = await LiveDoc.join({ server: server.url, id: "shared", token: ADA });

@@ -36,7 +36,8 @@ change it in a call.
 
 | Tool | Use it for |
 | --- | --- |
-| `doc_new`, `doc_read`, `doc_outline`, `doc_edits` | Create and read. |
+| `doc_new`, `doc_list`, `doc_read`, `doc_outline`, `doc_edits` | Create, list, and read. |
+| `doc_rename`, `doc_remove` | Title a document, or delete it. An agent needs the `docs:remove` scope to remove. |
 | `doc_insert`, `doc_replace`, `doc_delete`, `doc_append` | Change text or sections. |
 | `doc_suggest`, `doc_suggestions`, `doc_accept`, `doc_reject` | Suggested edits. |
 | `doc_comment`, `doc_reply`, `doc_resolve`, `doc_reopen`, `doc_threads` | Comment threads. |

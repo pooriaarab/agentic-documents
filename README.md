@@ -74,6 +74,8 @@ A Cloudflare Worker (Hono) mirrors the CLI one to one under `/api/v1/docs`. A re
 curl -X POST $URL/api/v1/docs -H "authorization: Bearer $TOKEN" -d '{"id":"plan","markdown":"# Plan"}'
 curl "$URL/api/v1/docs/plan/outline" -H "authorization: Bearer $TOKEN"
 curl -X POST $URL/api/v1/docs/plan/replace -H "authorization: Bearer $TOKEN" -d '{"text":"Plan","content":"Roadmap"}'
+curl "$URL/api/v1/docs" -H "authorization: Bearer $TOKEN"   # list: id, title, creator, last edit
+curl -X POST $URL/api/v1/docs/plan/rename -H "authorization: Bearer $TOKEN" -d '{"title":"Roadmap"}'
 curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN"
 # add &remoteImages=true to keep web images; the default shows only images stored inside the document
 ```
@@ -89,6 +91,15 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - Errors are `{ "error": { "code", "message", "matches" } }`. Status: 400 bad input, 401 no
   valid token, 403 `FORBIDDEN` (for example an agent without `docs:accept` that accepts), 404 not
   found, 409 a conflict (ambiguous match, stale anchor, already decided), 503 `LOCKED`.
+- `list` shows each document's title, creator kind, and last edit. `rename` sets the title and keeps the text.
+  `remove` deletes the whole document. A person may remove. An agent needs the `docs:remove` scope, for example
+  `{"as":"agent_of_human:sweeper","scopes":["docs:remove"]}`. A live room keeps its own copy of the text after `remove`, so
+  an open client can bring the document back with a save.
+- A browser cannot send an `Authorization` header on a WebSocket. It offers two subprotocols instead:
+  `agentic-docs` and `agentic-docs.bearer.<token in base64url>`. Only the live-room route reads it, and the server
+  answers with `agentic-docs`, never the token.
+- Each edit log entry holds `client`, the Yjs client id of the replica that wrote it. A UI uses it to mark text
+  an agent wrote. A client writes it, like the rest of the log.
 - `GET /health` needs no token. It reveals nothing else.
 - Create an R2 bucket with `wrangler r2 bucket create agentic-documents-data --jurisdiction eu` and a D1
   database with `wrangler d1 create agentic-documents --jurisdiction eu`. Put the database id in

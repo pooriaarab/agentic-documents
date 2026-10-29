@@ -76,54 +76,63 @@ export const commands: Command[] = [
     await s.create(i.id, i.markdown ?? "", a);
     return { id: i.id };
   }),
+  command("list", "List documents with their titles, creators, and last edits.", true, {}, (s) => s.list()),
+  command("rename", "Give a document a title. The text stays.", false, { id, title: z.string().describe("1 to 120 characters of plain text.") }, async (s, i, a) => {
+    await s.rename(i.id, i.title, a);
+    return ok();
+  }),
+  command("remove", "Delete a whole document. A person may. An agent needs the docs:remove scope.", false, { id }, async (s, i, a) => {
+    await s.remove(i.id, a);
+    return ok();
+  }),
   command("read", "Read a document, or one section, as Markdown.", true, { id, section: where.section }, (s, i) =>
     s.read(i.id, (d) => (i.section ? d.readSection(i.section) : d.toMarkdown())),
   ),
   command("outline", "List sections with their ids, levels, and titles.", true, { id }, (s, i) => s.read(i.id, (d) => d.outline())),
   command("edits", "Read the edit log. It names each author kind and holds no content.", true, { id }, (s, i) => s.read(i.id, (d) => d.edits())),
   command("insert", "Insert Markdown into a section, or plain text next to matched text.", false, { id, ...where, content }, async (s, i, a) => {
-    await s.write(i.id, (d) => d.insert(target(i), i.content, a));
+    await s.write(i.id, (d) => d.insert(target(i), i.content, a), a);
     return ok();
   }),
   command("replace", "Replace a section body (the heading stays), or the matched text.", false, { id, ...where, content }, async (s, i, a) => {
-    await s.write(i.id, (d) => d.replace(target(i), i.content, a));
+    await s.write(i.id, (d) => d.replace(target(i), i.content, a), a);
     return ok();
   }),
   command("delete", "Delete a section with its subsections, or the matched text.", false, { id, ...where }, async (s, i, a) => {
-    await s.write(i.id, (d) => d.delete(target(i), a));
+    await s.write(i.id, (d) => d.delete(target(i), a), a);
     return ok();
   }),
   command("append", "Add Markdown at the end of the document.", false, { id, content: z.string() }, async (s, i, a) => {
-    await s.write(i.id, (d) => d.append(i.content, a));
+    await s.write(i.id, (d) => d.append(i.content, a), a);
     return ok();
   }),
   command("suggest", "Suggest an edit to matched text. An empty replacement suggests a delete.", false, { id, text, occurrence, at: side, replacement: z.string() }, async (s, i, a) => ({
-    suggestion: await s.write(i.id, (d) => new Suggestions(d).add(textTarget(i), i.replacement, a)),
+    suggestion: await s.write(i.id, (d) => new Suggestions(d).add(textTarget(i), i.replacement, a), a),
   })),
   command("suggestions", "List suggested edits.", true, { id, status: z.enum(["pending", "accepted", "rejected"]).optional() }, (s, i) =>
     s.read(i.id, (d) => new Suggestions(d).list({ status: i.status })),
   ),
   command("accept", "Accept a suggestion. The text changes now.", false, { id, suggestion: z.string() }, async (s, i, a) => {
-    await s.write(i.id, (d) => new Suggestions(d).accept(i.suggestion, a));
+    await s.write(i.id, (d) => new Suggestions(d).accept(i.suggestion, a), a);
     return ok();
   }),
   command("reject", "Reject a suggestion. The text stays.", false, { id, suggestion: z.string() }, async (s, i, a) => {
-    await s.write(i.id, (d) => new Suggestions(d).reject(i.suggestion, a));
+    await s.write(i.id, (d) => new Suggestions(d).reject(i.suggestion, a), a);
     return ok();
   }),
   command("comment", "Start a comment thread on matched text.", false, { id, text, occurrence, body: z.string() }, async (s, i, a) => ({
-    thread: await s.write(i.id, (d) => new Threads(d).add(textTarget(i), i.body, a)),
+    thread: await s.write(i.id, (d) => new Threads(d).add(textTarget(i), i.body, a), a),
   })),
   command("reply", "Reply in a comment thread.", false, { id, thread, body: z.string() }, async (s, i, a) => {
-    await s.write(i.id, (d) => new Threads(d).reply(i.thread, i.body, a));
+    await s.write(i.id, (d) => new Threads(d).reply(i.thread, i.body, a), a);
     return ok();
   }),
   command("resolve", "Resolve a comment thread.", false, { id, thread }, async (s, i, a) => {
-    await s.write(i.id, (d) => new Threads(d).resolve(i.thread, a));
+    await s.write(i.id, (d) => new Threads(d).resolve(i.thread, a), a);
     return ok();
   }),
   command("reopen", "Reopen a comment thread.", false, { id, thread }, async (s, i, a) => {
-    await s.write(i.id, (d) => new Threads(d).reopen(i.thread, a));
+    await s.write(i.id, (d) => new Threads(d).reopen(i.thread, a), a);
     return ok();
   }),
   command("threads", "List comment threads with their messages.", true, { id, status: z.enum(["open", "resolved"]).optional() }, (s, i) =>

@@ -2,8 +2,9 @@
 import type { Anchor, DocErrorCode, EditEntry, PrincipalKind, Section } from "./doc.js";
 import type { ExportFormat } from "./export.js";
 import type { Suggestion, Thread } from "./review.js";
+import type { DocSummary } from "./service.js";
 
-export type { Anchor, EditEntry, ExportFormat, Section, Suggestion, Thread };
+export type { Anchor, DocSummary, EditEntry, ExportFormat, Section, Suggestion, Thread };
 
 /** The place an edit goes: a section id, or exact text. */
 export type Where = { section: string; at?: "start" | "end" } | { text: string; occurrence?: number; at?: "before" | "after" };
@@ -127,6 +128,12 @@ export function createClient(options: ClientOptions) {
     me: (call?: CallOptions) => get<Me>("/api/v1/me", {}, (v) => isObject(v) && typeof v.kind === "string" && typeof v.name === "string" && Array.isArray(v.scopes) && (v.role === "editor" || v.role === "viewer"), "the token identity", call),
     /** `POST /api/v1/docs`. */
     create: (input: { id: string; markdown?: string }, call?: CallOptions) => withKey<{ id: string }>("/api/v1/docs", input, "id", call),
+    /** `GET /api/v1/docs`: documents with titles, creators, and last edits. */
+    list: (call?: CallOptions) => list<DocSummary>("/api/v1/docs", {}, call),
+    /** `POST /rename`: give a document a title. */
+    rename: (id: string, input: { title: string }, call?: CallOptions) => ok(`${doc(id)}/rename`, input, call),
+    /** `POST /remove`: delete a document. An agent needs the `docs:remove` scope. */
+    remove: (id: string, call?: CallOptions) => ok(`${doc(id)}/remove`, {}, call),
     /** `GET /read`: the whole document, or one section, as Markdown. */
     async read(id: string, input: { section?: string } = {}, call?: CallOptions): Promise<string> {
       return (await send(`${doc(id)}/read`, { method: "GET", query: input }, call, "text/markdown")).text();
