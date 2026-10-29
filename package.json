@@ -84,7 +84,7 @@
     "deploy:demo": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy --config wrangler.demo.jsonc"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@modelcontextprotocol/sdk": "^1.23.0",
     "@tiptap/core": "^3.32.1",
     "@tiptap/extension-collaboration": "^3.32.1",
     "@tiptap/extension-image": "^3.32.1",
@@ -112,7 +112,12 @@
     "zod": "^4.6.7"
   },
   "overrides": {
-    "zod": "^4.6.7"
+    "agentic-design": {
+      "zod": "^4.6.7"
+    },
+    "agentic-formats": {
+      "zod": "^4.6.7"
+    }
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
