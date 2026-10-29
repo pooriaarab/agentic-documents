@@ -1,23 +1,27 @@
 # Changelog
 
-## Unreleased
+## 0.9.0
 
 ### Changed
 
 - The local file `Store` is now `createFileStore` from `agentic-identity/file` (0.7). The catalog moves to
   `<dir>/store/store.json`. The first write after the upgrade imports the old catalog once. The options
   `lockStaleMs` and `lockTimeoutMs` no longer apply to the store. A write that loses a race runs again up to 64 times.
+- `agentic-identity` moves from `^0.6.0` to `^0.7.0`.
 
 ### Added
 
 - Sharing, built on the grant, invite, and link primitives of `agentic-identity`. New commands: `grants`, `grant`,
-  `revoke`, `invites`, `invite`, `link`, and `unlink`. They are in the CLI, the MCP server (`doc_grants` and so on),
-  and the HTTP API (`GET /docs/:id/grants`, `POST /docs/:id/grant`, and so on). Only an owner may use them, and an
-  agent also needs the `docs:admin` scope. The person who creates a document owns it, and an agent that creates one
-  for a person makes that person the owner. A link token shows once. An invite list shows no email address. Removing a document erases
-  its sharing data. Roles are stored and audited. Reads and writes do not check them yet. A document made before
-  sharing, with no creator in the catalog or made by an agent that acts for a person, has no owner and cannot be
-  claimed.
+  `revoke`, `invites`, `invite`, `link`, and `unlink`. They are in the CLI, the MCP server (`doc_grants` and so on), and
+  the HTTP API (`GET /api/v1/docs/:id/grants`, `POST /api/v1/docs/:id/grant`, and so on). Only an owner may use them.
+  Over the HTTP API every caller needs `docs:admin`. In local mode, an agent needs it in the CLI and the MCP server too.
+  A development token gives a person with the `editor` role that scope. The person who creates a document owns it, and
+  with `agentic-identity` keys over the HTTP API, an agent that creates one for a person makes that person the owner. A
+  link token shows once. An invite list shows no email address. Removing a document erases its sharing data. Roles are
+  stored and audited. Reads and writes do not check them yet. A document with no owner record is claimed by its creator,
+  when the root of the caller's delegation chain is that creator, and the caller has a write scope. A document with no creator in the catalog,
+  one whose author name is not a valid grant name, or one made by an agent that acts for a person, cannot be claimed. A
+  rename can record a creator for a document with no creator.
 - `DocsService.sharing` and the `DocSharing` type.
 - The SDK client has `grants`, `grant`, `revoke`, `invites`, `invite`, `link`, and `unlink`. The CLI and the MCP
   server run the same commands in live mode, through the server.

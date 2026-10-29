@@ -30,7 +30,7 @@ Tools are named `doc_<command>`: `doc_read`, `doc_outline`, `doc_replace`, `doc_
 ## Rules
 
 - Pass your author kind and name on every change.
-- Share only a document that you own, and only when asked. `grant`, `revoke`, `invite`, and `link` need an owner, and an agent needs the `docs:admin` scope. On `FORBIDDEN`, stop. Never grant yourself a role.
+- Share only a document that you own, and only when asked. `grant`, `revoke`, `invite`, and `link` need an owner, and every caller needs the `docs:admin` scope over HTTP (an agent needs it in the CLI and MCP too). On `FORBIDDEN`, stop. Never grant yourself a role.
 - Read the outline, then the section, before you edit.
 - On an ambiguous match, pass `occurrence`.
 - Report errors as failures.

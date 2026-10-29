@@ -46,9 +46,9 @@ change it in a call.
 | `doc_link`, `doc_unlink` | Make a share link token (it shows once), or revoke a link by id. |
 | `doc_export` | Export as `md`, `html`, or `odt` (base64 file). |
 
-Only an owner shares a document, and an agent needs the `docs:admin` scope too. A refusal is `FORBIDDEN`. Never try to
+Only an owner shares a document. Over HTTP every caller needs the `docs:admin` scope. In local mode, an agent needs it in the CLI and the MCP server too. A refusal is `FORBIDDEN`. Never try to
 grant yourself a role. Roles are stored, but reads and writes do not check them yet, nothing opens a link token, and
-nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role. A document with no owner record (made before sharing, with no creator in the catalog or made by an agent that acts for a person) cannot be shared.
+nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role. A document with no owner record (made before sharing, or by an author with no `docs:write` scope) is claimed by its creator, when the root of the caller's delegation chain is that creator, and the caller has a write scope. A document with no creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for a person, cannot be claimed. A rename can record a creator for one with no creator.
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
 

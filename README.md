@@ -7,7 +7,7 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.8.0. The document model, the text operations, the CLI, the MCP server,
+> Status: early, version 0.9.0. The document model, the text operations, the CLI, the MCP server,
 > the Worker API, live editing in a room, and a small web UI work. See [UI](#ui).
 
 ## Install
@@ -141,6 +141,7 @@ curl -X POST $URL/api/v1/docs/plan/replace -H "authorization: Bearer $TOKEN" -d 
 curl "$URL/api/v1/docs" -H "authorization: Bearer $TOKEN"   # list: id, title, creator, last edit
 curl -X POST $URL/api/v1/docs/plan/rename -H "authorization: Bearer $TOKEN" -d '{"title":"Roadmap"}'
 curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN"
+curl -X POST $URL/api/v1/docs/plan/grant -H "authorization: Bearer $TOKEN" -d '{"to":"human:kit","role":"editor"}'   # owner only
 # add &remoteImages=true to keep web images; the default shows only images stored inside the document
 ```
 
@@ -298,8 +299,11 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Arra
 ## Sharing
 
 A document has roles: `viewer`, `commenter`, `editor`, and `owner`. Grants, invites, and links come from
-`agentic-identity`. Only an owner may use them. The person who creates a document owns it. An agent that creates a
-document for a person makes that person the owner. An agent also needs the `docs:admin` scope. Everyone else gets
+`agentic-identity`. Only an owner may use them. The person who creates a document owns it. Over the HTTP API, with
+`agentic-identity` keys, an agent that creates a document for a person makes that person the owner. Over the HTTP API,
+a caller also needs the `docs:admin` scope (or `*:admin`). That holds for a person and for an agent. In local mode, the
+CLI and the MCP server give a person that scope, and an agent needs `--scopes docs:admin`. With `--live`, the token sets
+the scopes. A development token gives a person with the `editor` role that scope too. Everyone else gets
 `FORBIDDEN` (HTTP 403), and an agent cannot grant itself a role.
 
 ```sh
@@ -312,8 +316,12 @@ npx agentic-documents unlink plan --link <link id>
 ```
 
 The same commands are MCP tools (`doc_grant` and so on), HTTP routes (`POST /api/v1/docs/:id/grant`), and SDK methods
-(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document made
-before sharing has no owner record: its creator becomes the owner on the first share call.
+(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document can have
+no owner record. This happens to a document made before sharing. It also happens when its author had no `docs:write`
+scope, or when its author name is not a valid grant name (1 to 128 letters, digits, `-`, and `_`). The creator claims
+such a document with a write scope, when the root of the caller's delegation chain is that creator. A document with no
+creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for a person,
+cannot be claimed. A rename can record a creator for a document with no creator, so check again after a rename.
 
 ## Features
 
@@ -496,7 +504,9 @@ Limits of live editing:
   from `agentic-identity/file`. The first write after an upgrade imports the catalog of release 0.8 once. Files from an
   older release that sit directly in `<dir>` are not read. The catalog store waits for a rival process with a short
   lock, runs a write again up to 64 times, then fails with `StoreConflictError`. The wait blocks the process.
-- Each token has one role: `editor` (the default) or `viewer`. A viewer cannot call a write command or write in a live room. The Worker checks each token through the `Auth` port of `agentic-identity` 0.7. Tokens are a stopgap: there is no per-document sharing in the Worker yet.
+- A key's role comes from its scopes: `editor` with a scope that covers `docs:write`, `viewer` without one. A
+  development token (see [Sign-in](#sign-in)) sets its own role instead. A viewer cannot call a write command or write
+  in a live room. The role is not per document: the Worker does not check the roles that sharing stores yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs
   its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that
