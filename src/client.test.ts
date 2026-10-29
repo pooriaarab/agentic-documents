@@ -99,7 +99,7 @@ describe("client against the real Worker", () => {
     const many = await fails(bot.replace("twice", { text: "ab", content: "c" }));
     expect([many.code, many.status, many.matches.length]).toEqual(["AMBIGUOUS_MATCH", 409, 2]);
     expect((await fails(bot.read("twice", { section: "nope" }))).code).toBe("NO_SECTION");
-    expect((await fails(bot.insert("twice", { content: "x" }))).code).toBe("INVALID_INPUT");
+    expect((await fails(bot.insert("twice", { content: "x" } as never))).code).toBe("INVALID_INPUT");
   });
 
   test("an aborted call rejects, and a write is sent once", async () => {
@@ -112,8 +112,18 @@ describe("client against the real Worker", () => {
     expect([error.code, error.status, calls]).toEqual(["HTTP_ERROR", 502, 1]);
   });
 
-  test("the bundle has no Node-only import", async () => {
-    const { readFileSync } = await import("node:fs");
-    expect(readFileSync("src/client.ts", "utf8")).not.toMatch(/from "node:|require\(/);
+  test("a 2xx reply that is not what the API sends fails closed", async () => {
+    const reply = (body: string, type: string) => createClient({ baseUrl: server.url, token: BOT, fetch: async () => new Response(body, { status: 200, headers: { "content-type": type } }) });
+    const page = reply("<html>login</html>", "text/html");
+    for (const call of [page.read("a"), page.append("a", { content: "x" }), page.state("a"), page.outline("a")]) expect((await fails(call)).code).toBe("BAD_RESPONSE");
+    const empty = reply("{}", "application/json");
+    for (const call of [empty.replace("a", { text: "x", content: "y" }), empty.create({ id: "a" }), empty.me(), empty.outline("a")]) expect((await fails(call)).code).toBe("BAD_RESPONSE");
+  });
+
+  test("the built client imports nothing at run time", async () => {
+    const { readFileSync, existsSync } = await import("node:fs");
+    const built = "dist/client.js";
+    if (existsSync(built)) expect(readFileSync(built, "utf8")).not.toMatch(/^\s*import\s|require\(/m);
+    expect(readFileSync("src/client.ts", "utf8").match(/^import .*$/gm)?.every((l) => l.startsWith("import type"))).toBe(true);
   });
 });

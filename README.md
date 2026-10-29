@@ -125,7 +125,7 @@ try {
   `LiveDoc` from `agentic-documents/live` for it.
 - Every method takes an optional `{ signal }` last. An abort rejects with what `fetch` throws.
 - An API error throws `DocsApiError` with `code` (the API error code), `status` (the HTTP status), and
-  `matches`. A reply that is not an API error has the code `HTTP_ERROR`.
+  `matches`. A reply that is not an API error has the code `HTTP_ERROR`. A 2xx reply with the wrong content type or shape has the code `BAD_RESPONSE`.
 - The client never retries. A write is not safe to send twice.
 - Pass `fetch` to use your own, for a Worker service binding or for tests.
 
