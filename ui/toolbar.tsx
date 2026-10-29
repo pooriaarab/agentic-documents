@@ -40,7 +40,8 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
   // The rows and columns the selection covers: a cell selection can span the header row and the rows under it.
   const rect = on("table") ? selectedRect(editor.state) : undefined;
   const header = rect?.top === 0;
-  const oneColumn = rect?.map.width === 1;
+  // prosemirror-tables does not delete every column at once: Delete table does that.
+  const allColumns = rect !== undefined && rect.left === 0 && rect.right === rect.map.width;
   const tables: MenuItem[] = [
     ...(header ? [] : [{ label: "Add row above", onSelect: () => chain().addRowBefore().run() }]),
     { label: "Add row below", onSelect: () => chain().addRowAfter().run() },
@@ -48,8 +49,7 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
     { label: "Add column after", onSelect: () => chain().addColumnAfter().run() },
     "separator",
     ...(header ? [] : [{ label: "Delete row", onSelect: () => chain().deleteRow().run() }]),
-    // The last column is not deleted on its own: Delete table does that.
-    ...(oneColumn ? [] : [{ label: "Delete column", onSelect: () => chain().deleteColumn().run() }]),
+    ...(allColumns ? [] : [{ label: "Delete column", onSelect: () => chain().deleteColumn().run() }]),
     "separator",
     { label: "Delete table", danger: true, onSelect: () => chain().deleteTable().run() },
   ];
@@ -83,7 +83,7 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
         )}
         {tool("Divider", icons.divider, () => chain().setHorizontalRule().run())}
         {on("table") ? (
-          <Menu trigger={<ToolbarButton label="Table changes" icon={<>{icons.table}{icons.chevronDown}</>} pressed className="agd-style-button" disabled={!editable} />} items={tables} />
+          <Menu trigger={<ToolbarButton label="Table changes" icon={<>{icons.table}{icons.chevronDown}</>} className="agd-style-button" disabled={!editable} />} items={tables} />
         ) : (
           tool("Table", icons.table, () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())
         )}

@@ -75,7 +75,7 @@ into it, and Escape gives the focus back to the text. An empty document says how
 
 In a table, the Table tool opens the table changes: add a row above or below, add a column before or after, delete a
 row or a column, and delete the table. Markdown tables always have a header row, so when the selection covers the header
-row there is no Add row above and no Delete row. The last column goes with Delete table. In a code block, a Code language tool sets the
+row there is no Add row above and no Delete row. When the selection covers every column, Delete table removes them. In a code block, a Code language tool sets the
 language of the fence. Twelve languages have syntax colors (Shell, CSS, Go, HTML, JavaScript, JSON, Markdown, Python,
 Rust, SQL, TypeScript, YAML). Any other language shows as plain text: it is never guessed. The colors are
 decorations, so the stored text has none. The document menu has Download

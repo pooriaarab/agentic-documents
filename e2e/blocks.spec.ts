@@ -41,12 +41,13 @@ test("in a table, the Table tool adds and removes rows and columns, and deletes 
   await expect(page.getByRole("menuitem", { name: "Add row above" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Delete row" })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  // A cell selection from the header row down counts as the header row too.
+  // A cell selection from the header row down counts as the header row too. This one covers every column as well.
   await text.getByText("Owner").click();
-  await text.locator("tr").nth(1).locator("td").first().click({ modifiers: ["Shift"] });
+  await text.locator("tr").nth(1).locator("td").last().click({ modifiers: ["Shift"] });
   await changes.click();
   await expect(page.getByRole("menuitem", { name: "Delete row" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Add row above" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Delete column" })).toHaveCount(0); // it covers every column
   await page.keyboard.press("Escape");
   // With one column left, Delete column is gone: Delete table removes the table.
   await text.locator("tr").nth(1).locator("td").last().click();
