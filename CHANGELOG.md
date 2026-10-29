@@ -5,8 +5,8 @@
 ### Removed
 
 - **Breaking.** `DOCX_MIME`, `ODT_MIME`, `FILE_FORMATS`, and `IMPORT_FORMATS` are no longer exported. Nothing in the
-  package used them outside `agentic-documents/formats`. The `FileFormat` and `ImportFormat` types stay. Read the
-  content type of an export from `exportFile`, and the format list from `EXPORT_FORMATS`.
+  package used them outside `agentic-documents/formats`. The `FileFormat` and `ImportFormat` types stay. No runtime
+  list replaces them. Import takes `md`, `odt`, and `docx`. Export takes `md`, `html`, `odt`, and `docx`.
 
 ### Changed
 
