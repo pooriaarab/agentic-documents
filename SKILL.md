@@ -18,6 +18,23 @@ doc.replace({ text: "Friday" }, "Monday", me);
 doc.toMarkdown();
 ```
 
+Other root exports:
+
+- `Suggestions` and `Threads` add proposed edits and comments to an `AgenticDoc`.
+- `markdownToBlocks`, `blocksToMarkdown`, and `schema` map and check ProseMirror JSON blocks.
+- `exportDoc` writes `md`, `html`, or base64 `odt`; `exportOdt` writes raw ODT bytes from blocks.
+- `DocsService`, `createFileStore`, and `createFileBlobs` make a local store-backed service.
+- `commands` is the shared command table for CLI, MCP, and HTTP.
+- `contextOf`, `parseSubject`, and `StoreSharing` support sharing helpers.
+
+Subpaths:
+
+- `agentic-documents/client` has the typed HTTP client.
+- `agentic-documents/formats` imports and exports Markdown, HTML, ODT, and DOCX.
+- `agentic-documents/live` has `LiveDoc` for live rooms.
+- `agentic-documents/worker` and `agentic-documents/live-worker` are Worker entry points.
+- `agentic-documents/ui`, `agentic-documents/ui.css`, and `agentic-documents/app.css` embed the editor or app.
+
 ## Use the CLI or MCP
 
 ```sh

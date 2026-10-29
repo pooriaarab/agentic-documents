@@ -39,6 +39,166 @@ suggestions.accept(id, person); // the text changes now
 new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 ```
 
+## Package API
+
+The root package exports the in-process document API, the command table, the local ports, and export helpers.
+Subpaths export the Worker, live client, typed HTTP client, file format helpers, and UI.
+
+### Documents and errors
+
+Use `AgenticDoc` for local edits in memory. Use `parseAuthor`, `PRINCIPAL_KINDS`, and `DocError` when you
+accept user input.
+
+```ts
+import { AgenticDoc, DocError, PRINCIPAL_KINDS, parseAuthor } from "agentic-documents";
+
+const author = parseAuthor("human:Ada");
+if (!author || !PRINCIPAL_KINDS.includes(author.kind)) throw new Error("bad author");
+
+try {
+  const doc = AgenticDoc.fromMarkdown("# Plan\n\nShip on Friday.", author);
+  doc.replace({ text: "Friday" }, "Monday", author);
+  console.log(doc.readSection(doc.outline()[0].id));
+} catch (error) {
+  if (error instanceof DocError) console.error(error.code);
+}
+```
+
+### Blocks and schema
+
+Use `markdownToBlocks` and `blocksToMarkdown` to map Markdown to ProseMirror JSON blocks. Use `schema`
+when you need to validate or edit those blocks before they enter a document.
+
+```ts
+import { blocksToMarkdown, markdownToBlocks, schema } from "agentic-documents";
+
+const blocks = markdownToBlocks("# Plan\n\n- Ship");
+schema.nodeFromJSON({ type: "doc", content: blocks }).check();
+console.log(blocksToMarkdown(blocks));
+```
+
+### Suggestions and threads
+
+`Suggestions` and `Threads` work on an `AgenticDoc`. They store their data in the document and keep anchors
+that follow the text.
+
+```ts
+import { AgenticDoc, Suggestions, Threads } from "agentic-documents";
+
+const agent = { kind: "agent_of_human", name: "scribe" } as const;
+const person = { kind: "human", name: "Ada" } as const;
+const doc = AgenticDoc.fromMarkdown("Ship on Monday.", agent);
+
+const suggestion = new Suggestions(doc).add({ text: "Monday" }, "Tuesday", agent);
+new Suggestions(doc).accept(suggestion, person);
+new Threads(doc).add({ text: "Tuesday" }, "Check the date.", agent);
+```
+
+### Command table
+
+`commands` is the single table behind the CLI, MCP server, and HTTP API. Each command runs against a
+`DocAccess`, such as a `DocsService`.
+
+```ts
+import { DocsService, commands, createFileBlobs, createFileStore } from "agentic-documents";
+
+const author = { kind: "human", name: "Ada" } as const;
+const service = new DocsService({
+  blobs: createFileBlobs(".agentic-documents/blobs"),
+  store: createFileStore(".agentic-documents/store"),
+});
+
+await commands.find((c) => c.name === "new")!.run(service, { id: "plan", markdown: "# Plan" }, author);
+console.log(await commands.find((c) => c.name === "read")!.run(service, { id: "plan" }, author));
+```
+
+### Local stores
+
+`createFileBlobs(dir)` and `createFileStore(dir)` adapt the shared file ports for local use. They replace the
+older direct file layout and migrate old local data on first use.
+
+```ts
+import { DocsService, createFileBlobs, createFileStore } from "agentic-documents";
+
+const service = new DocsService({
+  blobs: createFileBlobs(".agentic-documents/blobs"),
+  store: createFileStore(".agentic-documents/store"),
+});
+```
+
+### Document service
+
+`DocsService` is the store-backed service used by the CLI, MCP server, Worker, and live checkpoints. It saves
+Yjs updates in a `Blobs` port and keeps the catalog in a `Store` port.
+
+```ts
+import { AgenticDoc, DocsService, createFileBlobs, createFileStore } from "agentic-documents";
+
+const author = { kind: "human", name: "Ada" } as const;
+const service = new DocsService({
+  blobs: createFileBlobs(".agentic-documents/blobs"),
+  store: createFileStore(".agentic-documents/store"),
+});
+
+await service.create("plan", "# Plan", author);
+await service.write("plan", (doc) => doc.append("\nShip it.", author), author);
+const markdown = await service.read("plan", (doc: AgenticDoc) => doc.toMarkdown());
+```
+
+### Export helpers
+
+Use `exportDoc` for command-style exports. It returns Markdown or HTML as UTF-8 text, and ODT as base64.
+Use `exportOdt` only when you already have ProseMirror JSON blocks and need raw ODT bytes. Use
+`agentic-documents/formats` when you need warnings or DOCX.
+
+```ts
+import { AgenticDoc, EXPORT_FORMATS, exportDoc, exportOdt } from "agentic-documents";
+
+const author = { kind: "human", name: "Ada" } as const;
+const doc = AgenticDoc.fromMarkdown("# Plan\n\nShip it.", author);
+
+console.log(EXPORT_FORMATS); // ["md", "html", "odt"]
+const html = exportDoc(doc, "html", { remoteImages: false });
+const odtBytes = exportOdt(doc.toJSON().content ?? []);
+console.log(html.contentType, odtBytes.byteLength);
+```
+
+### Sharing helpers
+
+Use `contextOf` to make the local sharing context for an author, `parseSubject` for `human:<id>` and
+`agent:<id>` input, and `StoreSharing` when you build a service around your own `Store`. `ROLES`,
+`INVITE_ROLES`, and `SHARE_SCOPE` name the accepted role and scope values.
+
+```ts
+import { INVITE_ROLES, ROLES, SHARE_SCOPE, StoreSharing, contextOf, createFileStore, parseSubject } from "agentic-documents";
+
+const author = { kind: "human", name: "Ada" } as const;
+const ctx = contextOf(author);
+const to = parseSubject("agent:reviewer");
+const store = createFileStore(".agentic-documents/store");
+const sharing = new StoreSharing(store, {
+  exists: async (id) => id === "plan",
+  creator: async () => author,
+});
+
+await sharing.grant(ctx, "plan", to, "editor");
+console.log(SHARE_SCOPE, ROLES, INVITE_ROLES);
+```
+
+### Subpath exports
+
+Use these imports when you need a specific surface:
+
+| Import | Use it for |
+| --- | --- |
+| `agentic-documents/client` | Typed HTTP client. See [SDK](#sdk). |
+| `agentic-documents/formats` | File import and export for Markdown, HTML, ODT, and DOCX. See [File formats](#file-formats). |
+| `agentic-documents/live` | `LiveDoc` for live rooms. See [Live editing](#live-editing). |
+| `agentic-documents/worker` | Hono app and Worker helpers. See [Worker subpath](#worker-subpath). |
+| `agentic-documents/live-worker` | Worker entry point with live rooms. See [Live editing](#live-editing). |
+| `agentic-documents/ui` | Embedded editor and full app. See [Embed the editor](#embed-the-editor). |
+| `agentic-documents/ui.css` and `agentic-documents/app.css` | Styles for the embedded editor and the full app. |
+
 ## UI
 
 The Worker serves a small web app, built on [agentic-design](https://www.npmjs.com/package/agentic-design)
