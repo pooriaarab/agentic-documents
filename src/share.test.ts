@@ -189,3 +189,48 @@ describe("the static token table", () => {
     expect((await call("/robot-doc/grants", ROBOT)).status).toBe(200);
   });
 });
+
+describe("bad leftovers fail closed", () => {
+  test("old sharing data that no owner can erase stops a new document, and nothing of it is made", async () => {
+    await store.put("resources", "damaged", { id: "damaged", type: "docs" });
+    await store.put("grants", "damaged:human:kit", { resourceId: "damaged", subjectKind: "human", subjectId: "kit", role: "editor" });
+    const res = await ask("", keys.ada, { id: "damaged", markdown: "# Mine" });
+    expect(res.status).toBe(409);
+    expect((await json(res)).error.code).toBe("CONFLICT");
+    expect((await ask("/damaged/read", keys.ada)).status).toBe(404);
+    expect((await ask("/damaged/grants", keys.ada)).status).toBe(403); // the leftover stays closed to everyone
+  });
+
+  test("a resource of another kind with the same id stops a new document and is never trusted", async () => {
+    await store.put("resources", "sheet-id", { id: "sheet-id", type: "sheets" });
+    await store.put("grants", "sheet-id:human:mal", { resourceId: "sheet-id", subjectKind: "human", subjectId: "mal", role: "owner" });
+    expect((await ask("", keys.ada, { id: "sheet-id", markdown: "# Mine" })).status).toBe(409);
+    expect((await ask("/sheet-id/read", keys.ada)).status).toBe(404);
+    // A document that exists under such an id gives the foreign owner nothing.
+    await service.create("sheet-doc", "# Doc", { kind: "human", name: "ada" });
+    await store.put("resources", "sheet-doc", { id: "sheet-doc", type: "sheets" });
+    await store.put("grants", "sheet-doc:human:mal", { resourceId: "sheet-doc", subjectKind: "human", subjectId: "mal", role: "owner" });
+    expect((await ask("/sheet-doc/grants", keys.ada)).status).toBe(403);
+    expect((await ask("/sheet-doc/grants", keys.mal)).status).toBe(403); // mal holds docs:write only, and the type is not docs
+  });
+
+  test("a resource with children cannot be erased, and the remove fails with CONFLICT, not 500", async () => {
+    await ask("", keys.ada, { id: "parent", markdown: "# P" });
+    await store.put("resources", "kid", { id: "kid", type: "docs", parentId: "parent" });
+    const res = await ask("/parent/remove", keys.ada, {});
+    expect(res.status).toBe(409);
+    expect((await ask("/parent/read", keys.ada)).status).toBe(200); // the document stays
+  });
+
+  test("a development token whose name cannot hold a grant does not lock out the other tokens", async () => {
+    const GOOD = `good-${"g".repeat(40)}`;
+    const ODD = `odd-${"d".repeat(40)}`;
+    const env = { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify({ [GOOD]: "human:ada", [ODD]: "human:bo.b" }) };
+    const dev = createApp(new DocsService({ blobs: createMemoryBlobs(), store: createMemoryStore() }));
+    const call = (token: string, id: string) => dev.request("/api/v1/docs", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ id }) }, env);
+    expect((await call(GOOD, "one")).status).toBe(200);
+    expect((await call(ODD, "two")).status).toBe(200);
+    const grants = await dev.request("/api/v1/docs/two/grants", { headers: { authorization: `Bearer ${ODD}` } }, env);
+    expect(grants.status).toBe(403); // it can write, and it shares nothing
+  });
+});

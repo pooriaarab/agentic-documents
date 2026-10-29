@@ -7,7 +7,7 @@ import { commands, type Command } from "./commands.js";
 import { DocError, parseAuthor, type DocErrorCode, type Principal } from "./doc.js";
 import type { ExportResult } from "./export.js";
 import { DocsService, MAX_LIVE_BYTES } from "./service.js";
-import { contextOf } from "./share.js";
+import { safeContextOf } from "./share.js";
 
 export interface WorkerEnv {
   /**
@@ -87,7 +87,8 @@ function identityOf(entry: unknown): Identity | undefined {
   const principal = principalOf(entry, object);
   if (!principal) return undefined;
   // A viewer token owns nothing and shares nothing, whatever its kind.
-  const context = role === "viewer" ? { ...contextOf(principal), scopes: [] } : contextOf(principal);
+  // A name that cannot hold a grant gets no scopes, so the rest of the table still works.
+  const context = role === "viewer" ? { ...safeContextOf(principal), scopes: [] } : safeContextOf(principal);
   return { principal, role, context };
 }
 

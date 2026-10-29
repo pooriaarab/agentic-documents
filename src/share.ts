@@ -1,4 +1,4 @@
-import { createSharing, StoreConflictError, type Grant, type InviteSummary, type PrincipalContext, type Role, type Store, type SubjectKind } from "agentic-identity";
+import { createSharing, EraseRefusedError, StoreConflictError, type Grant, type InviteSummary, type PrincipalContext, type Role, type Store, type SubjectKind } from "agentic-identity";
 import { DocError, PRINCIPAL_KINDS, type Principal } from "./doc.js";
 
 /** The resource type of a document in agentic-identity. The scopes are `docs:write` and `docs:admin`. */
@@ -60,11 +60,21 @@ export function contextOf(author: Principal | undefined): PrincipalContext {
   return { principalId: author.name, kind: author.kind, chain: [{ kind: author.kind, id: author.name }], scopes: scopes as PrincipalContext["scopes"] };
 }
 
+/** `contextOf`, or a context with no scopes when the author's name cannot hold a grant. Such an author shares nothing. */
+export function safeContextOf(author: Principal): PrincipalContext {
+  try {
+    return contextOf(author);
+  } catch {
+    return { principalId: author.name, kind: author.kind, chain: [{ kind: author.kind, id: author.name }], scopes: [] };
+  }
+}
+
 /** The refusals of agentic-identity as the errors of this package. One message for "no owner" keeps a probe from learning more. */
 async function guard<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
+    if (error instanceof EraseRefusedError) throw new DocError("CONFLICT", `the sharing data cannot be erased: ${error.message}`);
     if (error instanceof StoreConflictError) throw new DocError("CONFLICT", "the sharing of this document kept changing; try again");
     if (error instanceof Error && error.message === "forbidden") throw new DocError("FORBIDDEN", "only an owner of this document may share it");
     if (error instanceof Error && /^(invalid |give an email|expiresAt |expiresInMs |the last owner|limit must)/.test(error.message)) throw new DocError("INVALID_INPUT", error.message);
@@ -85,17 +95,18 @@ export class StoreSharing implements DocSharing {
 
   /**
    * The author of a new document owns it. A resource that exists for a document that was just made is left over from an
-   * older document with the same id, so it is erased first: the new document must never inherit its owners. Registering
-   * is best effort. An author with no root person or agent, or with no `docs:write` scope, owns nothing, and the
-   * creator claims the document on the first share call.
+   * older document with the same id, so it is erased first: the new document must never inherit its owners. When that
+   * erase fails, this throws, and the caller must undo the new document. Registering the owner is best effort: an author
+   * with no root person or agent, or with no `docs:write` scope, owns nothing, and the creator claims the document on
+   * the first share call.
    */
   async register(ctx: PrincipalContext | undefined, id: string): Promise<void> {
+    await this.erase(id);
+    if (!ctx) return;
     try {
-      await this.erase(id);
-      if (!ctx) return;
       await this.sharing.createResource(ctx, { id, type: RESOURCE_TYPE });
     } catch {
-      /* no root person or agent, no scope, or leftovers that no owner can erase: nobody owns it, which fails closed */
+      /* no root person or agent, or no scope: nobody owns it, which fails closed */
     }
   }
 
@@ -105,7 +116,9 @@ export class StoreSharing implements DocSharing {
    * whoever removes it.
    */
   async erase(id: string): Promise<void> {
-    if ((await this.store.get("resources", id)) === null) return;
+    const found = (await this.store.get("resources", id)) as { type?: unknown } | null;
+    if (found === null) return;
+    if (found.type !== RESOURCE_TYPE) throw new DocError("CONFLICT", `"${id}" is taken by another kind of resource in the sharing data`);
     const [owner] = (await this.store.query("grants", { where: { resourceId: id, role: "owner" }, limit: 1 })).items;
     const data = owner?.data as { subjectKind?: unknown; subjectId?: unknown } | undefined;
     if (data && (data.subjectKind === "human" || data.subjectKind === "agent") && typeof data.subjectId === "string") {
@@ -119,7 +132,12 @@ export class StoreSharing implements DocSharing {
 
   /** A document made before sharing has no resource. Its creator becomes the owner. Anyone else is refused. */
   private async ready(ctx: PrincipalContext, id: string): Promise<void> {
-    if ((await this.store.get("resources", id)) !== null) return;
+    const found = (await this.store.get("resources", id)) as { type?: unknown } | null;
+    if (found !== null) {
+      // A resource of another kind with this id is not this document's. Fail closed.
+      if (found.type !== RESOURCE_TYPE) throw new DocError("FORBIDDEN", "only an owner of this document may share it");
+      return;
+    }
     if (!(await this.known.exists(id))) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
     const made = await this.known.creator(id);
     const root = ctx.chain[0];

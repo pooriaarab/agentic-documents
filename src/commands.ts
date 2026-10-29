@@ -72,7 +72,7 @@ function command<S extends z.ZodRawShape>(
 }
 
 const ok = () => ({ ok: true });
-const role = z.enum(ROLES).describe("viewer reads, commenter comments, editor writes, owner shares.");
+const role = z.enum(ROLES).describe("viewer, commenter, editor, or owner. Roles are stored but reads and writes do not check them yet.");
 const inviteRole = z.enum(INVITE_ROLES).describe("viewer, commenter, or editor. An invite never makes an owner.");
 const flag = z.union([z.boolean(), z.enum(["true", "false"])]).transform((v) => v === true || v === "true");
 const to = z.string().describe("Who: human:<id> for a person, agent:<id> for an agent.");

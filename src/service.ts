@@ -2,16 +2,9 @@ import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, PrincipalContext, Store } from "agentic-identity";
 import { isPerson, Suggestions, Threads } from "./review.js";
-import { contextOf, StoreSharing, type DocSharing } from "./share.js";
+import { safeContextOf, StoreSharing, type DocSharing } from "./share.js";
 
-/** The rights of an author with no sign-in, or nothing when the name cannot hold a grant. */
-const safeContextOf = (author: Principal): PrincipalContext | undefined => {
-  try {
-    return contextOf(author);
-  } catch {
-    return undefined;
-  }
-};
+
 
 const ATTEMPTS = 64;
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -101,7 +94,18 @@ export class DocsService implements DocAccess {
     const created = await this.blobs.put(key, AgenticDoc.fromMarkdown(markdown, author, this.options).encode(), { ifNoneMatch: "*" });
     if (!created) throw new DocError("DOCUMENT_EXISTS", `document "${id}" already exists`);
     await this.catalog(id, author);
-    await this.sharing.register(context ?? safeContextOf(author), id);
+    await this.registered(id, key, author, context);
+  }
+
+  /** Make the owner record. When the erase of old sharing data fails, undo the document that was just made, so it never has the old owners. */
+  private async registered(id: string, key: string, author: Principal, context: PrincipalContext | undefined): Promise<void> {
+    try {
+      await this.sharing.register(context ?? safeContextOf(author), id);
+    } catch (error) {
+      await this.store.delete(CATALOG, id);
+      await this.blobs.delete(key);
+      throw error;
+    }
   }
 
   /** The stored document as a Yjs update. A live client seeds its room from it. */
@@ -138,7 +142,7 @@ export class DocsService implements DocAccess {
         this.fits(id, fresh);
         if (!(await this.blobs.put(key, fresh, { ifNoneMatch: "*" }))) continue;
         await this.catalog(id, author);
-        await this.sharing.register(options.context ?? safeContextOf(author), id);
+        await this.registered(id, key, author, options.context);
         return;
       }
       const doc = AgenticDoc.fromUpdate(found.data, this.options);
