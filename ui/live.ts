@@ -39,7 +39,7 @@ export interface HostDocument {
   presence?: RoomPresence;
   /** The connection state now. Without it, the editor counts as connected. */
   status?: () => Status;
-  /** A way to hear when the connection state changes. It returns a function that stops the listener. */
+  /** A way to hear when the connection state changes. It returns a function that stops the listener. The editor reads it once each time it binds to `doc`. */
   onStatus?: (listener: (status: Status) => void) => () => void;
 }
 
@@ -124,7 +124,10 @@ export function hostSession(host: HostDocument): LiveSession {
     hosted: true,
     doc: host.doc,
     status: () => host.status?.() ?? "connected",
-    onStatus: (listener) => host.onStatus?.(listener) ?? (() => {}),
+    onStatus: (listener) => {
+      const off: unknown = host.onStatus?.(listener);
+      return typeof off === "function" ? (off as () => void) : () => {};
+    },
     dirty: false,
     touch: () => {},
     save: async () => {},

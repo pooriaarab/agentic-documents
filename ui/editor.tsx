@@ -18,7 +18,7 @@ export interface EditorPrincipal {
   name: string;
 }
 
-const SAVE_AFTER_MS = 1500;
+export const SAVE_AFTER_MS = 1500;
 
 const entryOf = (peer: Peer): PresenceEntry => ({ id: String(peer.clientId), name: usableName(peer.name) ?? "Unnamed", kind: peer.machine ? "agent" : "person" });
 
@@ -94,7 +94,6 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
       editorProps: { attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "prose" } },
     });
     setEditor(editor);
-    tell.current?.(editor);
     editor.on("transaction", () => (setAgentText(host.current?.querySelector(".agent-text") != null), refresh()));
     const offPeers = live.sync?.onPeers(setPeers);
     setPeers(live.sync?.peers ?? []);
@@ -137,6 +136,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
     live.doc.on("update", changed);
     setConnection(live.status());
     const offStatus = live.onStatus(setConnection);
+    // Last, so content the app inserts from onEditor is labeled and saved like typed text.
+    tell.current?.(editor);
     return () => {
       stopped = true;
       live.doc.off("update", changed);
