@@ -270,6 +270,9 @@ const app = mount(document.getElementById("app")!, {
 - `getToken` runs when the app opens, and again when the person picks Try again after an error. The server sets the
   author and the role from the token. The app shows no Sign out button.
 - A link in the app moves inside the app. It does not change the address of your page.
+- `baseUrl` must be a full `http` or `https` address. It may have a path, such as `https://example.com/docs`.
+- The theme picker uses the agentic-design theme. It sets `data-theme` on the page and saves the choice in local
+  storage, so it changes the whole host page.
 - `unmount` removes the app. An open document saves its changes and leaves its room.
 - `app.css` holds the layout rules of the app. They use plain class names such as `.page-head` and `.muted`, so load
   them on a page that has its own styles with care. To embed one document only, use `mountEditor` above.

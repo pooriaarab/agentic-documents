@@ -2,6 +2,7 @@
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, type Mounted } from "./entry.js";
+import { roomOf } from "./view.js";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom has no matchMedia. The theme provider asks for the color scheme.
@@ -86,7 +87,7 @@ describe("mount", () => {
     const onError = vi.fn();
     await open({ baseUrl: "https://docs.test", getToken: () => "", onError });
     await vi.waitFor(() => expect(host.querySelector('[role="alert"]')).not.toBeNull());
-    expect(onError.mock.calls[0]![0]).toBeInstanceOf(TypeError);
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain("The host app gave no token.");
     expect(calls).toEqual([]);
   });
 
@@ -101,10 +102,46 @@ describe("mount", () => {
     expect(host.querySelector("h1")?.textContent).not.toBe("Documents");
   });
 
-  it("refuses options with no base URL or no callback", () => {
+  it("refuses options with no callback, a base URL that is not a full http or https address, or an empty document id", () => {
     host = document.createElement("div");
-    expect(() => mount(host, { baseUrl: "", getToken: () => "x" })).toThrow(TypeError);
+    for (const baseUrl of ["", "docs.example.com", "/docs", "javascript:alert(1)", "ftp://docs.test"]) {
+      expect(() => mount(host, { baseUrl, getToken: () => "x" })).toThrow(TypeError);
+    }
     expect(() => mount(host, { baseUrl: "https://docs.test" } as never)).toThrow(TypeError);
+    expect(() => mount(host, { baseUrl: "https://docs.test", getToken: () => "x", documentId: "" })).toThrow(TypeError);
+    expect(host.innerHTML).toBe("");
+  });
+
+  it("a throw from onError does not escape", async () => {
+    fakeServer();
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    await open({ baseUrl: "https://docs.test", getToken: () => "bad-token", onError: () => { throw new Error("host bug"); } });
+    await vi.waitFor(() => expect(host.querySelector('[role="alert"]')).not.toBeNull());
+    await new Promise((r) => setTimeout(r, 20));
+    process.off("unhandledRejection", unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+  });
+
+  it("the live room address keeps a path in the base URL and uses ws or wss", () => {
+    expect(roomOf("a b", "t", "https://host.test/docs/")).toEqual({ url: "wss://host.test/docs/api/v1/docs/a%20b/ws", token: "t" });
+    expect(roomOf("a", "t", "http://host.test").url).toBe("ws://host.test/api/v1/docs/a/ws");
+  });
+
+  it("a new page puts focus on its heading, not on the heading of the host page", async () => {
+    fakeServer();
+    host = document.body.appendChild(document.createElement("div"));
+    const hostTitle = host.appendChild(document.createElement("h1"));
+    hostTitle.tabIndex = -1;
+    const app = host.appendChild(document.createElement("div"));
+    await act(async () => void (mounted = mount(app, { baseUrl: "https://docs.test", getToken: () => "good-token" })));
+    await vi.waitFor(() => expect(host.textContent).toContain("Alpha"));
+    await act(async () => void app.querySelector<HTMLAnchorElement>('a[href="#/d/a"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })));
+    // The fake server has no document state, so the editor page shows its error. Back goes to the list.
+    await vi.waitFor(() => expect([...app.querySelectorAll("button")].some((b) => b.textContent === "Back to documents")).toBe(true));
+    await act(async () => void [...app.querySelectorAll("button")].find((b) => b.textContent === "Back to documents")!.click());
+    await vi.waitFor(() => expect(document.activeElement).toBe(app.querySelector(".page-head h1")));
+    expect(document.activeElement).not.toBe(hostTitle);
   });
 
   it("unmount removes the app, and a second unmount does nothing", async () => {

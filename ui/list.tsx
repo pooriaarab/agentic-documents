@@ -24,7 +24,7 @@ export function DocumentList({ go }: { go: (hash: string) => void }) {
   }, [api]);
   useEffect(() => void refresh(), [refresh]);
   // After a rename or a delete the list stays on screen, and focus goes to the page heading.
-  const changed = () => void refresh(true).then(() => document.querySelector("h1")?.focus());
+  const changed = () => void refresh(true).then(() => document.querySelector<HTMLElement>(".page-head h1")?.focus());
 
   const newButton = canWrite ? <Button onClick={() => setCreating(true)}><PlusIcon aria-hidden /> New document</Button> : undefined;
   return (

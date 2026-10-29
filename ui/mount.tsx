@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { createRoot } from "react-dom/client";
 import { clientFor, describe, type Session } from "./api.js";
 import { Workspace } from "./app.js";
+import { routeChanged } from "./focus.js";
 
 export interface MountOptions {
   /** The server, for example `https://docs.example.com`. The API is at `/api/v1` below it. */
@@ -24,6 +25,13 @@ export interface Mounted {
   unmount(): void;
 }
 
+/** The callback gave no token, so the server was never called. */
+class NoToken extends Error {
+  constructor() {
+    super("The host app gave no token.");
+  }
+}
+
 type Auth = { state: "checking" } | { state: "error"; error: unknown } | { state: "ready"; session: Session };
 
 function App({ baseUrl, getToken, documentId, onError }: MountOptions) {
@@ -36,17 +44,26 @@ function App({ baseUrl, getToken, documentId, onError }: MountOptions) {
     setAuth({ state: "checking" });
     (async () => {
       const token = await getToken();
-      if (typeof token !== "string" || token === "") throw new TypeError("getToken must give a token");
+      if (typeof token !== "string" || token === "") throw new NoToken();
       const api = clientFor(token, baseUrl);
       return { api, token, me: await api.me(), baseUrl } satisfies Session;
     })().then(
       (session) => !cancelled && setAuth({ state: "ready", session }),
-      (error: unknown) => !cancelled && (setAuth({ state: "error", error }), onError?.(error)),
+      (error: unknown) => {
+        if (cancelled) return;
+        setAuth({ state: "error", error });
+        try {
+          onError?.(error);
+        } catch {
+          // A host callback that throws must not become an unhandled rejection.
+        }
+      },
     );
     return () => void (cancelled = true);
   }, [baseUrl, getToken, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
   const go = useMemo(() => (hash: string) => {
     const open = /^#\/d\/([^/]+)$/.exec(hash);
+    routeChanged(); // the new page puts focus on its heading
     setId(open ? decodeURIComponent(open[1]!) : undefined);
   }, []);
   // The links of the app are `#/` routes. A click moves inside the app and leaves the address of the host page alone.
@@ -61,7 +78,7 @@ function App({ baseUrl, getToken, documentId, onError }: MountOptions) {
       {auth.state === "checking" && <p role="status" className="muted">Signing in…</p>}
       {auth.state === "error" && (
         <div role="alert" className="notice">
-          <EmptyState title="Could not sign in" description={describe(auth.error)} action={<Button onClick={() => setAttempt(attempt + 1)}>Try again</Button>} />
+          <EmptyState title="Could not sign in" description={auth.error instanceof NoToken ? auth.error.message : describe(auth.error)} action={<Button onClick={() => setAttempt(attempt + 1)}>Try again</Button>} />
         </div>
       )}
       {auth.state === "ready" && <Workspace session={auth.session} id={id} go={go} />}
@@ -72,7 +89,16 @@ function App({ baseUrl, getToken, documentId, onError }: MountOptions) {
 /** Render the whole app into an element, for a host page that does not use React itself. */
 export function mount(element: HTMLElement, options: MountOptions): Mounted {
   const check = (o: MountOptions) => {
-    if (!o || typeof o.baseUrl !== "string" || o.baseUrl === "" || typeof o.getToken !== "function") throw new TypeError("mount needs a baseUrl and a getToken function");
+    if (!o || typeof o.getToken !== "function") throw new TypeError("mount needs a baseUrl and a getToken function");
+    // A value with no scheme would resolve against the host page and send the token there.
+    let url: URL | undefined;
+    try {
+      url = new URL(o.baseUrl);
+    } catch {
+      /* refused below */
+    }
+    if (url?.protocol !== "http:" && url?.protocol !== "https:") throw new TypeError("baseUrl must be a full http or https address");
+    if (o.documentId !== undefined && (typeof o.documentId !== "string" || o.documentId === "")) throw new TypeError("documentId must be a document id");
   };
   check(options);
   const root = createRoot(element);

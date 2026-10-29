@@ -74,7 +74,7 @@
     }
   },
   "scripts": {
-    "build": "rm -rf dist && tsup && node ui/build.mjs",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsup && node ui/build.mjs",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

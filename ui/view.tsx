@@ -7,8 +7,9 @@ import { DeleteDocument, RenameDocument, ShareDocument } from "./dialogs.js";
 import { Boundary, Surface } from "./editor.js";
 
 /** The live room of a document on this Worker. */
-function roomOf(id: string, token: string, baseUrl: string) {
-  const url = new URL(`/api/v1/docs/${encodeURIComponent(id)}/ws`, baseUrl);
+export function roomOf(id: string, token: string, baseUrl: string) {
+  // Keep any path in `baseUrl`, as the client does.
+  const url = new URL(`${baseUrl.replace(/\/+$/, "")}/api/v1/docs/${encodeURIComponent(id)}/ws`, location.href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return { url: url.toString(), token };
 }
