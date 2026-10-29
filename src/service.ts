@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, Store } from "agentic-identity";
-import { Suggestions, Threads } from "./review.js";
+import { isPerson, Suggestions, Threads } from "./review.js";
 
 const ATTEMPTS = 64;
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -139,7 +139,7 @@ export class DocsService implements DocAccess {
     const refuse = (what: string) => new DocError("INVALID_INPUT", `the update would leave document "${id}" unreadable: ${what}`);
     try {
       doc.toMarkdown();
-      if (!doc.edits().every((e) => isObject(e) && isWho(e.author) && isString(e.at) && isString(e.op))) throw refuse("an edit log entry is malformed");
+      if (!doc.edits().every((e) => isObject(e) && isWho(e.author) && isString(e.at) && isString(e.op) && (e.client === undefined || typeof e.client === "number"))) throw refuse("an edit log entry is malformed");
       for (const [, t] of doc.ydoc.getMap<Y.Map<unknown>>("threads")) {
         const messages = t instanceof Y.Map ? t.get("messages") : undefined;
         const ok = t instanceof Y.Map && isAnchor(t.get("anchor")) && ["open", "resolved"].includes(t.get("status") as string) && messages instanceof Y.Array && messages.length > 0 &&
@@ -174,13 +174,20 @@ export class DocsService implements DocAccess {
     });
   }
 
-  /** Record a save. A document with no catalog entry stays without one. */
+  /**
+   * Record a save. The catalog is a side record that follows the blob, so a failure here never fails a save that worked:
+   * the caller would repeat a change that is not safe to repeat. A document with no catalog entry stays without one.
+   */
   private async touch(id: string, author: Principal | undefined): Promise<void> {
     if (!author) return;
-    await this.store.transaction(async (tx) => {
-      const entry = await tx.get(CATALOG, id);
-      if (entry !== null) await tx.put(CATALOG, id, { ...entry, updatedAt: Date.now(), updatedBy: { kind: author.kind, name: author.name } });
-    });
+    try {
+      await this.store.transaction(async (tx) => {
+        const entry = await tx.get(CATALOG, id);
+        if (entry !== null) await tx.put(CATALOG, id, { ...entry, updatedAt: Date.now(), updatedBy: { kind: author.kind, name: author.name } });
+      });
+    } catch {
+      /* the list shows an older last edit until the next save */
+    }
   }
 
   /** Every cataloged document, newest first, up to ${MAX_LISTED}. A damaged entry is skipped, so one bad entry never hides the list. */
@@ -193,7 +200,9 @@ export class DocsService implements DocAccess {
         const entry = data as Partial<DocInfo>;
         const { createdBy, createdAt } = entry;
         if (!createdBy || !PRINCIPAL_KINDS.includes(createdBy.kind) || typeof createdBy.name !== "string" || typeof createdAt !== "number") continue;
-        const updatedBy = entry.updatedBy && PRINCIPAL_KINDS.includes(entry.updatedBy.kind) && typeof entry.updatedBy.name === "string" ? entry.updatedBy : createdBy;
+        const by = entry.updatedBy;
+        if (by !== undefined && (!PRINCIPAL_KINDS.includes(by.kind) || typeof by.name !== "string")) continue; // a damaged field is skipped, never guessed
+        const updatedBy = by ?? createdBy;
         found.push({ id, title: typeof entry.title === "string" && entry.title !== "" ? entry.title : id, createdBy, createdAt, updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : createdAt, updatedBy });
       }
       cursor = page.nextCursor;
@@ -206,23 +215,26 @@ export class DocsService implements DocAccess {
     const key = this.key(id);
     const clean = title.trim();
     // eslint-disable-next-line no-control-regex
-    if (clean === "" || [...clean].length > MAX_TITLE || /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/.test(clean)) {
+    if (clean === "" || [...clean].length > MAX_TITLE || /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/.test(clean)) {
       throw new DocError("INVALID_INPUT", `a title is 1 to ${MAX_TITLE} characters of plain text`);
     }
-    if (!(await this.blobs.head(key))) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
+    const found = await this.blobs.get(key);
+    if (!found) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
     const who = { kind: author.kind, name: author.name };
+    // A document with no catalog entry gets one. Its creator is the author of the first logged edit, or this author when the log is empty.
+    const first = AgenticDoc.fromUpdate(found.data, this.options).edits()[0];
+    const created = first ? { createdBy: { kind: first.author.kind, name: first.author.name }, createdAt: Date.parse(first.at) } : { createdBy: who, createdAt: Date.now() };
     await this.store.transaction(async (tx) => {
-      const now = Date.now();
       const entry = await tx.get(CATALOG, id);
-      await tx.put(CATALOG, id, entry === null ? { createdBy: who, createdAt: now, updatedAt: now, updatedBy: who, title: clean } : { ...entry, title: clean, updatedAt: now, updatedBy: who });
+      const now = Date.now();
+      await tx.put(CATALOG, id, entry === null ? { ...created, createdAt: Number.isFinite(created.createdAt) ? created.createdAt : now, title: clean, updatedAt: now, updatedBy: who } : { ...entry, title: clean, updatedAt: now, updatedBy: who });
     });
   }
 
   /** Delete the document and its catalog entry. An agent needs the remove scope. A live room keeps its own copy of the text. */
   async remove(id: string, author: Principal): Promise<void> {
     const key = this.key(id);
-    const person = author.kind === "human" || author.kind === "user_token";
-    if (!person && author.scopes?.includes(REMOVE_SCOPE) !== true) throw new DocError("FORBIDDEN", `an agent needs the ${REMOVE_SCOPE} scope to remove a document`);
+    if (!isPerson(author) && author.scopes?.includes(REMOVE_SCOPE) !== true) throw new DocError("FORBIDDEN", `an agent needs the ${REMOVE_SCOPE} scope to remove a document`);
     if (!(await this.blobs.head(key))) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
     await this.store.delete(CATALOG, id);
     await this.blobs.delete(key);

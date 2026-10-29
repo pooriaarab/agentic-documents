@@ -157,7 +157,7 @@ export const ACCEPT_SCOPE = "docs:accept";
 
 const sameWho = (a: Principal, b: Principal): boolean => a.kind === b.kind && a.name === b.name;
 
-const isPerson = (who: Principal): boolean => who.kind === "human" || who.kind === "user_token";
+export const isPerson = (who: Principal): boolean => who.kind === "human" || who.kind === "user_token";
 
 /** A person or a user token decides. An agent needs the accept scope. Roles come later with the Auth port. */
 const mayDecide = (who: Principal): boolean => isPerson(who) || who.scopes?.includes(ACCEPT_SCOPE) === true;

@@ -97,7 +97,8 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   an open client can bring the document back with a save.
 - A browser cannot send an `Authorization` header on a WebSocket. It offers two subprotocols instead:
   `agentic-docs` and `agentic-docs.bearer.<token in base64url>`. Only the live-room route reads it, and the server
-  answers with `agentic-docs`, never the token.
+  answers with `agentic-docs`, never the token. A header value can show in the logs of a proxy or a host, so
+  keep access logs of that header off.
 - Each edit log entry holds `client`, the Yjs client id of the replica that wrote it. A UI uses it to mark text
   an agent wrote. A client writes it, like the rest of the log.
 - `GET /health` needs no token. It reveals nothing else.

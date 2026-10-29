@@ -182,7 +182,10 @@ export class LiveService implements DocAccess {
 
   // The catalog lives in the store, not in a room, so these go to the HTTP API.
   async list(): Promise<DocSummary[]> {
-    return (await (await this.call("/api/v1/docs", { method: "GET" })).json()) as DocSummary[];
+    const body: unknown = await (await this.call("/api/v1/docs", { method: "GET" })).json().catch(() => undefined);
+    const row = (r: unknown) => typeof r === "object" && r !== null && typeof (r as DocSummary).id === "string" && typeof (r as DocSummary).title === "string" && typeof (r as DocSummary).updatedAt === "number";
+    if (!Array.isArray(body) || !body.every(row)) throw new DocError("INVALID_INPUT", "the server sent a document list that is not valid");
+    return body as DocSummary[];
   }
 
   async rename(id: string, title: string): Promise<void> {
