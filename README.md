@@ -205,6 +205,47 @@ try {
 - The client never retries. A write is not safe to send twice.
 - Pass `fetch` to use your own, for a Worker service binding or for tests.
 
+## Embed the editor
+
+`agentic-documents/ui` renders the editor inside your own app. You give it a document id, a client, the principal who
+uses it, and an optional live room. With a room, people and agents edit together through agentic-realtime and see each
+other. It needs `react` and `react-dom` 19 (peer dependencies).
+
+```ts
+import { createClient } from "agentic-documents/client";
+import { mountEditor } from "agentic-documents/ui";
+import "agentic-design/styles.css";
+import "agentic-documents/ui.css";
+
+const client = createClient({ baseUrl: "https://docs.example.com", token });
+const principal = await client.me(); // { kind, name, role }
+const editor = mountEditor(document.getElementById("editor")!, {
+  id: "plan",
+  client,
+  principal,
+  room: { url: "wss://docs.example.com/api/v1/docs/plan/ws", token },
+});
+// Later: editor.update({ ...options, id: "other" }), or await editor.unmount() to save this tab's changes and leave.
+```
+
+- In a React app, render `<DocumentEditor id client principal room onError onLeave />` instead. `onLeave` gets the
+  promise of the last save.
+- `client` needs only `state` and `checkpoint`. A client from `createClient` has them, or pass your own. Keep the
+  same client object between renders: a new one opens the document again.
+- `principal` needs a `kind` (one of the principal kinds) and a `name`. A missing or unknown kind throws a
+  `TypeError`. It is never given a default. Only the `role` `editor` can change the text. Any other role, or no role,
+  opens it read only. The server still checks every write against the token. Use the principal that `client.me()`
+  returns for the same token, so the editor labels the text with the kind that the server gives the token.
+- When an agent principal types, the editor writes one `live` entry to the edit log for its Yjs client. The editor
+  and the web UI then mark that text as agent work for everyone who opens the document.
+- `room.url` is the WebSocket address of the document room. In a browser the token goes in a WebSocket subprotocol.
+  Pass `room.WebSocket` for a room that takes its token another way. Without a room, the editor saves through the
+  client and shows no other people.
+- The editor saves 1.5 seconds after this tab changes the text, and again on `unmount`. The promise from `unmount`
+  rejects when that last save fails. A save never makes a document, so a removed document stays removed.
+- The styles sit under the `.adoc` class and use the agentic-design tokens. Load `agentic-design/styles.css` first.
+- File import and export are in `agentic-documents/formats` (see [File formats](#file-formats)).
+
 ## File formats
 
 `agentic-documents/formats` imports and exports files, so an app that embeds the editor needs no mapping

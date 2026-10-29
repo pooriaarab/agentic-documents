@@ -35,4 +35,4 @@ export function describe(error: unknown): string {
   return error instanceof Error ? `Could not reach the server: ${error.message}` : "Something went wrong.";
 }
 
-export const isMachine = (kind: string): boolean => kind !== "human";
+export { isMachine } from "../src/kinds.js";

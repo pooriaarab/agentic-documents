@@ -1,7 +1,17 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/cli.ts", "src/worker.ts", "src/live.ts", "src/live-worker.ts", "src/client.ts", "src/formats.ts"],
+  // Named entries, so `ui/embed.tsx` lands next to the others as `dist/embed.js`.
+  entry: {
+    index: "src/index.ts",
+    cli: "src/cli.ts",
+    worker: "src/worker.ts",
+    live: "src/live.ts",
+    "live-worker": "src/live-worker.ts",
+    client: "src/client.ts",
+    formats: "src/formats.ts",
+    embed: "ui/embed.tsx",
+  },
   format: ["esm"],
   dts: true,
   clean: true,
