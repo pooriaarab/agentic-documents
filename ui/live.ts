@@ -25,9 +25,29 @@ export interface EditorRoom {
   WebSocket?: new (url: string, options?: { headers?: Record<string, string> }) => WebSocket;
 }
 
+/** The presence of a room: who is here, and their carets. A `SyncClient` of agentic-realtime has these. */
+export type RoomPresence = Pick<SyncClient, "awareness" | "peers" | "onPeers">;
+
+/**
+ * A document that the app keeps itself, in its own Yjs room. The editor binds to it and does not load, save, join a room,
+ * or close it. The app does all of that.
+ */
+export interface HostDocument {
+  /** The Yjs document. The editor reads and writes its `default` XML fragment. */
+  doc: Y.Doc;
+  /** The presence of the app's room. With it, the editor shows who is here and their carets. */
+  presence?: RoomPresence;
+  /** The connection state now. Without it, the editor counts as connected. */
+  status?: () => Status;
+  /** A way to hear when the connection state changes. It returns a function that stops the listener. The editor reads it once each time it binds to `doc`. */
+  onStatus?: (listener: (status: Status) => void) => () => void;
+}
+
 export interface LiveSession {
-  /** The room, or undefined when the document is open without one. */
-  sync?: SyncClient;
+  /** The presence of the room, or undefined when the document is open without one. */
+  sync?: RoomPresence;
+  /** True when the app keeps the document. The editor then has nothing to save. */
+  readonly hosted?: boolean;
   doc: Y.Doc;
   /** The socket state now, and a way to hear when it changes. */
   status: () => Status;
@@ -80,4 +100,37 @@ export async function openSession(client: EditorClient, id: string, name: string
     close: async () => await sync?.disconnect(),
   };
   return session;
+}
+
+/**
+ * A host document must be a Yjs document of the same Yjs copy as the editor, since a document from another copy cannot bind.
+ * Its presence must have an awareness and peers.
+ */
+export function checkHost(host: HostDocument): void {
+  if (!host || !(host.doc instanceof Y.Doc)) throw new TypeError("a host document needs a Yjs document in `doc`");
+  const presence = host.presence;
+  if (presence !== undefined && (typeof presence?.awareness?.getStates !== "function" || !Array.isArray(presence.peers) || typeof presence.onPeers !== "function")) {
+    throw new TypeError("a host presence needs an awareness, peers, and onPeers, as a SyncClient has");
+  }
+  if ((host.status !== undefined && typeof host.status !== "function") || (host.onStatus !== undefined && typeof host.onStatus !== "function")) {
+    throw new TypeError("a host status and onStatus must be functions");
+  }
+}
+
+/** A session on a document the app keeps. It saves nothing and closes nothing: the app owns the document and its room. */
+export function hostSession(host: HostDocument): LiveSession {
+  return {
+    sync: host.presence,
+    hosted: true,
+    doc: host.doc,
+    status: () => host.status?.() ?? "connected",
+    onStatus: (listener) => {
+      const off: unknown = host.onStatus?.(listener);
+      return typeof off === "function" ? (off as () => void) : () => {};
+    },
+    dirty: false,
+    touch: () => {},
+    save: async () => {},
+    close: async () => {},
+  };
 }

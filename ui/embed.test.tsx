@@ -114,6 +114,15 @@ describe("mountEditor", () => {
     expect(saves[0].markdown).toBe("Hello from a bot\n");
   });
 
+  it("content inserted from onEditor on a stored document is saved", async () => {
+    const { client, saves } = fakeClient("Hello");
+    await mount({ id: "plan", client, principal: ada, onEditor: (e) => void e?.commands.insertContentAt(e.state.doc.content.size - 1, " world") });
+    const leaving = mounted!.unmount();
+    mounted = undefined;
+    await act(async () => leaving);
+    expect(saves).toEqual([{ id: "plan", markdown: "Hello world\n", create: false }]);
+  });
+
   it("a person's typed text is not marked as agent work", async () => {
     const { client } = fakeClient("Hello");
     const box = await mount({ id: "plan", client, principal: ada });

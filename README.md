@@ -239,6 +239,35 @@ const editor = mountEditor(document.getElementById("editor")!, {
   rejects when that last save fails. A save never makes a document, so a removed document stays removed.
 - The styles sit under the `.adoc` class and use the agentic-design tokens. Load `agentic-design/styles.css` first.
 - File import and export are in `agentic-documents/formats` (see [File formats](#file-formats)).
+- `onEditor` gets the Tiptap editor when it is ready, and `null` when it goes. Use it to read the selection or the
+  JSON, or to insert content. The editor sets `injectCSS: false`, and `ui.css` has the base rules, so a page whose
+  content security policy forbids inline styles shows it right.
+
+### Use your own Yjs document
+
+An app that keeps the document in its own Yjs room gives it as `host`. The editor then binds to that document. It does
+not load, save, join a room, or close it, and it shows no save state. The app does all of that. `client` is not needed,
+and `room` together with `host` throws a `TypeError`.
+
+```ts
+const editor = mountEditor(element, {
+  id: "plan",
+  principal,
+  host: {
+    doc, // a Y.Doc. The editor reads and writes its `default` XML fragment.
+    presence: sync, // optional: a SyncClient of agentic-realtime, or { awareness, peers, onPeers }
+    status: () => status, // optional: "connecting" | "connected" | "disconnected"
+    onStatus: (listener) => stop, // optional: tell the editor when the status changes
+  },
+});
+```
+
+- Use the same `yjs` copy as the editor. A document from another copy is refused with a `TypeError`.
+- With `presence`, the editor shows the peers and their carets. It reads the name and the Agent tag from `peers`, so
+  give peers whose `machine` flag the server sets.
+- The editor binds again only when `doc` or `presence` changes. A new `host` object with the same two keeps it as is.
+  It reads `onStatus` once each time it binds.
+- When an agent principal types, the editor writes one `live` entry to the `edits` array of the document, as above.
 
 ## Mount the whole app
 
