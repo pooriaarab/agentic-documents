@@ -63,6 +63,18 @@ test("the slash menu filters, moves with the arrow keys, and puts in the block",
   await page.keyboard.press("Control+End");
   await page.keyboard.type("/zzz");
   await expect(list).toHaveCount(0);
+  const lines = await text.locator("p").count();
+  await page.keyboard.press("Enter");
+  await expect(text.locator("p")).toHaveCount(lines + 1);
+
+  // A slash that Escape closed, then deleted, and typed again in the same place opens the menu again.
+  await page.keyboard.type("/");
+  await expect(list).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("/");
+  await expect(list).toBeVisible();
+  await expect(text).toHaveAttribute("aria-keyshortcuts", "Alt+F10");
   await page.context().close();
 });
 

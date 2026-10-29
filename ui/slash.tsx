@@ -5,7 +5,7 @@ import type { Editor } from "@tiptap/core";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { glyph, icons } from "./icons.js";
 
-/** One item of the slash menu. An app can add its own with the `slashItems` option. */
+/** One item of the slash menu. */
 export interface SlashItem {
   title: string;
   description: string;
@@ -33,8 +33,8 @@ export function defaultSlashItems({ image }: { image: () => void }): SlashItem[]
   ];
 }
 
-/** The height of one item in the menu, as in editor.css. The menu has no scroll area of its own. */
-const ITEM_PX = 40;
+/** The height of one item in the menu: 2.5rem, as in editor.css, at the root font size the person chose. */
+const itemPx = () => 2.5 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
 
 const matches = (item: SlashItem, query: string) => [item.title, item.description, ...(item.keywords ?? [])].some((w) => w.toLowerCase().includes(query));
 
@@ -72,6 +72,7 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
   useEffect(() => {
     const update = () => {
       const hit = editor.isFocused ? find(editor) : undefined;
+      if (!hit) dismissed.current = undefined; // that slash is gone, so a new one opens the menu
       if (!hit || hit.from === dismissed.current) return setOpen(undefined);
       dismissed.current = undefined;
       const at = editor.view.coordsAtPos(hit.from);
@@ -82,8 +83,9 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
         const below = window.innerHeight - at.bottom - 16;
         const above = at.top - 16;
         const room = Math.max(below, above);
-        const rows = Math.max(3, Math.min(count, Math.floor((room - 10) / ITEM_PX)));
-        const height = Math.min(count, rows) * ITEM_PX + 10 + (rows < count ? ITEM_PX / 2 : 0);
+        const row = itemPx();
+        const rows = Math.max(3, Math.min(count, Math.floor((room - 10 - row / 2) / row)));
+        const height = Math.min(count, rows) * row + 10 + (rows < count ? row / 2 : 0);
         const top = height <= below || below >= above ? at.bottom + 4 : at.top - 4 - height;
         return { ...hit, rows, top, left: Math.max(8, Math.min(at.left, window.innerWidth - 296)) };
       });
@@ -125,7 +127,7 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
     }
     const keys = (event: KeyboardEvent) => {
       const { open: at, shown: list, active: index } = state.current;
-      if (!at || list.length === 0) return;
+      if (!at || list.length === 0 || event.isComposing) return;
       const move = (to: number) => (event.preventDefault(), event.stopPropagation(), setActive((to + list.length) % list.length));
       if (event.key === "ArrowDown") move(index + 1);
       else if (event.key === "ArrowUp") move(index - 1);
