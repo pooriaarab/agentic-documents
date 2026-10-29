@@ -266,7 +266,10 @@ const editor = mountEditor(element, {
 - With `presence`, the editor shows the peers and their carets. It reads the name and the Agent tag from `peers`, so
   give peers whose `machine` flag the server sets.
 - The editor binds again only when `doc` or `presence` changes. A new `host` object with the same two keeps it as is.
+  So keep the same `presence` object between renders: a new one rebuilds the editor, and the caret and the selection go.
   It reads `onStatus` once each time it binds.
+- `onEditor` is read when the editor is made. That callback gets `null` when the editor goes. A new `onEditor` in
+  `update` is used for the next editor.
 - When an agent principal types, the editor writes one `live` entry to the `edits` array of the document, as above.
 
 ## Mount the whole app
