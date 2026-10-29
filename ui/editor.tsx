@@ -245,7 +245,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           </div>
         </form>
       </Dialog>
-      <ImageDialog editor={editor} open={picturing} onOpenChange={setPicturing} />
+      <ImageDialog editor={editor} doc={live.doc} open={picturing} onOpenChange={setPicturing} />
     </section>
   );
 }

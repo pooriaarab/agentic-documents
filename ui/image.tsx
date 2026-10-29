@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
+import * as Y from "yjs";
 import { Button, Checkbox, Dialog, DialogClose, Input } from "agentic-design/react";
 
 /** The sources the engine renders: web addresses, and small embedded pictures. */
 const SOURCE = /^(https?:\/\/\S+|data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+)$/i;
 
-/** The most characters in an embedded image. It goes into the document and to every peer, and the whole document has a 1 MB limit. */
+/** The whole document has a 1 MB limit, and an embedded image counts against it. This keeps one image small, and room is checked too. */
 const MAX_SOURCE = 256_000;
+const DOCUMENT_LIMIT = 900_000;
 
 /**
  * Insert an image, or change the one that is selected. Every image has alt text (WCAG 1.1.1): a description, or the
  * decorative choice, which writes an empty alt so a screen reader skips the image.
  */
-export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | undefined; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ImageDialog({ editor, doc, open, onOpenChange }: { editor: Editor | undefined; doc: Y.Doc; open: boolean; onOpenChange: (open: boolean) => void }) {
   const [src, setSrc] = useState("");
   const [alt, setAlt] = useState("");
   const [decorative, setDecorative] = useState(false);
@@ -50,7 +52,8 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
     const address = src.trim();
     const text = alt.trim();
     // An image the engine took from Markdown can have a source this dialog would not accept. Its alt text can still change.
-    const problem = { src: (editing && address === opened) || (SOURCE.test(address) && address.length <= MAX_SOURCE) ? undefined : "Use a web address that starts with https:// or http://, or an embedded PNG, JPEG, GIF, or WebP image under 256 KB.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
+    const problem: { src?: string; alt?: string } = { src: (editing && address === opened) || (SOURCE.test(address) && address.length <= MAX_SOURCE) ? undefined : "Use a web address that starts with https:// or http://, or an embedded PNG, JPEG, GIF, or WebP image of up to about 180 KB.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
+    if (!problem.src && address !== opened && address.length > 1000 && Y.encodeStateAsUpdate(doc).length + address.length > DOCUMENT_LIMIT) problem.src = "The document has no room for this image. Use a smaller image or a web address.";
     if (problem.src || problem.alt) return setError(problem);
     const attrs = { src: address, alt: decorative ? "" : text };
     if (editor.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();
