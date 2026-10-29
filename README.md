@@ -56,9 +56,15 @@ new Threads(doc).add({ text: "Tuesday" }, "Is this date firm?", agent);
 ## UI
 
 The Worker serves a small web app, built on [agentic-design](https://www.npmjs.com/package/agentic-design)
-and the typed client (`agentic-documents/client`). It has a document list, a rich-text editor (headings,
-lists, bold, italic, links), rename, delete, a share dialog, the people and agents in the room, and a dotted
-underline on text that an agent wrote. The tests check each main view with axe (WCAG 2.2 AA rules) in the light and the dark theme: sign in, list, empty and error list, new-document dialog, editor, share dialog, link, rename and delete dialogs, the actions menu, and the read-only view. Axe finds only part of the faults, so it does not replace a test with a screen reader. Screenshots of
+and the typed client (`agentic-documents/client`). It has a document list, a full-screen rich-text editor, rename,
+delete, a share dialog, the people and agents in the room, and a dotted underline on text that an agent wrote. The
+editor toolbar has text style (paragraph, headings 1 to 3), bold, italic, strikethrough, inline code, link, bulleted,
+numbered, and task lists, quote, code block, divider, table, image, undo, and redo. The Image tool inserts an image, or changes the selected one, with alt text or
+the Decorative choice. It takes a web address, an embedded image, or a PNG, JPEG, GIF, or WebP file of up to about 180
+KB, stored in the document. The page's content security policy blocks images from other hosts, so a web address shows
+only in an app that allows it. A pasted image is kept only when its source passes the same check. A paste or a drop
+whose images would take the document past the 1,000,000 byte limit of a live room is refused. The menu at the top end of a document has Rename,
+Delete, the theme, and Sign out. The tests check each main view with axe (WCAG 2.2 AA rules) in the light and the dark theme: sign in, list, empty and error list, new-document dialog, editor, share dialog, link, rename and delete dialogs, the actions menu, and the read-only view. Axe finds only part of the faults, so it does not replace a test with a screen reader. Screenshots of
 every view are in [docs/screenshots](docs/screenshots).
 
 Run it on your machine:
@@ -397,7 +403,9 @@ const editor = mountEditor(document.getElementById("editor")!, {
   client and shows no other people.
 - The editor saves 1.5 seconds after this tab changes the text, and again on `unmount`. The promise from `unmount`
   rejects when that last save fails. A save never makes a document, so a removed document stays removed.
-- The styles sit under the `.adoc` class and use the agentic-design tokens. Load `agentic-design/styles.css` first.
+- The styles sit under the `.agd-doc` class and use the agentic-design tokens, except the form rules of the link and
+  image dialogs (`.agd-form`, `.agd-form-actions`), which apply page-wide because the dialogs render
+  in a portal. Load `agentic-design/styles.css` first.
 - File import and export are in `agentic-documents/formats` (see [File formats](#file-formats)).
 - `onEditor` gets the Tiptap editor when it is ready, and `null` when it goes. Use it to read the selection or the
   JSON, or to insert content. The editor sets `injectCSS: false`, and `ui.css` has the base rules, so a page whose
@@ -767,4 +775,6 @@ npm run ci:local
 
 ## License
 
-MIT.
+MIT. The editor is a port of [gitmarkdown](https://github.com/pooriaarab/gitmarkdown) (MIT), and its page layout
+follows [tinylittleoffice](https://github.com/aboard-io/tinylittleoffice) (MIT). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -2,6 +2,7 @@ import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, PrincipalContext, Store } from "agentic-identity";
 import { isPerson, Suggestions, Threads } from "./review.js";
+import { MAX_LIVE_BYTES } from "./limits.js";
 import { safeContextOf, StoreSharing, type DocSharing } from "./share.js";
 
 
@@ -11,8 +12,7 @@ const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 const CATALOG = "documents";
 
-/** A room refuses a message over 1 MiB. A document past this size cannot seed a room, so it cannot be saved from one. */
-export const MAX_LIVE_BYTES = 1_000_000;
+export { MAX_LIVE_BYTES };
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === "string";
 const isWho = (v: unknown): v is { kind: PrincipalKind; name: string } => isObject(v) && PRINCIPAL_KINDS.includes(v.kind as PrincipalKind) && isString(v.name) && v.name !== "";

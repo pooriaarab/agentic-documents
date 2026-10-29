@@ -122,7 +122,7 @@ describe("mountEditor with a host document", () => {
     let status: Status = "connected";
     const box = await mount({ id: "plan", principal: ada, host: { doc, status: () => status, onStatus: (l) => (listeners.add(l), () => void listeners.delete(l)) } });
     await typeAtEnd(box, " world");
-    const line = element.querySelector('[role="status"].muted')!;
+    const line = element.querySelector('[role="status"].agd-muted')!;
     expect(line.textContent).not.toMatch(/Sav(ed|ing)/);
     expect(line.textContent).not.toContain("Offline");
     await act(async () => {
@@ -148,7 +148,7 @@ describe("mountEditor with a host document", () => {
     const doc = hostDoc("Hello");
     const box = await mount({ id: "plan", principal: { kind: "agent", name: "Scribe", role: "editor" }, host: { doc } });
     await typeAtEnd(box, " from a bot");
-    await vi.waitFor(() => expect(box.querySelector(".agent-text")?.textContent).toBe(" from a bot"));
+    await vi.waitFor(() => expect(box.querySelector(".agd-agent-text")?.textContent).toBe(" from a bot"));
     expect(doc.getArray<{ client: number; author: { kind: string } }>("edits").toArray().at(-1)).toMatchObject({ client: doc.clientID, author: { kind: "agent" } });
   });
 
@@ -172,7 +172,7 @@ describe("mountEditor with a host document", () => {
   it("content an agent inserts from onEditor is logged and marked as agent work", async () => {
     const doc = hostDoc("Hello");
     const box = await mount({ id: "plan", principal: { kind: "agent", name: "Scribe", role: "editor" }, host: { doc }, onEditor: (e) => void e?.commands.insertContentAt(e.state.doc.content.size - 1, " drafted") });
-    await vi.waitFor(() => expect(box.querySelector(".agent-text")?.textContent).toBe(" drafted"));
+    await vi.waitFor(() => expect(box.querySelector(".agd-agent-text")?.textContent).toBe(" drafted"));
     expect(doc.getArray("edits").toArray().at(-1)).toMatchObject({ op: "live", client: doc.clientID, author: { kind: "agent", name: "Scribe" } });
   });
 
@@ -187,7 +187,7 @@ describe("mountEditor with a host document", () => {
   it("an agent that only reads still gets its label for content it inserts from onEditor", async () => {
     const doc = hostDoc("Hello");
     const box = await mount({ id: "plan", principal: { kind: "agent", name: "Scribe", role: "viewer" }, host: { doc }, onEditor: (e) => void e?.commands.insertContentAt(e.state.doc.content.size - 1, " note") });
-    await vi.waitFor(() => expect(box.querySelector(".agent-text")?.textContent).toBe(" note"));
+    await vi.waitFor(() => expect(box.querySelector(".agd-agent-text")?.textContent).toBe(" note"));
     expect(doc.getArray("edits").toArray().at(-1)).toMatchObject({ op: "live", author: { kind: "agent" } });
   });
 

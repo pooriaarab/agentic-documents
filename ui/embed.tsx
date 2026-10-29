@@ -146,10 +146,10 @@ function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor 
     }
   }, [load, onError]);
 
-  if (load.state === "loading") return <p role="status" className="adoc muted">Opening document…</p>;
+  if (load.state === "loading") return <p role="status" className="agd-doc agd-muted">Opening document…</p>;
   if (load.state === "error") {
     return (
-      <div role="alert" className="adoc notice">
+      <div role="alert" className="agd-doc agd-notice">
         <EmptyState title="Could not open this document" description={describe(load.error)} action={<Button onClick={() => setAttempt(attempt + 1)}>Try again</Button>} />
       </div>
     );

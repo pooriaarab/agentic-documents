@@ -3,7 +3,7 @@ import { createClient } from "../src/client.js";
 import { AgenticDoc } from "../src/doc.js";
 import { exportFile, importFile } from "../src/formats.js";
 import { ADA, BOB, BOT, VIC } from "./tokens.js";
-import { expectAccessible, url } from "./helpers.js";
+import { expectAccessible, pasteHtml, url } from "./helpers.js";
 
 // The host page in e2e/embed mounts `agentic-documents/ui` from the build, with a client and a live room.
 const textbox = (page: Page) => page.getByRole("textbox", { name: "Document text" });
@@ -34,7 +34,7 @@ test("two host pages co-edit one document through the embedded editor, and the s
   await typeAtEnd(bob, " Bob wrote this.");
   await expect(textbox(ada)).toContainText("Bob wrote this.");
   await expect(ada.getByText("2 people")).toBeVisible();
-  await expect(ada.locator(".caret__tag")).toHaveText("Bob");
+  await expect(ada.locator(".agd-caret__tag")).toHaveText("Bob");
 
   // Unmounting saves this tab's changes to the stored document.
   await ada.evaluate(() => (window as unknown as { unmountEditor: () => void }).unmountEditor());
@@ -62,8 +62,8 @@ test("an agent in the room shows as an agent, its typed text is marked, and a vi
   await expect(ada.locator(".agd-stack__summary")).toContainText("1 agent");
   // Text the agent types in its embedded editor is marked as agent work for the person.
   await typeAtEnd(bot, " Agent line.");
-  await expect(textbox(ada).locator(".agent-text", { hasText: "Agent line." })).toHaveCount(1);
-  await expect(textbox(ada).locator(".agent-text", { hasText: "Shared" })).toHaveCount(0);
+  await expect(textbox(ada).locator(".agd-agent-text", { hasText: "Agent line." })).toHaveCount(1);
+  await expect(textbox(ada).locator(".agd-agent-text", { hasText: "Shared" })).toHaveCount(0);
   const vic = await host(browser, VIC, id);
   await expect(textbox(vic)).toHaveAttribute("contenteditable", "false");
   await expect(vic.getByText(/Read only\./)).toBeVisible();
@@ -88,4 +88,36 @@ test("a missing document shows an error in the host page", async ({ browser }) =
   await expect(page.getByRole("alert")).toContainText("does not exist");
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   await page.context().close();
+});
+
+test("the embedded editor takes an image from a web address or a file, a chosen file can be removed, and a paste is checked", async ({ browser }) => {
+  const id = `embed-image-${Date.now()}`;
+  await sdk(ADA).create({ id, markdown: "Picture below." });
+  const ada = await host(browser, ADA, id);
+  await expect(textbox(ada)).toContainText("Picture below.");
+  await typeAtEnd(ada, " ");
+  await ada.getByRole("toolbar", { name: "Formatting" }).getByRole("button", { name: "Image", exact: true }).click();
+  const dialog = ada.getByRole("dialog", { name: "Insert image" });
+  const address = dialog.getByLabel("Image address");
+
+  await dialog.getByLabel("Or image file").setInputFiles({ name: "dot.png", mimeType: "image/png", buffer: Buffer.from("x") });
+  await expect(address).toBeDisabled();
+  await dialog.getByRole("button", { name: "Remove file" }).click();
+  await expect(address).toBeEnabled();
+  expect(await dialog.getByLabel("Or image file").inputValue()).toBe("");
+
+  await address.fill("https://example.com/a.png");
+  await dialog.getByRole("textbox", { name: "Alt text" }).fill("A chart");
+  await expectAccessible(ada);
+  await dialog.getByRole("button", { name: "Insert" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(textbox(ada).locator('img[alt="A chart"]')).toHaveAttribute("src", "https://example.com/a.png");
+
+  // Pasted HTML keeps an image whose source passes the dialog's check, and drops a script address. The paste goes to the
+  // focused element, so wait for the focus to come back to the text after the dialog.
+  await expect(textbox(ada)).toBeFocused();
+  await pasteHtml(ada, '<p>y<img src="https://example.com/b.png" alt="kept"><img src="javascript:alert(1)" alt="dropped"></p>');
+  await expect(textbox(ada).locator('img[alt="kept"]')).toHaveCount(1);
+  await expect(textbox(ada).locator('img[alt="dropped"]')).toHaveCount(0);
+  await ada.context().close();
 });

@@ -33,3 +33,12 @@ export async function shoot(page: Page, name: string, theme: "light" | "dark") {
 }
 
 export const themes = ["light", "dark"] as const;
+
+/** Paste HTML into the focused element, as a paste from another page does. */
+export async function pasteHtml(page: Page, html: string) {
+  await page.evaluate((value) => {
+    const data = new DataTransfer();
+    data.setData("text/html", value);
+    document.activeElement!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, html);
+}

@@ -17,11 +17,13 @@ function ThemePick() {
 
 /** The list when `id` is empty, else the editor for that document. `go` takes a `#/` route. */
 export function Workspace({ session, id, go }: { session: Session; id: string | undefined; go: (hash: string) => void }) {
+  // A document fills the window, with no side bar.
+  if (id !== undefined) return <SessionContext.Provider value={session}><EditorView key={id} id={id} go={go} /></SessionContext.Provider>;
   return (
     <SessionContext.Provider value={session}>
       <AppShell
         brand="Documents"
-        sidebar={<SidebarNav label="Main" items={[{ href: "#/", label: "Documents", current: id === undefined }]} />}
+        sidebar={<SidebarNav label="Main" items={[{ href: "#/", label: "Documents", current: true }]} />}
         topbar={
           <>
             <ThemePick />
@@ -30,7 +32,7 @@ export function Workspace({ session, id, go }: { session: Session; id: string | 
           </>
         }
       >
-        {id === undefined ? <DocumentList go={go} /> : <EditorView key={id} id={id} go={go} />}
+        <DocumentList go={go} />
       </AppShell>
     </SessionContext.Provider>
   );

@@ -68,7 +68,7 @@ export const AgentText = Extension.create({
               for (const { text, from, to } of agentRuns(sync.doc)) {
                 const a = relativePositionToAbsolutePosition(sync.doc, sync.type, Y.createRelativePositionFromTypeIndex(text, from), mapping as never);
                 const b = relativePositionToAbsolutePosition(sync.doc, sync.type, Y.createRelativePositionFromTypeIndex(text, to), mapping as never);
-                if (a !== null && b !== null && a < b && b <= size) marks.push(Decoration.inline(a, b, { class: "agent-text", title: "Written by an agent" }));
+                if (a !== null && b !== null && a < b && b <= size) marks.push(Decoration.inline(a, b, { class: "agd-agent-text", title: "Written by an agent" }));
               }
               const signature = marks.map((m) => `${m.from}-${m.to}`).join(",");
               if (signature === drawn) return; // nothing moved: no transaction, no render

@@ -133,7 +133,7 @@ describe("mountEditor", () => {
     const box = await mount({ id: "plan", client, principal: { kind: "agent_of_human", name: "Scribe", role: "editor" } });
     expect(host.querySelector(".agd-stack__summary")?.textContent).toBe("1 agent");
     await act(async () => void editorOf(box).commands.insertContentAt(editorOf(box).state.doc.content.size - 1, " from a bot"));
-    await vi.waitFor(() => expect(box.querySelector(".agent-text")?.textContent).toBe(" from a bot"));
+    await vi.waitFor(() => expect(box.querySelector(".agd-agent-text")?.textContent).toBe(" from a bot"));
     const leaving = mounted!.unmount();
     mounted = undefined;
     await act(async () => leaving);
@@ -154,7 +154,7 @@ describe("mountEditor", () => {
     const box = await mount({ id: "plan", client, principal: ada });
     await act(async () => void editorOf(box).commands.insertContentAt(1, "Hi. "));
     await new Promise((r) => setTimeout(r, 150)); // the marks are drawn after a short wait
-    expect(box.querySelector(".agent-text")).toBeNull();
+    expect(box.querySelector(".agd-agent-text")).toBeNull();
   });
 
   it("a principal with no kind, an unknown kind, or no name is refused before anything loads", () => {
