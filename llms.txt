@@ -10,6 +10,7 @@ Keywords: documents, editor, rich-text, tiptap, yjs, collaboration, agents.
 - Mount the app: import { mount } from "agentic-documents/ui"; mount(element, { baseUrl, getToken, documentId? }) renders the document list and the editor in your page and returns { update, unmount }. Load agentic-design/styles.css, agentic-documents/ui.css, and agentic-documents/app.css. React 19 is an optional peer dependency. mountEditor(element, { id, client, principal, room? }) embeds one editor.
 - Web UI: the Worker serves it from dist/ui (a document list, a rich-text editor on the live room, rename, delete, share, presence, a mark on agent text). It ships in the npm package. Run npm run build in a clone, or point the assets directory of your wrangler config at node_modules/agentic-documents/dist/ui.
 - CLI: npx agentic-documents <command> <id>. MCP: npx agentic-documents mcp --as <kind>:<name>.
+- Sharing: grants, grant, revoke, invites, invite, link, unlink (CLI, MCP doc_<command>, HTTP, client). Only an owner may; an agent also needs the docs:admin scope. FORBIDDEN means you may not. Never grant yourself a role. A link token shows once.
 - Every edit carries an author kind and name.
 
 ## Docs

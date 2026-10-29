@@ -12,3 +12,4 @@
 .form-error { color: var(--ad-color-danger-text); margin: 0; font-size: var(--ad-font-size-sm); }
 .section-title { margin: var(--ad-space-2) 0 0; font-size: var(--ad-font-size-md); }
 .people { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ad-space-2); }
+.share-row { display: flex; gap: var(--ad-space-2); align-items: center; justify-content: space-between; flex-wrap: wrap; }
