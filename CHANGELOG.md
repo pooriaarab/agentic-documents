@@ -4,8 +4,8 @@
 
 ### Changed
 
-- `agentic-identity` moves from `^0.8.0` to `^0.9.0`, `agentic-design` from `^0.4.0` to `^0.5.0`, `agentic-realtime` from `^0.4.1` to `^0.4.3`, and `agentic-formats` from `^0.3.0` to `^0.4.2`. The `overrides` entry for `agentic-formats` keeps zod at `^4.6.7`. `agentic-formats` 0.4.2 no longer depends on zod 3, so zod 3 leaves the dependency tree.
-`agentic-realtime` 0.4.3 still pins its own `agentic-identity` `^0.7.0`, so the lockfile keeps a second copy of that package under `agentic-realtime`.
+- `agentic-identity` moves from `^0.8.0` to `^0.9.0`, `agentic-design` from `^0.4.0` to `^0.5.0`, `agentic-realtime` from `^0.4.1` to `^0.4.3`, and `agentic-formats` from `^0.3.0` to `^0.4.2`. `agentic-formats` 0.4.2 depends on zod 4 itself, so the `overrides` entry for `agentic-formats` is now redundant. It stays for safety.
+- `agentic-realtime` 0.4.3 still pins its own `agentic-identity` `^0.7.0`, so the lockfile keeps a second copy of that package under `agentic-realtime`.
 
 ## 0.11.0
 
