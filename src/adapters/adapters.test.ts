@@ -74,4 +74,26 @@ describe("file blobs from an older release", () => {
     await blobs.delete("gone");
     expect(await createFileBlobs(dir).get("gone")).toBeNull();
   });
+
+  it("a delete that runs with a read never gets the old blob back", async () => {
+    for (let round = 0; round < 40; round++) {
+      const dir = fresh();
+      writeLegacy(dir, "k", new TextEncoder().encode("x"));
+      const [a, b] = [createFileBlobs(dir), createFileBlobs(dir)];
+      await Promise.all([a.get("k"), b.delete("k")]);
+      expect(await createFileBlobs(dir).get("k")).toBeNull();
+    }
+  });
+
+  it("keeps an old file that a newer blob replaced, and a delete clears a damaged one", async () => {
+    const dir = fresh();
+    const blobs = createFileBlobs(dir);
+    await blobs.put("k", new TextEncoder().encode("new"));
+    writeLegacy(dir, "k", new TextEncoder().encode("older"));
+    expect(new TextDecoder().decode((await blobs.get("k"))?.data)).toBe("new");
+    writeFileSync(join(dir, createHash("sha256").update("bad").digest("hex")), "xx");
+    await expect(blobs.get("bad")).rejects.toThrow(/damaged|cannot read/);
+    await blobs.delete("bad");
+    expect(await blobs.get("bad")).toBeNull();
+  });
 });

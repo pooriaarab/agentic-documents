@@ -2,7 +2,7 @@ import { StoreConflictError, type AdapterOptions, type Blobs, type Doc, type Sto
 import { createFileBlobs as createIdentityFileBlobs, createFileStore as createIdentityFileStore, type FileBlobsOptions as IdentityFileBlobsOptions } from "agentic-identity/file";
 import { join } from "node:path";
 import { DocError } from "../errors.js";
-import { readLegacyBlob, removeLegacyBlob } from "./legacy-blobs.js";
+import { hasLegacyBlob, readLegacyBlob, removeLegacyBlob, setAsideLegacyBlob, withLegacyLock } from "./legacy-blobs.js";
 
 export type FileBlobsOptions = Omit<IdentityFileBlobsOptions, "dir">;
 
@@ -16,16 +16,21 @@ const lockError = (error: unknown): unknown =>
  */
 export function createFileBlobs(dir: string, options: FileBlobsOptions = {}): Blobs {
   const inner = createIdentityFileBlobs({ ...options, dir });
-  // ifNoneMatch makes the move safe against a rival process: only one copy lands, and a newer blob is never overwritten.
+  // The move and a delete of one key run under one lock, and the move reads the old file again under it.
+  // So a delete that wins leaves no old file to bring back, and a move that wins is deleted after.
   const migrate = async (key: string): Promise<void> => {
+    if (!(await hasLegacyBlob(dir, key))) return;
+    await withLegacyLock(dir, key, () => moveLegacy(key));
+  };
+  const moveLegacy = async (key: string): Promise<void> => {
     const old = await readLegacyBlob(dir, key);
     if (!old) return;
-    await inner.put(key, old.data, { ifNoneMatch: "*", ...(old.contentType === undefined ? {} : { contentType: old.contentType }) });
-    await removeLegacyBlob(dir, key);
+    const put = await inner.put(key, old.data, { ifNoneMatch: "*", ...(old.contentType === undefined ? {} : { contentType: old.contentType }) });
+    if (put === null) await setAsideLegacyBlob(dir, key); // a newer blob exists, so keep the old bytes out of the way
+    else await removeLegacyBlob(dir, key);
   };
-  const guard = async <T>(key: string, run: () => Promise<T>): Promise<T> => {
+  const guard = async <T>(run: () => Promise<T>): Promise<T> => {
     try {
-      await migrate(key);
       return await run();
     } catch (error) {
       throw lockError(error);
@@ -33,10 +38,17 @@ export function createFileBlobs(dir: string, options: FileBlobsOptions = {}): Bl
   };
   return {
     ...inner,
-    put: (key, data, opts) => guard(key, () => inner.put(key, data, opts)),
-    get: (key) => guard(key, () => inner.get(key)),
-    head: (key) => guard(key, () => inner.head(key)),
-    delete: (key) => guard(key, () => inner.delete(key)),
+    put: (key, data, opts) => guard(async () => (await migrate(key), inner.put(key, data, opts))),
+    get: (key) => guard(async () => (await migrate(key), inner.get(key))),
+    head: (key) => guard(async () => (await migrate(key), inner.head(key))),
+    delete: (key) =>
+      guard(async () => {
+        if (!(await hasLegacyBlob(dir, key))) return inner.delete(key);
+        await withLegacyLock(dir, key, async () => {
+          await removeLegacyBlob(dir, key);
+          await inner.delete(key);
+        });
+      }),
   };
 }
 
