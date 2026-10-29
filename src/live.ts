@@ -174,10 +174,14 @@ export class LiveService implements DocAccess {
       return found as T[];
     };
     const str = (v: unknown) => typeof v === "string" && v !== "";
+    // A change answers { ok: true }. Any other 2xx body, such as a login page from a proxy, is not a change that happened.
+    const done = (reply: unknown): void => {
+      if (!isObject(reply) || reply.ok !== true) throw bad("a reply");
+    };
     this.sharing = {
       grants: (_ctx, id) => get(id, "grants", (g) => (g.subjectKind === "human" || g.subjectKind === "agent") && str(g.subjectId) && ROLES.includes(g.role as never), "a grant list"),
-      grant: async (_ctx, id, to, role) => void (await post(id, "grant", { to: who(to), role })),
-      revoke: async (_ctx, id, to) => void (await post(id, "revoke", { to: who(to) })),
+      grant: async (_ctx, id, to, role) => done(await post(id, "grant", { to: who(to), role })),
+      revoke: async (_ctx, id, to) => done(await post(id, "revoke", { to: who(to) })),
       invites: (_ctx, id) => get(id, "invites", (i) => str(i.id) && ROLES.includes(i.role as never) && (i.for === "email" || i.for === "handle"), "an invite list"),
       invite: async (_ctx, id, input) => {
         const made = await post(id, "invite", input);
@@ -189,7 +193,7 @@ export class LiveService implements DocAccess {
         if (!isObject(made) || !str(made.id) || !str(made.token)) throw bad("a link");
         return { id: made.id as string, token: made.token as string };
       },
-      unlink: async (_ctx, id, link) => void (await post(id, "unlink", { link })),
+      unlink: async (_ctx, id, link) => done(await post(id, "unlink", { link })),
     };
   }
 

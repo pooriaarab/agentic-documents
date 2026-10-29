@@ -118,7 +118,9 @@ describe("client against the real Worker", () => {
 
     await ada.invite("shared-doc", { role: "viewer", email: "kit@example.com" });
     await ada.invite("shared-doc", { role: "editor", handle: "helper" });
-    expect((await ada.invites("shared-doc")).map((i) => i.for).sort()).toEqual(["email", "handle"]);
+    const invites = await ada.invites("shared-doc");
+    expect(invites.map((i) => i.for).sort()).toEqual(["email", "handle"]);
+    expect(JSON.stringify(invites)).not.toContain("kit@example.com"); // a list never carries an address
     const link = await ada.link("shared-doc", { role: "viewer", signedInOnly: true });
     expect(link.token.length).toBeGreaterThanOrEqual(32);
     await ada.unlink("shared-doc", { link: link.id });

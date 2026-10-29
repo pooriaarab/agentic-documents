@@ -52,6 +52,9 @@ describe("sharing from the CLI and the MCP server in live mode", { timeout: 30_0
     expect((await cli(["revoke", "share-live", "--to", "agent:robot"], ADA)).code).toBe(0);
 
     for (const token of [BOT, VIEWER, ROBOT]) {
+      for (const args of [["invites"], ["invite", "--role", "viewer", "--email", "x@y.co"], ["link", "--role", "viewer"], ["unlink", "--link", "any"], ["revoke", "--to", "human:Ada"]]) {
+        expect((await cli([args[0], "share-live", ...args.slice(1)], token)).err, `${args[0]}`).toContain("FORBIDDEN");
+      }
       expect((await cli(["grants", "share-live"], token)).err).toContain("FORBIDDEN");
       expect((await cli(["grant", "share-live", "--to", "agent:robot", "--role", "owner"], token)).err).toContain("FORBIDDEN");
     }
