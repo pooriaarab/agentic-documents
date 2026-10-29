@@ -44,6 +44,13 @@ change it in a call.
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
 
+## Live rooms
+
+Add `--live <url>` to the CLI or the MCP server, and set `AGENTIC_DOCS_TOKEN`. Every command then runs in
+the live room for that document and saves to the stored document. The server sets your author kind and your
+role from the token, so `--as` does not apply. A `viewer` token gets `FORBIDDEN` on every change. In the SDK,
+`LiveDoc.join({ server, id, token })` gives you `edit`, `save`, `peers`, and `leave`.
+
 ## HTTP API
 
 The Worker mirrors each command: `GET /api/v1/docs/:id/<command>` for reads, `POST` for writes,

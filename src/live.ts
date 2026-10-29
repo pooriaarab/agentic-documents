@@ -1,8 +1,8 @@
 import * as Y from "yjs";
 import { SyncClient, type Peer } from "agentic-realtime/client";
-import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocErrorCode, type DocOptions, type Principal } from "./doc.js";
+import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal } from "./doc.js";
 import { DOC_ERROR_CODES } from "./errors.js";
-import { MAX_LIVE_BYTES } from "./service.js";
+import { MAX_LIVE_BYTES, type DocAccess } from "./service.js";
 
 export interface LiveOptions {
   /** The Worker address, such as `https://docs.example.com`. */
@@ -137,5 +137,54 @@ export class LiveDoc {
 
   async leave(): Promise<void> {
     await this.client.disconnect();
+  }
+}
+
+/**
+ * The commands of the CLI and the MCP server, run in a live room. Each call joins the room, runs one
+ * change as the token's author, saves to the stored document, and leaves. A read joins and leaves.
+ */
+export class LiveService implements DocAccess {
+  constructor(private readonly options: Pick<LiveOptions, "server" | "token" | "name" | "doc">) {}
+
+  private join(id: string): Promise<LiveDoc> {
+    return LiveDoc.join({ ...this.options, id });
+  }
+
+  /** The room is only a copy, so a new document is made in the store. A room seeds from it on the next join. */
+  async create(id: string, markdown: string): Promise<void> {
+    const response = await fetch(`${base(this.options.server)}/api/v1/docs`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${this.options.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ id, markdown }),
+    });
+    if (!response.ok) throw await refusal(response, "the server refused the request");
+  }
+
+  async read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T> {
+    const live = await this.join(id);
+    try {
+      return run(this.exists(live, id));
+    } finally {
+      await live.leave();
+    }
+  }
+
+  async write<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T> {
+    const live = await this.join(id);
+    try {
+      this.exists(live, id);
+      const result = await live.edit((doc) => run(doc));
+      await live.save();
+      return result;
+    } finally {
+      await live.leave();
+    }
+  }
+
+  // A document that nobody made has an empty room and an empty log.
+  private exists(live: LiveDoc, id: string): AgenticDoc {
+    if (live.doc.edits().length === 0) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
+    return live.doc;
   }
 }

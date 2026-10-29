@@ -1,22 +1,10 @@
 // End to end: the real Worker with live rooms under `wrangler dev`, and real LiveDoc clients.
-import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createServer, type AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
 import { SyncClient } from "agentic-realtime/client";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import * as Y from "yjs";
 import { AgenticDoc, DocError } from "./doc.js";
 import { LiveDoc } from "./live.js";
-
-const freePort = () =>
-  new Promise<number>((done) => {
-    const probe = createServer().listen(0, "127.0.0.1", () => {
-      const { port } = probe.address() as AddressInfo;
-      probe.close(() => done(port));
-    });
-  });
+import { liveServer, type LiveServer } from "./test-server.js";
 
 const ADA = `ada-${"a".repeat(40)}`;
 const BOT = `bot-${"b".repeat(40)}`;
@@ -24,58 +12,17 @@ const VIEWER = `viewer-${"v".repeat(40)}`;
 const NOBODY = `nobody-${"n".repeat(40)}`;
 const TOKENS = { [ADA]: "human:Ada", [BOT]: "agent_of_human:scribe", [VIEWER]: { as: "human:Vic", role: "viewer" } };
 
-let dir: string;
-let port = 0;
-let server: ChildProcess | undefined;
-const SERVER = () => `http://127.0.0.1:${port}`;
-
-async function start(): Promise<void> {
-  const config = join(dir, "wrangler.jsonc");
-  const inspector = await freePort();
-  server = spawn(resolve("node_modules/.bin/wrangler"), ["dev", "--config", config, "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspector), "--local", "--persist-to", join(dir, "state")], {
-    cwd: dir,
-    detached: true,
-    env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let output = "";
-  for (const stream of [server.stdout, server.stderr]) stream?.on("data", (chunk: Buffer) => (output += chunk));
-  for (let i = 0; i < 120; i++) {
-    if ((await fetch(`${SERVER()}/health`).catch(() => undefined))?.ok) return;
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error(`wrangler dev did not start:\n${output.slice(-1500)}`);
-}
-
-function stop(): void {
-  if (server?.pid) process.kill(-server.pid, "SIGKILL");
-  server = undefined;
-}
+let live: LiveServer;
+const SERVER = () => live.url;
+const start = () => live.start();
+const stop = () => live.stop();
 
 beforeAll(async () => {
-  dir = mkdtempSync(join(tmpdir(), "agentic-documents-live-"));
-  port = await freePort();
-  writeFileSync(
-    join(dir, "wrangler.jsonc"),
-    JSON.stringify({
-      name: "docs-live",
-      main: resolve("src/live-worker.ts"),
-      compatibility_date: "2026-01-01",
-      compatibility_flags: ["nodejs_compat"],
-      durable_objects: { bindings: [{ name: "SYNC_ROOM", class_name: "SyncRoom" }] },
-      migrations: [{ tag: "v1", new_sqlite_classes: ["SyncRoom"] }],
-      d1_databases: [{ binding: "DB", database_name: "docs-live", database_id: "00000000-0000-0000-0000-000000000000" }],
-      r2_buckets: [{ binding: "DOCS", bucket_name: "docs-live", jurisdiction: "eu" }],
-      vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" },
-    }),
-  );
+  live = await liveServer(TOKENS);
   await start();
 }, 90_000);
 
-afterAll(() => {
-  stop();
-  rmSync(dir, { recursive: true, force: true });
-});
+afterAll(() => live.dispose());
 
 const join_ = (id: string, token: string, extra: object = {}) => LiveDoc.join({ server: SERVER(), id, token, ...extra });
 const http = (path: string, token: string, body?: unknown) =>

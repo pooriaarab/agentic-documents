@@ -7,7 +7,8 @@ import { createFileStore } from "./adapters/file-store.js";
 import { commands } from "./commands.js";
 import { DocError, parseAuthor } from "./doc.js";
 import type { ExportResult } from "./export.js";
-import { DocsService } from "./service.js";
+import { LiveService, whoAmI } from "./live.js";
+import { DocsService, type DocAccess } from "./service.js";
 import { VERSION } from "./version.js";
 
 const NAME = "agentic-documents";
@@ -17,6 +18,7 @@ const options = {
   as: { type: "string" as const },
   scopes: { type: "string" as const },
   dir: { type: "string" as const },
+  live: { type: "string" as const },
   file: { type: "string" as const },
   out: { type: "string" as const },
   help: { type: "boolean" as const, short: "h" },
@@ -39,6 +41,8 @@ function help(): string {
     "                    agent_of_agent, agent, user_token.",
     "  --scopes <a,b>    Rights for the author, such as docs:accept. Or set AGENTIC_DOCS_SCOPES. An agent",
     "                    needs docs:accept to accept a suggestion.",
+    "  --live <url>      Join live rooms on this server, as the author of AGENTIC_DOCS_TOKEN. Or set",
+    "                    AGENTIC_DOCS_LIVE_URL. The server sets your author kind, so --as does not apply.",
     "  --dir <path>      Where documents live. Or set AGENTIC_DOCS_DIR. Default: .agentic-documents",
     "  --file <path>     Read content (or markdown for new) from a file.",
     "  --out <path>      Write the export to a file.",
@@ -72,11 +76,34 @@ export async function main(argv: string[], env = process.env): Promise<number> {
     return 0;
   }
 
-  const dir = values.dir ?? env.AGENTIC_DOCS_DIR ?? ".agentic-documents";
-  const service = new DocsService({ blobs: createFileBlobs(join(dir, "blobs")), store: createFileStore(join(dir, "store")) });
-  const scopes = (values.scopes ?? env.AGENTIC_DOCS_SCOPES)?.split(",").map((s) => s.trim()).filter(Boolean);
-  const named = parseAuthor(values.as ?? env.AGENTIC_DOCS_AS);
-  const author = named && scopes?.length ? { ...named, scopes } : named;
+  const liveUrl = values.live ?? env.AGENTIC_DOCS_LIVE_URL;
+  let service: DocAccess;
+  let author;
+  if (liveUrl) {
+    if (values.as !== undefined || values.scopes !== undefined) {
+      console.error("--as and --scopes do not apply with --live: the server sets the author kind and the scopes from the token.");
+      return 2;
+    }
+    const token = env.AGENTIC_DOCS_TOKEN;
+    if (!token) {
+      console.error("set AGENTIC_DOCS_TOKEN to a bearer token to join a live room");
+      return 2;
+    }
+    try {
+      author = (await whoAmI(liveUrl, token)).author;
+    } catch (error) {
+      if (!(error instanceof DocError)) throw error;
+      console.error(`${error.code}: ${error.message}`);
+      return 1;
+    }
+    service = new LiveService({ server: liveUrl, token });
+  } else {
+    const dir = values.dir ?? env.AGENTIC_DOCS_DIR ?? ".agentic-documents";
+    service = new DocsService({ blobs: createFileBlobs(join(dir, "blobs")), store: createFileStore(join(dir, "store")) });
+    const scopes = (values.scopes ?? env.AGENTIC_DOCS_SCOPES)?.split(",").map((s) => s.trim()).filter(Boolean);
+    const named = parseAuthor(values.as ?? env.AGENTIC_DOCS_AS);
+    author = named && scopes?.length ? { ...named, scopes } : named;
+  }
   if (name === "mcp") {
     const { startMcp } = await import("./mcp.js");
     await startMcp(service, author);
@@ -87,7 +114,7 @@ export async function main(argv: string[], env = process.env): Promise<number> {
     console.error(`unknown command "${name}". Run "${NAME} --help".`);
     return 2;
   }
-  const { as: _as, scopes: _scopes, dir: _dir, file, out, help: _help, version: _version, ...fields } = values;
+  const { as: _as, scopes: _scopes, dir: _dir, live: _live, file, out, help: _help, version: _version, ...fields } = values;
   const input: Record<string, unknown> = { ...(command.shape.id ? { id } : {}), ...fields };
   try {
     if (file !== undefined) {
