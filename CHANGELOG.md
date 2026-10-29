@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0
+## Unreleased
 
 ### Added
 
@@ -11,6 +11,8 @@
   for a person makes that person the owner. A link token shows once. An invite list shows no email address. Removing a document erases
   its sharing data. Roles are stored and audited. Reads and writes do not check them yet.
 - `DocsService.sharing` and the `DocSharing` type.
+
+## 0.8.0
 
 ### Removed
 
