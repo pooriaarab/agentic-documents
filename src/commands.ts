@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DocError, type Principal, type Target, type TextTarget } from "./doc.js";
 import { EXPORT_FORMATS, exportDoc } from "./export.js";
 import { Suggestions, Threads } from "./review.js";
-import type { DocsService } from "./service.js";
+import type { DocAccess } from "./service.js";
 
 /** One table drives the CLI, the MCP server, and the HTTP API, so they stay the same. */
 export interface Command {
@@ -10,7 +10,7 @@ export interface Command {
   description: string;
   shape: z.ZodRawShape;
   readOnly: boolean;
-  run(service: DocsService, input: Record<string, unknown>, author: Principal | undefined): Promise<unknown>;
+  run(service: DocAccess, input: Record<string, unknown>, author: Principal | undefined): Promise<unknown>;
 }
 
 const id = z.string().describe("Document id.");
@@ -52,7 +52,7 @@ function command<S extends z.ZodRawShape>(
   description: string,
   readOnly: boolean,
   shape: S,
-  run: (service: DocsService, input: z.infer<z.ZodObject<S>>, author: Principal) => unknown,
+  run: (service: DocAccess, input: z.infer<z.ZodObject<S>>, author: Principal) => unknown,
 ): Command {
   return {
     name,

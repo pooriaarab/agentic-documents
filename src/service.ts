@@ -29,8 +29,15 @@ export interface DocsPorts {
   store: Store;
 }
 
+/** What every command needs: make a document, read it, and change it. A live room can stand behind it as well as the ports. */
+export interface DocAccess {
+  create(id: string, markdown: string, author: Principal): Promise<void>;
+  read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T>;
+  write<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T>;
+}
+
 /** Loads and saves documents as Yjs updates in a Blobs port. The CLI, MCP server, and API share it. */
-export class DocsService {
+export class DocsService implements DocAccess {
   private readonly blobs: Blobs;
   private readonly store: Store;
 

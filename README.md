@@ -136,6 +136,55 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   as advisory. The room's own record of who sent updates in the room is at `GET /api/v1/docs/:id/room`. It does not cover
   text written over HTTP, the CLI, or MCP before the room opened: the client that seeds the room appears there.
 
+## Live editing
+
+A person and an agent can edit one document at the same time. Each sees the other's changes. The Worker
+hosts one room per document, on a Durable Object, through [agentic-realtime](https://www.npmjs.com/package/agentic-realtime).
+Deploy `agentic-documents/live-worker`. The sample `wrangler.jsonc` binds `SYNC_ROOM` and sets the migration.
+
+```ts
+import { LiveDoc } from "agentic-documents/live";
+
+const live = await LiveDoc.join({ server: "https://docs.example.com", id: "plan", token });
+await live.edit((doc, author) => doc.append("Ship on Friday.", author));
+console.log(live.peers); // the other people and agents. `machine` is true for an agent.
+await live.save(); // write the room state to the stored document
+await live.leave();
+```
+
+The CLI and the MCP server join rooms too. Every command then runs in the room and saves:
+
+```sh
+export AGENTIC_DOCS_TOKEN=...   # a bearer token. The server sets the author kind and the role.
+export AGENTIC_DOCS_LIVE_URL=https://docs.example.com   # or pass --live <url>
+npx agentic-documents append plan --content "Ship on Friday." --live https://docs.example.com
+npx agentic-documents mcp --live https://docs.example.com
+```
+
+- The server reads your author kind and role from the token (`GET /api/v1/me`). An agent token writes
+  agent edits. `--as`, `--scopes`, and `--dir` do not apply with `--live`: the CLI refuses them and exits 2. This
+  holds when `AGENTIC_DOCS_LIVE_URL` is set too, so unset it for a local call.
+- A room starts from the stored document. `save` merges the room back into the stored document, so
+  `read`, `export`, and the other commands see live edits. A save also creates a document that has none.
+  The CLI and MCP server save after each change. If a save fails, the room keeps the change and the error says so: do not repeat it. `new` makes the document in the store, and a room picks it up on the next join. A document over 1,000,000 bytes cannot open in a room or be saved from one. A save refuses an update with a wrong
+  kind of content or a malformed thread, suggestion, or log entry. HTTP edits reach an open room only when a client joins and seeds it.
+- A `viewer` token joins and reads. The room drops its updates, and `edit` and `save` fail with `FORBIDDEN`.
+  Set a role in `AGENTIC_DOCS_TOKENS` with `{ "as": "human:Vic", "role": "viewer" }`. A token with no role is an editor.
+- `GET /api/v1/docs/:id/room` lists who sent updates in the room, and whether each is machine-made.
+- Pass `reconnect: {}` to `join` to keep trying after a drop. Edits made offline merge on return.
+  A room that restarts recovers its state from the Durable Object.
+
+Limits of live editing:
+
+- The edit log, the suggestion decisions, and the threads live in the document, and a client writes them.
+  A modified client can write a log entry with another author, or accept its own suggestion. The room's
+  list at `/room` is the record to trust for who sent updates. It does not cover text written before the
+  room opened.
+- Until a client saves, a command over HTTP reads the stored copy, not the room.
+- After the room refuses an edit, the local copy of `LiveDoc` still holds it. Join again.
+- Durable Objects have no US jurisdiction. With the region `us` a room sits near the first client that opens it.
+  With `eu` it stays in the EU. The local `wrangler dev` cannot place rooms.
+
 ## Rules for text matching
 
 - A match is exact and case sensitive.
@@ -162,11 +211,6 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - `--as` and `AGENTIC_DOCS_AS` are self-declared labels. The CLI does not prove who runs it, so
   `--as human:Ada` labels work as human on any machine that can run the command. Only the HTTP API
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
-- A live client (`LiveDoc` from `agentic-documents/live`) starts a room from the stored document
-  (`GET /api/v1/docs/:id/state`) and saves it with `save()` (`POST /api/v1/docs/:id/checkpoint`). A save
-  merges, so two saves at once both land. A document over 1,000,000 bytes cannot open in a room or be
-  saved from one, and the client says so. HTTP edits reach an open room only when a client joins and
-  seeds it. A save refuses an update with a wrong kind of content or a malformed thread, suggestion, or log entry.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
 - Export covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are planned.
