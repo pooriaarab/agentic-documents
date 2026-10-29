@@ -59,7 +59,7 @@ test("an agent in the room shows as an agent, its typed text is marked, and a vi
   await sdk(ADA).create({ id, markdown: "Shared text." });
   const ada = await host(browser, ADA, id);
   const bot = await host(browser, BOT, id);
-  await expect(ada.locator(".ad-stack__summary")).toContainText("1 agent");
+  await expect(ada.locator(".agd-stack__summary")).toContainText("1 agent");
   // Text the agent types in its embedded editor is marked as agent work for the person.
   await typeAtEnd(bot, " Agent line.");
   await expect(textbox(ada).locator(".agent-text", { hasText: "Agent line." })).toHaveCount(1);

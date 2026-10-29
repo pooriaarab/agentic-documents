@@ -339,7 +339,7 @@ for (const theme of themes) {
     await page.reload();
     await expect(textbox(page)).toContainText("Agent note");
     await expect(textbox(page).locator(".agent-text")).toContainText("Agent note");
-    await expect(page.locator(".ad-stack__summary")).toContainText("1 agent");
+    await expect(page.locator(".agd-stack__summary")).toContainText("1 agent");
     await textbox(page).click();
     await expectAccessible(page);
     await shoot(page, "editor", theme);

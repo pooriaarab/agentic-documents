@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.0
+
+### Changed
+
+- BREAKING: the design class prefix is now `agd-`. The CSS classes, the custom properties, and the data attributes that used the
+  old two-letter prefix change name, so `agentic-documents/ui`, `agentic-documents/ui.css`, and `agentic-documents/app.css` render with the new names. Ad
+  blockers hide elements with the old prefix, so the prefix moved. There is no alias for the old names.
+- `agentic-design` moves from `^0.3.1` to `^0.4.0`, which uses the `agd-` prefix.
+- The `overrides` entry for `agentic-design` is gone. `agentic-design` 0.4.0 depends on zod 4 itself. The `agentic-formats` override stays.
+
 ## 0.10.0
 
 ### Added
@@ -22,7 +32,7 @@
 
 ### Fixed
 
-- zod moves to 4.6.7 to fix GHSA-mrhx-c7xc-m3w5, a high advisory (memory exhaustion when validating oversized constrained collections). The direct dependency moves from `^3.25.0` to `^4.6.7`. An npm `overrides` entry moves `agentic-design` and `agentic-formats` to zod 4.6.7 in this repo's install and build. npm ignores `overrides` in a published package, so an install of this package still gets zod 3 under those two packages until they accept zod 4. The `@modelcontextprotocol/sdk` floor moves from `^1.12.0` to `^1.23.0`, because earlier SDK releases depend on zod 3.
+- zod moves to 4.6.7 to fix GHSA-mrhx-c7xc-m3w5, a high advisory (memory exhaustion when validating oversized constrained collections). The direct dependency moves from `^3.25.0` to `^4.6.7`. An npm `overrides` entry moves `agentic-formats` to zod 4.6.7 in this repo's install and build. npm ignores `overrides` in a published package, so an install of this package still gets zod 3 under `agentic-formats` until it accepts zod 4. From 0.4.0, `agentic-design` accepts zod 4. The `@modelcontextprotocol/sdk` floor moves from `^1.12.0` to `^1.23.0`, because earlier SDK releases depend on zod 3.
 - zod 4 words some validation messages differently. An `INVALID_INPUT` error can carry other message text. A client that matches on message text should match on the error code.
 - The editor of `agentic-documents/ui` opens a document with an inline image or a nested task list. It showed an empty
   editor before. Its image and task item now follow the engine schema.

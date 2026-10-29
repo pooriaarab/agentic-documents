@@ -139,9 +139,9 @@ describe("mountEditor with a host document", () => {
     const doc = hostDoc("Hello");
     const { presence, setPeers } = fakePresence(doc);
     await mount({ id: "plan", principal: ada, host: { doc, presence } });
-    expect(element.querySelector(".ad-stack__summary")?.textContent).toBe("1 person");
+    expect(element.querySelector(".agd-stack__summary")?.textContent).toBe("1 person");
     await act(async () => setPeers([{ clientId: 7, name: "Scribe", machine: true } as Peer]));
-    expect(element.querySelector(".ad-stack__summary")?.textContent).toBe("1 person, 1 agent");
+    expect(element.querySelector(".agd-stack__summary")?.textContent).toBe("1 person, 1 agent");
   });
 
   it("an agent principal's edits on a host document are logged and marked as agent work", async () => {
