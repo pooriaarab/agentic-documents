@@ -5,6 +5,7 @@
 ### Added
 
 - The README has a table of every subpath export in `package.json`, with what each one is for.
+- The README has a "Library API" section for the root export of `agentic-documents`. It has an example for each group of exports: the document, the Markdown and blocks helpers, comments and suggestions, the command table, export, the local stores, the service, and the sharing helpers.
 
 ### Changed
 
