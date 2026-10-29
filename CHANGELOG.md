@@ -1,14 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
+
+### Added
+
+- `agentic-documents/ui`: `mountEditor(element, { id, client, principal, room? })` and the `DocumentEditor` React component
+  render the editor in a host app, with live co-editing through agentic-realtime when a room is given. Its styles are
+  in `agentic-documents/ui.css`. `react` and `react-dom` are optional peer dependencies; the Tiptap packages and
+  `agentic-design` are now dependencies.
+- The edit log has a new op, `live`. The editor writes one `live` entry when an agent principal types, so its text is
+  marked as agent work. Its counts are 0.
 
 ### Changed
 
-- The ODT export uses `agentic-formats`. The local ODT writer and the `fflate` dependency are gone. `exportOdt` and
+- The ODT export uses `agentic-formats` (a new dependency). The local ODT writer and the `fflate` dependency are gone. `exportOdt` and
   `ODT_MIME` stay as thin wrappers. The ODT file now comes from the neutral text model, so its XML differs from before.
 - The ODT export holds less than before, because the agentic-formats text model has no block for a quote, a rule, or a
   code block, no list start number, one paragraph for each list item, and no WebP image. The text stays.
-  `ExportResult` has a `warnings` field that names each loss. It is empty for `md` and `html`.
+  `ExportResult` has a `warnings` field that names each loss. It is empty for `md` and `html`. The field is required, so
+  code that builds an `ExportResult` by hand must add it.
 
 ## 0.5.0
 
@@ -34,12 +44,6 @@
 - `agentic-documents/formats`: `importFile` (md, odt, docx) and `exportFile` (md, html, odt, docx), with the
   `toTextDoc` and `fromTextDoc` mapping to the agentic-formats text model. Each result names lost content in `warnings`.
 - `AgenticDoc.fromBlocks(blocks, author)` makes a document from ProseMirror JSON blocks and checks them against the schema.
-- `agentic-documents/ui`: `mountEditor(element, { id, client, principal, room? })` and the `DocumentEditor` React component
-  render the editor in a host app, with live co-editing through agentic-realtime when a room is given. Its styles are
-  in `agentic-documents/ui.css`. `react` and `react-dom` are optional peer dependencies; the Tiptap packages and
-  `agentic-design` are now dependencies.
-- The edit log has a new op, `live`. The editor writes one `live` entry when an agent principal types, so its text is
-  marked as agent work. Its counts are 0.
 
 ### Changed
 
