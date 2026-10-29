@@ -7,8 +7,8 @@
 
 Write documents with people and agents in real time.
 
-> Status: early. The document model and the text operations work in Node. The
-> package is not on npm yet. The web UI is not built yet.
+> Status: early, version 0.1.0. The document model, the text operations, the CLI, the MCP server,
+> and the Worker API work. The web UI is not built yet.
 
 ## Install
 
@@ -51,7 +51,7 @@ npx agentic-documents new plan --markdown "# Plan\n\nShip on Friday."
 npx agentic-documents outline plan
 npx agentic-documents replace plan --text Friday --content Monday
 npx agentic-documents suggest plan --text Monday --replacement Tuesday
-npx agentic-documents comment plan --text Tuesday --body "Is this date firm?"
+npx agentic-documents comment plan --text Monday --body "Is this date firm?"
 npx agentic-documents export plan --format md --out plan.md
 npx agentic-documents export plan --format odt --out plan.odt   # OpenDocument text
 ```
