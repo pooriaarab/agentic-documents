@@ -3,7 +3,7 @@
 import { Button, EmptyState } from "agentic-design/react";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { PRINCIPAL_KINDS, type PrincipalKind } from "../src/kinds.js";
+import { PRINCIPAL_KINDS, type PrincipalKind } from "agentic-identity";
 import { openSession, type EditorClient, type EditorRoom, type LiveSession } from "./live.js";
 import { Boundary, Surface, isRemoved } from "./editor.js";
 

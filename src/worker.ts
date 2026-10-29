@@ -1,9 +1,10 @@
 import { Hono, type Context } from "hono";
-import { assertRegion, parseRegion, type Region } from "agentic-identity";
+import { assertRegion, parsePrincipal, parseRegion, type Auth, type PrincipalContext, type Region, type Scope } from "agentic-identity";
+import { acceptWebSocketProtocol, principalFromWebSocketRequest, requirePrincipal } from "agentic-identity/http";
 import { D1_SCHEMA, createD1Store, createR2Blobs, type D1Like, type R2Like } from "agentic-identity/cloudflare";
 import type { Realtime, Role } from "agentic-realtime";
 import { commands, type Command } from "./commands.js";
-import { DocError, parseAuthor, PRINCIPAL_KINDS, type DocErrorCode, type Principal } from "./doc.js";
+import { DocError, parseAuthor, type DocErrorCode, type Principal } from "./doc.js";
 import type { ExportResult } from "./export.js";
 import { DocsService, MAX_LIVE_BYTES } from "./service.js";
 
@@ -80,7 +81,12 @@ function identityOf(entry: unknown): Identity | undefined {
 function principalOf(entry: unknown, object: { as?: unknown; scopes?: unknown } | undefined): Principal | undefined {
   const who = typeof entry === "string" ? entry : object?.as;
   const author = typeof who === "string" ? parseAuthor(who) : undefined;
-  if (!author || !PRINCIPAL_KINDS.includes(author.kind) || !author.name) return undefined;
+  if (!author) return undefined;
+  try {
+    parsePrincipal({ kind: author.kind, id: author.name });
+  } catch {
+    return undefined;
+  }
   if (object?.scopes === undefined) return author;
   const scopes = object.scopes;
   return Array.isArray(scopes) && scopes.every((s) => typeof s === "string" && s !== "") ? { ...author, scopes } : undefined;
@@ -158,21 +164,22 @@ async function readCapped(request: Request, cap: number): Promise<Uint8Array> {
  * answers with `agentic-docs` and never echoes the token.
  */
 const WS_PROTOCOL = "agentic-docs";
-const WS_BEARER = `${WS_PROTOCOL}.bearer.`;
 
-function socketBearer(c: Context): string | undefined {
-  if (c.req.header("upgrade") !== "websocket" || !c.req.path.endsWith("/ws")) return undefined;
-  for (const offered of (c.req.header("sec-websocket-protocol") ?? "").split(",")) {
-    const part = offered.trim();
-    if (!part.startsWith(WS_BEARER)) continue;
-    try {
-      const base64 = part.slice(WS_BEARER.length).replace(/-/g, "+").replace(/_/g, "/");
-      return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0)));
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
+/** The token table as an `Auth` port. The context it returns maps back to its identity. */
+function tokenAuth(tokens: string | undefined): { auth: Auth; identityOf: (context: PrincipalContext) => Identity | undefined } {
+  const known = new WeakMap<PrincipalContext, Identity>();
+  const auth: Auth = {
+    async authenticate(request) {
+      const bearer = /^Bearer (.+)$/.exec(request.headers.get("authorization") ?? "")?.[1];
+      const identity = bearer === undefined ? undefined : identityFor(tokens, bearer);
+      if (!identity) return null;
+      const { kind, name, scopes } = identity.principal;
+      const context: PrincipalContext = { principalId: name, kind, chain: [{ kind, id: name }], scopes: (scopes ?? []) as Scope[] };
+      known.set(context, identity);
+      return context;
+    },
+  };
+  return { auth, identityOf: (context) => known.get(context) };
 }
 
 const DOC_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -186,8 +193,10 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
   });
   app.get("/health", (c) => c.json({ ok: true, pack: "agentic-documents" }));
   app.use("/api/v1/*", async (c, next) => {
-    const bearer = /^Bearer (.+)$/.exec(c.req.header("authorization") ?? "")?.[1] ?? socketBearer(c);
-    const identity = bearer === undefined ? undefined : identityFor(c.env?.AGENTIC_DOCS_TOKENS, bearer);
+    const { auth, identityOf } = tokenAuth(c.env?.AGENTIC_DOCS_TOKENS);
+    const socket = c.req.path.endsWith("/ws");
+    const found = await (socket ? principalFromWebSocketRequest(c.req.raw, auth, { protocol: WS_PROTOCOL }) : requirePrincipal(c.req.raw, auth));
+    const identity = found instanceof Response ? undefined : identityOf(found);
     if (!identity) return fail("UNAUTHENTICATED", "send a valid bearer token", 401);
     c.set("author", identity.principal);
     c.set("role", identity.role);
@@ -212,11 +221,8 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
     if (c.req.header("upgrade") !== "websocket") return fail("UPGRADE_REQUIRED", "open this route as a WebSocket", 426);
     if (!DOC_ID.test(id)) return fail("INVALID_INPUT", `invalid document id "${id}"`, 400);
     const { kind, name } = c.get("author");
-    const opened = options.live(c.env ?? {}).connect(id, c.req.raw, { principal: { id: name, kind }, role: c.get("role"), name });
-    if (!(c.req.header("sec-websocket-protocol") ?? "").split(",").some((p) => p.trim() === WS_PROTOCOL)) return opened;
-    const room = await opened;
-    const socket = (room as Response & { webSocket?: unknown }).webSocket;
-    return socket ? new Response(null, { status: 101, webSocket: socket, headers: new Headers([...room.headers, ["sec-websocket-protocol", WS_PROTOCOL]]) } as ResponseInit) : room;
+    const room = await options.live(c.env ?? {}).connect(id, c.req.raw, { principal: { id: name, kind }, role: c.get("role"), name });
+    return acceptWebSocketProtocol(c.req.raw, room, WS_PROTOCOL);
   });
 
   async function run(c: Context<AppEnv>, command: Command, input: Record<string, unknown>) {

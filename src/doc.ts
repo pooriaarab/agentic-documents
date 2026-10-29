@@ -2,7 +2,7 @@ import { prosemirrorJSONToYXmlFragment, yXmlFragmentToProsemirrorJSON } from "y-
 import * as Y from "yjs";
 import { DocError } from "./errors.js";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "./markdown.js";
-import { PRINCIPAL_KINDS, type PrincipalKind } from "./kinds.js";
+import { PRINCIPAL_KINDS, type PrincipalKind } from "agentic-identity";
 import { schema } from "./schema.js";
 import { APPLIED, settle } from "./settle.js";
 
@@ -13,7 +13,7 @@ export const PREAMBLE = "preamble";
 const FRAGMENT = "default";
 const CONTEXT_CHARS = 20;
 
-export { PRINCIPAL_KINDS, type PrincipalKind } from "./kinds.js";
+export { PRINCIPAL_KINDS, type PrincipalKind } from "agentic-identity";
 
 /** Who made a change. Every mutation needs one, so machine-made work stays labeled. */
 export interface Principal {
