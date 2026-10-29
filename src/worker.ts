@@ -152,6 +152,29 @@ async function readCapped(request: Request, cap: number): Promise<Uint8Array> {
   return whole;
 }
 
+/**
+ * A browser WebSocket cannot send an Authorization header, but it can offer subprotocols. A browser sends
+ * `agentic-docs` and `agentic-docs.bearer.<token in base64url>`. Only the live-room route reads it. The server
+ * answers with `agentic-docs` and never echoes the token.
+ */
+const WS_PROTOCOL = "agentic-docs";
+const WS_BEARER = `${WS_PROTOCOL}.bearer.`;
+
+function socketBearer(c: Context): string | undefined {
+  if (c.req.header("upgrade") !== "websocket" || !c.req.path.endsWith("/ws")) return undefined;
+  for (const offered of (c.req.header("sec-websocket-protocol") ?? "").split(",")) {
+    const part = offered.trim();
+    if (!part.startsWith(WS_BEARER)) continue;
+    try {
+      const base64 = part.slice(WS_BEARER.length).replace(/-/g, "+").replace(/_/g, "/");
+      return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0)));
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 const DOC_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 export function createApp(source: ServiceSource, options: AppOptions = {}): Hono<AppEnv> {
@@ -163,7 +186,7 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
   });
   app.get("/health", (c) => c.json({ ok: true, pack: "agentic-documents" }));
   app.use("/api/v1/*", async (c, next) => {
-    const bearer = /^Bearer (.+)$/.exec(c.req.header("authorization") ?? "")?.[1];
+    const bearer = /^Bearer (.+)$/.exec(c.req.header("authorization") ?? "")?.[1] ?? socketBearer(c);
     const identity = bearer === undefined ? undefined : identityFor(c.env?.AGENTIC_DOCS_TOKENS, bearer);
     if (!identity) return fail("UNAUTHENTICATED", "send a valid bearer token", 401);
     c.set("author", identity.principal);
@@ -183,13 +206,17 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
     return c.json({ contributors: contributors.map(({ id, kind, machine }) => ({ name: id, kind, machine })) });
   });
   // The live room. The token sets the author kind and the role. A viewer joins and reads, and the room drops its writes.
-  app.get("/api/v1/docs/:id/ws", (c) => {
+  app.get("/api/v1/docs/:id/ws", async (c) => {
     const id = c.req.param("id");
     if (!options.live) return fail("NOT_FOUND", "this server hosts no live rooms", 404);
     if (c.req.header("upgrade") !== "websocket") return fail("UPGRADE_REQUIRED", "open this route as a WebSocket", 426);
     if (!DOC_ID.test(id)) return fail("INVALID_INPUT", `invalid document id "${id}"`, 400);
     const { kind, name } = c.get("author");
-    return options.live(c.env ?? {}).connect(id, c.req.raw, { principal: { id: name, kind }, role: c.get("role"), name });
+    const opened = options.live(c.env ?? {}).connect(id, c.req.raw, { principal: { id: name, kind }, role: c.get("role"), name });
+    if (!(c.req.header("sec-websocket-protocol") ?? "").split(",").some((p) => p.trim() === WS_PROTOCOL)) return opened;
+    const room = await opened;
+    const socket = (room as Response & { webSocket?: unknown }).webSocket;
+    return socket ? new Response(null, { status: 101, webSocket: socket, headers: new Headers([...room.headers, ["sec-websocket-protocol", WS_PROTOCOL]]) } as ResponseInit) : room;
   });
 
   async function run(c: Context<AppEnv>, command: Command, input: Record<string, unknown>) {
@@ -234,8 +261,10 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
   });
 
   const create = commands.find((c) => c.name === "new")!;
+  const listing = commands.find((c) => c.name === "list")!;
   app.post("/api/v1/docs", async (c) => run(c, create, await body(c)));
-  for (const command of commands.filter((c) => c !== create)) {
+  app.get("/api/v1/docs", (c) => run(c, listing, {}));
+  for (const command of commands.filter((c) => c !== create && c !== listing)) {
     const path = `/api/v1/docs/:id/${command.name}`;
     if (command.readOnly) app.get(path, (c) => run(c, command, { ...c.req.query(), id: c.req.param("id") }));
     else app.post(path, async (c) => run(c, command, { ...(await body(c)), id: c.req.param("id") }));

@@ -49,6 +49,8 @@ export interface EditEntry {
   inserted: number;
   deleted: number;
   section?: string;
+  /** The Yjs client id of the replica that made the edit. Text it wrote carries this id, so a UI can mark text by author kind. Written by the client, like the rest of the log. */
+  client?: number;
   /** Set when an accepted suggestion caused the edit. `author` is who suggested it. */
   suggestion?: { id: string; author: Principal };
 }
@@ -183,7 +185,7 @@ export class AgenticDoc {
   ): string {
     const at = this.now().toISOString();
     this.ydoc.transact(() => {
-      const entry: EditEntry = { op, at, author, ...run(), ...extra };
+      const entry: EditEntry = { op, at, author, client: this.ydoc.clientID, ...run(), ...extra };
       if (entry.section === undefined) delete entry.section;
       this.log.push([entry]);
     });

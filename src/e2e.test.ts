@@ -213,7 +213,7 @@ describe("mcp over stdio", () => {
     const client = await connect(BOT);
     try {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["doc_new", "doc_read", "doc_outline", "doc_insert", "doc_replace", "doc_suggest", "doc_comment", "doc_export"]));
+      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["doc_new", "doc_list", "doc_rename", "doc_remove", "doc_read", "doc_outline", "doc_insert", "doc_replace", "doc_suggest", "doc_comment", "doc_export"]));
       for (const tool of tools) expect(Object.keys(tool.inputSchema.properties ?? {})).not.toContain("author");
     } finally {
       await client.close();

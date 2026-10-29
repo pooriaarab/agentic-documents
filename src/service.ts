@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, Store } from "agentic-identity";
-import { Suggestions, Threads } from "./review.js";
+import { isPerson, Suggestions, Threads } from "./review.js";
 
 const ATTEMPTS = 64;
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -12,7 +12,7 @@ const CATALOG = "documents";
 export const MAX_LIVE_BYTES = 1_000_000;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isString = (v: unknown): v is string => typeof v === "string";
-const isWho = (v: unknown): boolean => isObject(v) && PRINCIPAL_KINDS.includes(v.kind as PrincipalKind) && isString(v.name) && v.name !== "";
+const isWho = (v: unknown): v is { kind: PrincipalKind; name: string } => isObject(v) && PRINCIPAL_KINDS.includes(v.kind as PrincipalKind) && isString(v.name) && v.name !== "";
 const isAnchor = (v: unknown): boolean => isObject(v) && isString(v.text) && isObject(v.start) && isObject(v.end);
 const ROOTS = new Set(["default", "edits", "suggestions", "threads", "applied"]);
 
@@ -20,7 +20,27 @@ const ROOTS = new Set(["default", "edits", "suggestions", "threads", "applied"])
 export interface DocInfo {
   createdBy: { kind: PrincipalKind; name: string };
   createdAt: number;
+  /** The name a person gave the document. Without one, a list shows the id. */
+  title?: string;
+  /** The last save, and who made it. They start as the creation. */
+  updatedAt?: number;
+  updatedBy?: { kind: PrincipalKind; name: string };
 }
+
+/** One row of the document list. */
+export interface DocSummary {
+  id: string;
+  title: string;
+  createdBy: DocInfo["createdBy"];
+  createdAt: number;
+  updatedAt: number;
+  updatedBy: DocInfo["createdBy"];
+}
+
+export const MAX_TITLE = 120;
+/** The scope an agent needs to remove a document. A person needs none. */
+export const REMOVE_SCOPE = "docs:remove";
+const MAX_LISTED = 500;
 
 export interface DocsPorts {
   /** Holds each document as a Yjs update. Saves are conditional on the version that was read. */
@@ -33,7 +53,10 @@ export interface DocsPorts {
 export interface DocAccess {
   create(id: string, markdown: string, author: Principal): Promise<void>;
   read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T>;
-  write<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T>;
+  write<T>(id: string, run: (doc: AgenticDoc) => T, author?: Principal): Promise<T>;
+  list(): Promise<DocSummary[]>;
+  rename(id: string, title: string, author: Principal): Promise<void>;
+  remove(id: string, author: Principal): Promise<void>;
 }
 
 /** Loads and saves documents as Yjs updates in a Blobs port. The CLI, MCP server, and API share it. */
@@ -99,7 +122,10 @@ export class DocsService implements DocAccess {
       doc.applyUpdate(update);
       const merged = this.checked(id, doc);
       this.fits(id, merged);
-      if (await this.blobs.put(key, merged, { ifMatch: found.version })) return;
+      if (await this.blobs.put(key, merged, { ifMatch: found.version })) {
+        await this.touch(id, author);
+        return;
+      }
     }
     throw new DocError("CONFLICT", `document "${id}" kept changing; try again`);
   }
@@ -113,7 +139,7 @@ export class DocsService implements DocAccess {
     const refuse = (what: string) => new DocError("INVALID_INPUT", `the update would leave document "${id}" unreadable: ${what}`);
     try {
       doc.toMarkdown();
-      if (!doc.edits().every((e) => isObject(e) && isWho(e.author) && isString(e.at) && isString(e.op))) throw refuse("an edit log entry is malformed");
+      if (!doc.edits().every((e) => isObject(e) && isWho(e.author) && isString(e.at) && isString(e.op) && (e.client === undefined || typeof e.client === "number"))) throw refuse("an edit log entry is malformed");
       for (const [, t] of doc.ydoc.getMap<Y.Map<unknown>>("threads")) {
         const messages = t instanceof Y.Map ? t.get("messages") : undefined;
         const ok = t instanceof Y.Map && isAnchor(t.get("anchor")) && ["open", "resolved"].includes(t.get("status") as string) && messages instanceof Y.Array && messages.length > 0 &&
@@ -140,8 +166,77 @@ export class DocsService implements DocAccess {
   private async catalog(id: string, author: Principal): Promise<void> {
     // The blob is the document. The catalog entry follows it, and a repeat leaves the first entry alone.
     await this.store.transaction(async (tx) => {
-      if ((await tx.get(CATALOG, id)) === null) await tx.put(CATALOG, id, { createdBy: { kind: author.kind, name: author.name }, createdAt: Date.now() });
+      if ((await tx.get(CATALOG, id)) === null) {
+        const now = Date.now();
+        const who = { kind: author.kind, name: author.name };
+        await tx.put(CATALOG, id, { createdBy: who, createdAt: now, updatedAt: now, updatedBy: who });
+      }
     });
+  }
+
+  /**
+   * Record a save. The catalog is a side record that follows the blob, so a failure here never fails a save that worked:
+   * the caller would repeat a change that is not safe to repeat. A document with no catalog entry stays without one.
+   */
+  private async touch(id: string, author: Principal | undefined): Promise<void> {
+    if (!author) return;
+    try {
+      await this.store.transaction(async (tx) => {
+        const entry = await tx.get(CATALOG, id);
+        if (entry !== null) await tx.put(CATALOG, id, { ...entry, updatedAt: Date.now(), updatedBy: { kind: author.kind, name: author.name } });
+      });
+    } catch {
+      /* the list shows an older last edit until the next save */
+    }
+  }
+
+  /** Every cataloged document, newest first, up to ${MAX_LISTED}. A damaged entry is skipped, so one bad entry never hides the list. */
+  async list(): Promise<DocSummary[]> {
+    const found: DocSummary[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.store.query(CATALOG, { orderBy: { field: "createdAt", direction: "desc" }, limit: 100, cursor });
+      for (const { id, data } of page.items) {
+        const entry = (isObject(data) ? data : {}) as Partial<DocInfo>;
+        const { createdBy, createdAt } = entry;
+        if (!isWho(createdBy) || typeof createdAt !== "number") continue;
+        const by = entry.updatedBy;
+        if (by !== undefined && !isWho(by)) continue; // a damaged field is skipped, never guessed
+        found.push({ id, title: typeof entry.title === "string" && entry.title !== "" ? entry.title : id, createdBy, createdAt, updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : createdAt, updatedBy: by ?? createdBy });
+      }
+      cursor = page.nextCursor;
+    } while (cursor !== undefined && found.length < MAX_LISTED);
+    return found.slice(0, MAX_LISTED);
+  }
+
+  /** Give the document a name. It does not change the text. */
+  async rename(id: string, title: string, author: Principal): Promise<void> {
+    const key = this.key(id);
+    const clean = title.trim();
+    // eslint-disable-next-line no-control-regex
+    if (clean === "" || [...clean].length > MAX_TITLE || /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/.test(clean)) {
+      throw new DocError("INVALID_INPUT", `a title is 1 to ${MAX_TITLE} characters of plain text`);
+    }
+    const found = await this.blobs.get(key);
+    if (!found) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
+    const who = { kind: author.kind, name: author.name };
+    // A document with no catalog entry gets one. Its creator is the author of the first logged edit, or this author when the log is empty.
+    const first = AgenticDoc.fromUpdate(found.data, this.options).edits()[0];
+    const created = first ? { createdBy: { kind: first.author.kind, name: first.author.name }, createdAt: Date.parse(first.at) } : { createdBy: who, createdAt: Date.now() };
+    await this.store.transaction(async (tx) => {
+      const entry = await tx.get(CATALOG, id);
+      const now = Date.now();
+      await tx.put(CATALOG, id, entry === null ? { ...created, createdAt: Number.isFinite(created.createdAt) ? created.createdAt : now, title: clean, updatedAt: now, updatedBy: who } : { ...entry, title: clean, updatedAt: now, updatedBy: who });
+    });
+  }
+
+  /** Delete the document and its catalog entry. An agent needs the remove scope. A live room keeps its own copy of the text. */
+  async remove(id: string, author: Principal): Promise<void> {
+    const key = this.key(id);
+    if (!isPerson(author) && author.scopes?.includes(REMOVE_SCOPE) !== true) throw new DocError("FORBIDDEN", `an agent needs the ${REMOVE_SCOPE} scope to remove a document`);
+    if (!(await this.blobs.head(key))) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
+    await this.store.delete(CATALOG, id);
+    await this.blobs.delete(key);
   }
 
   /** Who created the document and when, or null when it has no catalog entry (made before the catalog, or a failed catalog write). */
@@ -166,14 +261,17 @@ export class DocsService implements DocAccess {
    * Load, run the change, and save only if nobody saved in between. When someone did, load again and
    * run the change again, so a check such as "is it still pending" sees the new state.
    */
-  async write<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T> {
+  async write<T>(id: string, run: (doc: AgenticDoc) => T, author?: Principal): Promise<T> {
     const key = this.key(id);
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       const found = await this.blobs.get(key);
       if (!found) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
       const doc = AgenticDoc.fromUpdate(found.data, this.options);
       const result = run(doc);
-      if (await this.blobs.put(key, doc.encode(), { ifMatch: found.version })) return result;
+      if (await this.blobs.put(key, doc.encode(), { ifMatch: found.version })) {
+        await this.touch(id, author);
+        return result;
+      }
     }
     throw new DocError("CONFLICT", `document "${id}" kept changing; try again`);
   }

@@ -7,7 +7,8 @@ import { liveServer, type LiveServer } from "./test-server.js";
 const ADA = `ada-${"a".repeat(40)}`;
 const BOT = `bot-${"b".repeat(40)}`;
 const VIEWER = `viewer-${"v".repeat(40)}`;
-const TOKENS = { [ADA]: "human:Ada", [BOT]: "agent_of_human:scribe", [VIEWER]: { as: "human:Vic", role: "viewer" } };
+const SWEEPER = `sweeper-${"s".repeat(40)}`;
+const TOKENS = { [ADA]: "human:Ada", [BOT]: "agent_of_human:scribe", [VIEWER]: { as: "human:Vic", role: "viewer" }, [SWEEPER]: { as: "agent_of_human:sweeper", scopes: ["docs:remove"] } };
 
 let server: LiveServer;
 beforeAll(async () => {
@@ -80,6 +81,58 @@ describe("client against the real Worker", () => {
     expect((await fails(as(VIEWER).checkpoint("sync", new Uint8Array()))).code).toBe("FORBIDDEN");
     expect(await as(VIEWER).read("sync")).toContain("Sync");
     expect((await ada.room("sync")).contributors).toBeInstanceOf(Array);
+  });
+
+  test("list, rename, and remove keep the author kind, and an agent needs a scope to remove", async () => {
+    const [ada, bot, sweeper, vic] = [as(ADA), as(BOT), as(SWEEPER), as(VIEWER)];
+    await bot.create({ id: "cat-a", markdown: "# A" });
+    await ada.create({ id: "cat-b", markdown: "# B" });
+    await ada.rename("cat-a", { title: "  Plan A  " });
+    await ada.append("cat-b", { content: "More." });
+    const rows = new Map((await vic.list()).map((r) => [r.id, r]));
+    expect(rows.get("cat-a")).toMatchObject({ title: "Plan A", createdBy: { kind: "agent_of_human", name: "scribe" }, updatedBy: { kind: "human", name: "Ada" } });
+    expect(rows.get("cat-b")).toMatchObject({ title: "cat-b", updatedBy: { kind: "human", name: "Ada" } });
+    expect(rows.get("cat-b")!.updatedAt).toBeGreaterThanOrEqual(rows.get("cat-b")!.createdAt);
+    for (const title of ["", "   ", "x".repeat(121), "a\u0000b", "a\u202eb"]) expect((await fails(ada.rename("cat-a", { title }))).code).toBe("INVALID_INPUT");
+    expect((await fails(ada.rename("nope", { title: "x" }))).code).toBe("NO_DOCUMENT");
+    expect((await fails(vic.rename("cat-a", { title: "x" }))).code).toBe("FORBIDDEN");
+    expect((await fails(vic.remove("cat-a"))).code).toBe("FORBIDDEN");
+    expect((await fails(bot.remove("cat-a"))).code).toBe("FORBIDDEN");
+    await sweeper.remove("cat-a");
+    await ada.remove("cat-b");
+    expect((await fails(ada.remove("cat-b"))).code).toBe("NO_DOCUMENT");
+    expect((await fails(ada.read("cat-b"))).code).toBe("NO_DOCUMENT");
+    expect((await ada.list()).map((r) => r.id)).not.toContain("cat-a");
+  });
+
+  test("each logged edit names the Yjs client that wrote it, so text can be marked by author kind", async () => {
+    const bot = as(BOT);
+    await bot.create({ id: "marks", markdown: "# Marks\n\nBy the agent." });
+    const copy = new Y.Doc();
+    Y.applyUpdate(copy, await bot.state("marks"));
+    const [entry] = await bot.edits("marks");
+    expect(typeof entry.client).toBe("number");
+    const owners = new Set<number>();
+    const fragment = copy.getXmlFragment("default");
+    for (let item = fragment._first; item; item = item.right) owners.add(item.id.client);
+    expect([...owners]).toEqual([entry.client]);
+  });
+
+  test("a browser opens a live room with the token in a subprotocol, and the server never echoes it", async () => {
+    const protocols = (token: string) => ["agentic-docs", `agentic-docs.bearer.${Buffer.from(token).toString("base64url")}`];
+    const open = (token: string) =>
+      new Promise<WebSocket>((resolve, reject) => {
+        const socket = new WebSocket(`${server.url.replace("http", "ws")}/api/v1/docs/browser/ws`, protocols(token));
+        socket.onopen = () => resolve(socket);
+        socket.onerror = () => reject(new Error("refused"));
+      });
+    const socket = await open(ADA);
+    expect(socket.protocol).toBe("agentic-docs");
+    socket.close();
+    await expect(open(`nobody-${"n".repeat(40)}`)).rejects.toThrow("refused");
+    // The header is for the live route only: a plain call with the subprotocol and no Authorization header is refused.
+    const plain = await fetch(`${server.url}/api/v1/me`, { headers: { "sec-websocket-protocol": protocols(ADA).join(", ") } });
+    expect(plain.status).toBe(401);
   });
 
   test("an auth failure is a typed 401", async () => {

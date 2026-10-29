@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Commands `list`, `rename`, and `remove` in the SDK, CLI, MCP server, HTTP API (`GET /api/v1/docs`), and
+  the typed client. The catalog keeps a title and the last save time and author. An agent needs the
+  `docs:remove` scope to remove a document.
+- A browser can open a live room: the token goes in a WebSocket subprotocol
+  (`agentic-docs.bearer.<base64url>`) on the live-room route only.
+- Each edit log entry holds `client`, the Yjs client id of its writer, so a UI can mark agent text.
+
 ## 0.4.0
 
 ### Added

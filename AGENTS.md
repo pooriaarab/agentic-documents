@@ -36,7 +36,8 @@ change it in a call.
 
 | Tool | Use it for |
 | --- | --- |
-| `doc_new`, `doc_read`, `doc_outline`, `doc_edits` | Create and read. |
+| `doc_new`, `doc_list`, `doc_read`, `doc_outline`, `doc_edits` | Create, list, and read. |
+| `doc_rename`, `doc_remove` | Title a document, or delete it. An agent needs the `docs:remove` scope to remove. |
 | `doc_insert`, `doc_replace`, `doc_delete`, `doc_append` | Change text or sections. |
 | `doc_suggest`, `doc_suggestions`, `doc_accept`, `doc_reject` | Suggested edits. |
 | `doc_comment`, `doc_reply`, `doc_resolve`, `doc_reopen`, `doc_threads` | Comment threads. |
@@ -46,8 +47,8 @@ An error returns `isError` with `{ error: { code, message, matches } }`.
 
 ## Live rooms
 
-Add `--live <url>` to the CLI or the MCP server, and set `AGENTIC_DOCS_TOKEN`. Or set `AGENTIC_DOCS_LIVE_URL`. Every command except `new` then runs in
-the live room for that document and saves to the stored document (`new` makes the document in the store). The server sets your author kind and your
+Add `--live <url>` to the CLI or the MCP server, and set `AGENTIC_DOCS_TOKEN`. Or set `AGENTIC_DOCS_LIVE_URL`. Every command except `new`, `list`, `rename`, and `remove` then runs in
+the live room for that document and saves to the stored document (those four go to the store through the HTTP API). The server sets your author kind and your
 role from the token, so `--as`, `--scopes`, and `--dir` are refused. A `viewer` token gets `FORBIDDEN` on every change. In the SDK,
 `LiveDoc.join({ server, id, token })` gives you `edit`, `save`, `peers`, and `leave`. The Worker also has two routes that are not commands: `GET /api/v1/docs/:id/state` (the stored document as a Yjs update) and `POST /api/v1/docs/:id/checkpoint` (merge a room into it).
 

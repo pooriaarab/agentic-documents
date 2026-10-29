@@ -42,6 +42,34 @@ describe("catalog", () => {
   });
 });
 
+describe("catalog as a side record", () => {
+  test("a catalog failure after a save does not fail the write, so a caller never repeats it", async () => {
+    const store = createMemoryStore();
+    const service = new DocsService({ blobs: createMemoryBlobs(), store });
+    await service.create("doc", "# Hi", bot);
+    store.transaction = async () => {
+      throw new Error("D1 hiccup");
+    };
+    await service.write("doc", (d) => d.append("Once.", bot), bot);
+    expect(await service.read("doc", (d) => d.toMarkdown())).toContain("Once.");
+  });
+
+  test("a list skips a damaged entry, and a rename of an uncataloged document names the logged creator", async () => {
+    const store = createMemoryStore();
+    const blobs = createMemoryBlobs();
+    const service = new DocsService({ blobs, store });
+    await service.create("good", "# Good", bot);
+    await service.create("hurt", "# Hurt", bot);
+    await store.put("documents", "hurt", { createdBy: { kind: "human", name: "x" }, createdAt: 1, updatedBy: { kind: "admin", name: "x" } });
+    await service.create("null", "# Null", bot);
+    await store.put("documents", "null", { createdBy: { kind: "human", name: "x" }, createdAt: 2, updatedBy: null });
+    expect((await service.list()).map((r) => r.id)).toEqual(["good"]);
+    await store.delete("documents", "good");
+    await service.rename("good", "Back", ada);
+    expect((await service.list())[0]).toMatchObject({ id: "good", title: "Back", createdBy: { kind: "agent_of_human", name: "scribe" }, updatedBy: { kind: "human", name: "Ada" } });
+  });
+});
+
 describe("concurrent writers", () => {
   test("ten creators of one id across two services: one wins, nine get DOCUMENT_EXISTS", async () => {
     const { a, b } = pair();
