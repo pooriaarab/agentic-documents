@@ -230,10 +230,12 @@ const editor = mountEditor(document.getElementById("editor")!, {
 
 - In a React app, render `<DocumentEditor id client principal room onError onLeave />` instead. `onLeave` gets the
   promise of the last save.
-- `client` needs only `state` and `checkpoint`. A client from `createClient` has them, or pass your own.
+- `client` needs only `state` and `checkpoint`. A client from `createClient` has them, or pass your own. Keep the
+  same client object between renders: a new one opens the document again.
 - `principal` needs a `kind` (one of the principal kinds) and a `name`. A missing or unknown kind throws a
   `TypeError`. It is never given a default. Only the `role` `editor` can change the text. Any other role, or no role,
-  opens it read only. The server still checks every write against the token.
+  opens it read only. The server still checks every write against the token. Use the principal that `client.me()`
+  returns for the same token, so the editor labels the text with the kind that the server gives the token.
 - When an agent principal types, the editor writes one `live` entry to the edit log for its Yjs client. The editor
   and the web UI then mark that text as agent work for everyone who opens the document.
 - `room.url` is the WebSocket address of the document room. In a browser the token goes in a WebSocket subprotocol.

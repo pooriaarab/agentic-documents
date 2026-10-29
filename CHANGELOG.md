@@ -28,6 +28,8 @@
   render the editor in a host app, with live co-editing through agentic-realtime when a room is given. Its styles are
   in `agentic-documents/ui.css`. `react` and `react-dom` are optional peer dependencies; the Tiptap packages and
   `agentic-design` are now dependencies.
+- The edit log has a new op, `live`. The editor writes one `live` entry when an agent principal types, so its text is
+  marked as agent work. Its counts are 0.
 
 ### Changed
 
