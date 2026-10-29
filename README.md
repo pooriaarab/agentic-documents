@@ -195,7 +195,7 @@ try {
 }
 ```
 
-- One method per route: `create`, `read`, `outline`, `edits`, `insert`, `replace`, `delete`, `append`,
+- One method per route: `create`, `list`, `read`, `rename`, `remove`, `outline`, `edits`, `insert`, `replace`, `delete`, `append`,
   `suggest`, `suggestions`, `accept`, `reject`, `comment`, `reply`, `resolve`, `reopen`, `threads`,
   `export`, `room`, `me`, `health`, `state`, and `checkpoint`. The WebSocket route is not a method. Use
   `LiveDoc` from `agentic-documents/live` for it.

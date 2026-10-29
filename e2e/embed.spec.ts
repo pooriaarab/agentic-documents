@@ -72,9 +72,9 @@ test("an agent in the room shows as an agent, its typed text is marked, and a vi
 });
 
 test("without a room the embedded editor still saves through the client", async ({ browser }) => {
-  const id = `embed-solo-${Date.now()}`;
+  const id = `embed-noroom-${Date.now()}`;
   await sdk(ADA).create({ id, markdown: "Alone." });
-  const ada = await host(browser, ADA, id, "&solo");
+  const ada = await host(browser, ADA, id, "&noroom");
   await typeAtEnd(ada, " Still saved.");
   await expect(ada.getByText("Saved", { exact: true })).toBeVisible();
   await expect.poll(async () => sdk(ADA).read(id)).toContain("Alone. Still saved.");
