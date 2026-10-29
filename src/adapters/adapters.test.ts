@@ -31,4 +31,16 @@ describe("file store", () => {
     expect(await two.get("docs", "a")).toEqual({ v: 1 });
     expect(await two.get("docs", "c")).toBeNull();
   });
+
+  it("imports the catalog of the old release once, and keeps later changes", async () => {
+    const dir = fresh();
+    const rows = [["docs", "a", { v: 1 }], ["docs", "b", { v: 2 }]];
+    await createFileBlobs(dir).put("store", new TextEncoder().encode(JSON.stringify(rows)));
+    const one = createFileStore(dir);
+    expect(await one.get("docs", "a")).toEqual({ v: 1 });
+    await one.delete("docs", "b");
+    const two = createFileStore(dir);
+    expect(await two.get("docs", "b")).toBeNull();
+    expect(await two.get("docs", "a")).toEqual({ v: 1 });
+  });
 });

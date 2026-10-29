@@ -492,9 +492,11 @@ Limits of live editing:
 - The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
   shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
   overwrite each other. The CLI and MCP server keep the same data in local files.
-- The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. Files from an older release that sit
-  directly in `<dir>` are not read.
-- Each token has one role: `editor` (the default) or `viewer`. A viewer cannot call a write command or write in a live room. The Worker checks each token through the `Auth` port of `agentic-identity` 0.6. Tokens are a stopgap: there is no per-document sharing in the Worker yet.
+- The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. The catalog is `<dir>/store/store.json`,
+  from `agentic-identity/file`. The first write after an upgrade imports the catalog of release 0.8 once. Files from an
+  older release that sit directly in `<dir>` are not read. The catalog store waits for a rival process with a short
+  lock, runs a write again up to 64 times, then fails with `StoreConflictError`. The wait blocks the process.
+- Each token has one role: `editor` (the default) or `viewer`. A viewer cannot call a write command or write in a live room. The Worker checks each token through the `Auth` port of `agentic-identity` 0.7. Tokens are a stopgap: there is no per-document sharing in the Worker yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs
   its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that
