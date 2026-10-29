@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
+
+### Breaking
+
+- A deploy from the template `wrangler.jsonc` needs `npm run build` first. The file now has an `assets` entry for
+  `dist/ui`, so `wrangler` stops when that folder is missing.
 
 ### Added
 
@@ -16,6 +21,16 @@
 - The saved update may hold the marker root that the Tiptap editor writes when it opens a document.
 - `POST /checkpoint?create=false` (client option `create: false`) fails with `NO_DOCUMENT` instead of making a missing document. The UI saves this way, so a removed document stays removed.
 - Each edit log entry holds `client`, the Yjs client id of its writer, so a UI can mark agent text.
+
+### Changed
+
+- `esbuild` is a declared dev dependency. `ui/build.mjs` uses it.
+
+### Fixed
+
+- In the web UI, the caret goes after a new link, and text typed there does not join the link. A quick key
+  after Apply no longer replaces the linked words. Apply with no words selected keeps its link for the next text.
+- In the web UI, a key typed right after a toolbar button goes to the text, not to the button.
 
 ## 0.4.0
 

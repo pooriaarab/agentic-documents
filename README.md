@@ -7,7 +7,7 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.4.0. The document model, the text operations, the CLI, the MCP server,
+> Status: early, version 0.5.0. The document model, the text operations, the CLI, the MCP server,
 > the Worker API, live editing in a room, and a small web UI work. See [UI](#ui).
 
 ## Install
@@ -76,6 +76,32 @@ How it works:
 - Run the tests with `npm run e2e`. They start `wrangler dev` with the built UI, drive Chromium with
   Playwright, and run an axe check (WCAG 2.2 AA) on each view in both themes. Run them once with
   `UPDATE_SCREENSHOTS=1` to write the screenshots again.
+
+### Serve the UI from the npm package
+
+The npm package ships the built UI in `dist/ui`. You do not need a clone to serve it. Install the package in
+your Worker project and point your `wrangler.jsonc` at the files in it:
+
+```sh
+npm install agentic-documents
+```
+
+```jsonc
+{
+  "name": "my-docs",
+  "main": "node_modules/agentic-documents/dist/live-worker.js",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "node_modules/agentic-documents/dist/ui" },
+  "durable_objects": { "bindings": [{ "name": "SYNC_ROOM", "class_name": "SyncRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncRoom"] }]
+}
+```
+
+Add the D1 and R2 bindings from the sample `wrangler.jsonc`, and set `AGENTIC_DOCS_TOKENS` as a secret.
+The Worker serves the files in `dist/ui` first. It answers `/api`, `/health`, and any other path. If you deploy from a clone
+with the sample `wrangler.jsonc`, run `npm run build` before `wrangler deploy`. The build writes `dist/ui`,
+and the sample file reads it.
 
 ## CLI
 
