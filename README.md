@@ -7,7 +7,7 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.8.0. The document model, the text operations, the CLI, the MCP server,
+> Status: early, version 0.9.0. The document model, the text operations, the CLI, the MCP server,
 > the Worker API, live editing in a room, and a small web UI work. See [UI](#ui).
 
 ## Install
@@ -141,6 +141,7 @@ curl -X POST $URL/api/v1/docs/plan/replace -H "authorization: Bearer $TOKEN" -d 
 curl "$URL/api/v1/docs" -H "authorization: Bearer $TOKEN"   # list: id, title, creator, last edit
 curl -X POST $URL/api/v1/docs/plan/rename -H "authorization: Bearer $TOKEN" -d '{"title":"Roadmap"}'
 curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN"
+curl -X POST $URL/api/v1/docs/plan/grant -H "authorization: Bearer $TOKEN" -d '{"to":"human:kit","role":"editor"}'   # owner only
 # add &remoteImages=true to keep web images; the default shows only images stored inside the document
 ```
 
@@ -313,7 +314,9 @@ npx agentic-documents unlink plan --link <link id>
 
 The same commands are MCP tools (`doc_grant` and so on), HTTP routes (`POST /api/v1/docs/:id/grant`), and SDK methods
 (`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document made
-before sharing has no owner record: its creator becomes the owner on the first share call.
+before sharing has no owner record. On the first share call, its creator becomes the owner, but only when the catalog
+names that creator as a person. A document with no creator in the catalog, or one made by an agent that acts for a
+person, cannot be shared.
 
 ## Features
 
@@ -494,7 +497,7 @@ Limits of live editing:
   overwrite each other. The CLI and MCP server keep the same data in local files.
 - The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. Files from an older release that sit
   directly in `<dir>` are not read.
-- Each token has one role: `editor` (the default) or `viewer`. A viewer cannot call a write command or write in a live room. The Worker checks each token through the `Auth` port of `agentic-identity` 0.6. Tokens are a stopgap: there is no per-document sharing in the Worker yet.
+- Each key has one role, set by its scopes: `editor` (with a write scope) or `viewer` (without one). A viewer cannot call a write command or write in a live room. The role is not per document: the Worker does not check the roles that sharing stores yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs
   its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that
