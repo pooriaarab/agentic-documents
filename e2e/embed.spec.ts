@@ -156,7 +156,7 @@ test("a host adds a slash item, a bubble tool, and a Tiptap extension, and one t
   const bad = await (await browser.newContext()).newPage();
   await bad.goto(`${url()}/embed/#token=${encodeURIComponent(ADA)}&id=${encodeURIComponent(id)}&extras&badext`);
   await expect(bad.getByRole("alert")).toContainText("The editor stopped");
-  await expect(bad.getByRole("alert")).toContainText("paragraph, hostHighlight"); // the message names what it refused
+  await expect(bad.getByRole("alert")).toContainText("paragraph, image, hostHighlight"); // the message names what it refused
   await expect(bad.getByRole("textbox")).toHaveCount(0);
   await ada.context().close();
   await vic.context().close();

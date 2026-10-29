@@ -35,8 +35,8 @@ export interface EditorExtras {
   /** More bubble menu tools, after the built-in ones, for a person who can edit. */
   bubbleActions?: BubbleAction[];
   /**
-   * More Tiptap extensions, read when a document opens: plugins, decorations, and keyboard shortcuts. One that adds a
-   * node or a mark is refused, since the stored document keeps only the nodes and marks of `schema`.
+   * More Tiptap extensions, read when a document opens: plugins, decorations, and keyboard shortcuts. One that adds or
+   * changes a node, a mark, or an attribute is refused, since the stored document keeps only its own schema.
    */
   extensions?: AnyExtension[];
 }
@@ -134,7 +134,10 @@ export function Surface({ live, editable, principal: me, onEditor, extras }: { l
     if (extra.length > 0) {
       const plain = getSchema(base);
       const full = getSchema([...base, ...extra]);
-      const keys = (spec: { attrs?: object | null } | undefined) => Object.keys(spec?.attrs ?? {}).sort().join(",");
+      // The parts of a spec that decide what the stored document can hold: the content, the group, inline, and the
+      // attributes with their defaults.
+      const keys = (spec: { attrs?: Record<string, { default?: unknown }> | null; content?: string; group?: string; inline?: boolean; marks?: string } | undefined) =>
+        JSON.stringify([spec?.content, spec?.group, spec?.inline, spec?.marks, Object.entries(spec?.attrs ?? {}).map(([k, v]) => [k, v?.default]).sort()]);
       const changed = [
         ...Object.keys(full.nodes).filter((n) => !plain.nodes[n] || keys(full.nodes[n]!.spec) !== keys(plain.nodes[n]!.spec)),
         ...Object.keys(full.marks).filter((m) => !plain.marks[m] || keys(full.marks[m]!.spec) !== keys(plain.marks[m]!.spec)),

@@ -1,6 +1,7 @@
 // A host app for the tests. It uses the package exports as a host would: `agentic-documents/ui` and `/client`.
 import { createClient } from "agentic-documents/client";
 import { Extension, Mark, type Editor } from "@tiptap/core";
+import Image from "@tiptap/extension-image";
 import { mountEditor, setEditorMarkdown, type BubbleAction, type SlashItem } from "agentic-documents/ui";
 import "agentic-design/styles.css";
 import "agentic-documents/ui.css";
@@ -23,6 +24,8 @@ const extensions = [
     ? [
         Mark.create({ name: "hostHighlight", parseHTML: () => [{ tag: "mark" }], renderHTML: () => ["mark", 0] }),
         Extension.create({ name: "hostTone", addGlobalAttributes: () => [{ types: ["paragraph"], attributes: { tone: { default: null } } }] }),
+        // The same name as the built-in image, with the same attributes, but a block: what it can hold changes.
+        Image.extend({ inline: false, group: "block" }),
       ]
     : []),
 ];

@@ -20,7 +20,8 @@
   that `lowlight` uses).
 - `agentic-documents/ui`: the options `slashItems`, `bubbleActions`, and `extensions`, the functions `editorMarkdown`
   and `setEditorMarkdown`, and the types `SlashItem`, `BubbleAction`, and `EditorExtras`. An extension that adds or
-  changes a node, a mark, or an attribute stops the editor with a message that names it. `setEditorMarkdown` throws on a read-only editor.
+  changes a node, a mark, or an attribute stops the editor with a message that names it. `setEditorMarkdown` throws
+  on a read-only editor.
 - The selection of another person in the room shows as a tint, and an agent's as a dashed outline, next to the caret
   with the name.
 - The editor classes use the `agd-` prefix. Update any style that targets the old names: `.agd-doc` (was `.adoc`),
