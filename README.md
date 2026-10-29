@@ -313,7 +313,7 @@ address to see the web UI. `GET /health` answers 200 with no token. The UI asks 
 not publish a token, so run your own Worker to try edits (see [Live editing](#live-editing)). The demo may be reset at any
 time.
 
-The demo uses `wrangler.demo.jsonc`: a D1 database in `weur`, an R2 bucket with the `eu` jurisdiction, live rooms in
+The demo uses `wrangler.demo.jsonc`: a D1 database and an R2 bucket with the `eu` jurisdiction, live rooms in
 Durable Objects, and `AGENTIC_DOCS_REGION=eu`. To redeploy, a maintainer with a Cloudflare token runs:
 
 ```sh
@@ -323,7 +323,7 @@ CLOUDFLARE_API_TOKEN=<token> npm run deploy:demo
 The tokens live in a Worker secret, never in the repo or in CI. Set them with
 `WRANGLER_SEND_METRICS=false npx wrangler secret put AGENTIC_DOCS_TOKENS --config wrangler.demo.jsonc`. To make your own demo, copy
 `wrangler.demo.jsonc`, change the name, and put your own database id and bucket name in it. Make the database with
-`wrangler d1 create <name> --location weur`, because the location is set when you create it. Make the bucket with
+`wrangler d1 create <name> --jurisdiction eu`, because the jurisdiction is fixed when you create it. Make the bucket with
 `wrangler r2 bucket create <name> --jurisdiction eu`.
 
 ## Live editing
