@@ -3,18 +3,8 @@
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { Toolbar, ToolbarButton } from "agentic-design/react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { glyph, icons } from "./icons.js";
-
-/** A tool that an app adds to the bubble menu with the `bubbleActions` option, such as Comment or Rewrite. */
-export interface BubbleAction {
-  label: string;
-  icon: ReactNode;
-  /** Runs with the selection still in place. */
-  run: (editor: Editor) => void;
-  /** Off for a person who may not change the text, unless this is true. */
-  readOnly?: boolean;
-}
 
 const GAP = 8;
 
@@ -24,10 +14,10 @@ const formattable = (editor: Editor) => {
   return !selection.empty && !(selection instanceof NodeSelection) && !("$anchorCell" in selection) && !editor.isActive("codeBlock");
 };
 
-export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor: Editor; editable: boolean; onLink: () => void; actions?: BubbleAction[] }) {
+export function BubbleMenu({ editor, editable, onLink }: { editor: Editor; editable: boolean; onLink: () => void }) {
   const [at, setAt] = useState<{ top: number; left: number }>();
   const box = useRef<HTMLDivElement>(null);
-  const tools = actions.filter((a) => editable || a.readOnly);
+  const placed = useRef<() => void>(() => {});
 
   useEffect(() => {
     const place = () => {
@@ -38,9 +28,12 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
       const width = box.current?.offsetWidth ?? 240;
       const height = box.current?.offsetHeight ?? 40;
       const left = Math.max(8, Math.min((start.left + end.right) / 2 - width / 2, window.innerWidth - width - 8));
+      // Below the selection when the editor bar, or the top of the window, is in the way.
+      const bar = editor.view.dom.closest(".agd-doc")?.querySelector(".agd-doc__bar")?.getBoundingClientRect().bottom ?? 0;
       const above = start.top - height - GAP;
-      setAt({ top: above < 56 ? end.bottom + GAP : above, left }); // below the selection when the bar is in the way
+      setAt({ top: above < Math.max(bar, 0) + GAP ? end.bottom + GAP : above, left });
     };
+    placed.current = place;
     const blur = ({ event }: { event: FocusEvent }) => {
       if (!box.current?.contains(event.relatedTarget as Node | null)) setAt(undefined);
     };
@@ -68,7 +61,13 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
     };
   }, [editor]);
 
-  if (!at || (!editable && tools.length === 0)) return null;
+  // The first placement guessed the size of the menu. Place it again once it is drawn.
+  const shown = at !== undefined;
+  useLayoutEffect(() => {
+    if (shown) placed.current();
+  }, [shown]);
+
+  if (!at || !editable) return null;
   const back = () => editor.view.focus();
   const tool = (label: string, icon: ReactNode, run: () => void, active?: boolean) => (
     <ToolbarButton label={label} icon={icon} pressed={active} onClick={() => (back(), run())} />
@@ -84,16 +83,11 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
       onBlur={(e) => !box.current?.contains(e.relatedTarget as Node | null) && e.relatedTarget !== editor.view.dom && setAt(undefined)}
     >
       <Toolbar label="Selection">
-        {editable && (
-          <>
-            {tool("Bold", glyph("B", "b"), () => chain().toggleBold().run(), editor.isActive("bold"))}
-            {tool("Italic", glyph("I", "i"), () => chain().toggleItalic().run(), editor.isActive("italic"))}
-            {tool("Strikethrough", glyph("S", "s"), () => chain().toggleStrike().run(), editor.isActive("strike"))}
-            {tool("Inline code", glyph("</>", "mono"), () => chain().toggleCode().run(), editor.isActive("code"))}
-            {tool("Link", icons.link, onLink, editor.isActive("link"))}
-          </>
-        )}
-        {tools.map((a) => <ToolbarButton key={a.label} label={a.label} icon={a.icon} onClick={() => a.run(editor)} />)}
+        {tool("Bold", glyph("B", "b"), () => chain().toggleBold().run(), editor.isActive("bold"))}
+        {tool("Italic", glyph("I", "i"), () => chain().toggleItalic().run(), editor.isActive("italic"))}
+        {tool("Strikethrough", glyph("S", "s"), () => chain().toggleStrike().run(), editor.isActive("strike"))}
+        {tool("Inline code", glyph("</>", "mono"), () => chain().toggleCode().run(), editor.isActive("code"))}
+        {tool("Link", icons.link, onLink, editor.isActive("link"))}
       </Toolbar>
     </div>
   );

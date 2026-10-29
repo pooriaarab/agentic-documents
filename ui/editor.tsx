@@ -110,7 +110,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
         ...(editable ? [Placeholder.configure({ placeholder: "Write, or type / to add a block" })] : []),
       ],
       editorProps: {
-        attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "agd-prose" },
+        // Alt+F10 moves the focus into the bubble menu of a selection.
+        attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "agd-prose", ...(editable ? { "aria-keyshortcuts": "Alt+F10" } : {}) },
         // A paste or a drop whose images would take the document past the room limit is refused, and the status line
         // says so. Two people who insert at the same time can still pass it; a save then says why it fails.
         handlePaste: (_view, _event, slice) => !fits(slice),
