@@ -13,6 +13,8 @@
   sharing, with no creator in the catalog or made by an agent that acts for a person, has no owner and cannot be
   claimed.
 - `DocsService.sharing` and the `DocSharing` type.
+- The SDK client has `grants`, `grant`, `revoke`, `invites`, `invite`, `link`, and `unlink`. The CLI and the MCP
+  server run the same commands in live mode, through the server.
 
 ## 0.8.0
 

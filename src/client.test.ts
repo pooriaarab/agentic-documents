@@ -8,7 +8,9 @@ const ADA = `ada-${"a".repeat(40)}`;
 const BOT = `bot-${"b".repeat(40)}`;
 const VIEWER = `viewer-${"v".repeat(40)}`;
 const SWEEPER = `sweeper-${"s".repeat(40)}`;
-const TOKENS = { [ADA]: "human:Ada", [BOT]: "agent_of_human:scribe", [VIEWER]: { as: "human:Vic", role: "viewer" }, [SWEEPER]: { as: "agent_of_human:sweeper", scopes: ["docs:remove"] } };
+const BEA = `bea-${"e".repeat(40)}`;
+const ROBOT = `robot-${"r".repeat(40)}`;
+const TOKENS = { [ADA]: "human:Ada", [BEA]: "human:Bea", [BOT]: "agent_of_human:scribe", [VIEWER]: { as: "human:Vic", role: "viewer" }, [SWEEPER]: { as: "agent_of_human:sweeper", scopes: ["docs:remove"] }, [ROBOT]: { as: "agent:robot", scopes: ["docs:admin"] } };
 
 let server: LiveServer;
 beforeAll(async () => {
@@ -103,6 +105,38 @@ describe("client against the real Worker", () => {
     expect((await fails(ada.remove("cat-b"))).code).toBe("NO_DOCUMENT");
     expect((await fails(ada.read("cat-b"))).code).toBe("NO_DOCUMENT");
     expect((await ada.list()).map((r) => r.id)).not.toContain("cat-a");
+  });
+
+  test("sharing: the owner grants, invites, and links, and everyone else gets FORBIDDEN", async () => {
+    const [ada, bea, robot, vic] = [as(ADA), as(BEA), as(ROBOT), as(VIEWER)];
+    await ada.create({ id: "shared-doc", markdown: "# Shared" });
+    await ada.grant("shared-doc", { to: "human:kit", role: "editor" });
+    await ada.grant("shared-doc", { to: "agent:robot", role: "viewer" });
+    expect((await ada.grants("shared-doc")).map((g) => `${g.subjectKind}:${g.subjectId}:${g.role}`).sort()).toEqual(["agent:robot:viewer", "human:Ada:owner", "human:kit:editor"]);
+    await ada.revoke("shared-doc", { to: "human:kit" });
+    expect(await ada.grants("shared-doc")).toHaveLength(2);
+
+    await ada.invite("shared-doc", { role: "viewer", email: "kit@example.com" });
+    await ada.invite("shared-doc", { role: "editor", handle: "helper" });
+    const invites = await ada.invites("shared-doc");
+    expect(invites.map((i) => i.for).sort()).toEqual(["email", "handle"]);
+    expect(JSON.stringify(invites)).not.toContain("kit@example.com"); // a list never carries an address
+    const link = await ada.link("shared-doc", { role: "viewer", signedInOnly: true });
+    expect(link.token.length).toBeGreaterThanOrEqual(32);
+    await ada.unlink("shared-doc", { link: link.id });
+    await ada.unlink("shared-doc", { link: link.id }); // an owner may repeat it on a revoked link
+
+    for (const who of [bea, vic, robot]) {
+      expect((await fails(who.grants("shared-doc"))).status).toBe(403);
+      expect((await fails(who.grant("shared-doc", { to: "human:bea", role: "owner" }))).code).toBe("FORBIDDEN");
+      expect((await fails(who.invite("shared-doc", { role: "viewer", email: "x@y.co" }))).code).toBe("FORBIDDEN");
+      expect((await fails(who.link("shared-doc", { role: "viewer" }))).code).toBe("FORBIDDEN");
+      expect((await fails(who.unlink("shared-doc", { link: link.id }))).code).toBe("FORBIDDEN");
+    }
+    // An agent with the admin scope and a viewer role still cannot make itself an owner.
+    expect((await fails(robot.grant("shared-doc", { to: "agent:robot", role: "owner" }))).code).toBe("FORBIDDEN");
+    expect((await ada.grants("shared-doc")).find((g) => g.subjectId === "robot")?.role).toBe("viewer");
+    expect((await fails(ada.grant("shared-doc", { to: "human:kit", role: "boss" as never }))).code).toBe("INVALID_INPUT");
   });
 
   test("each logged edit names the Yjs client that wrote it, so text can be marked by author kind", async () => {

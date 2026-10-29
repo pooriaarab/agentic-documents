@@ -3,7 +3,7 @@ import { SyncClient, type Peer } from "agentic-realtime/client";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal } from "./doc.js";
 import { DOC_ERROR_CODES } from "./errors.js";
 import { MAX_LIVE_BYTES, type DocAccess, type DocSummary } from "./service.js";
-import type { DocSharing, GrantInput } from "./share.js";
+import { ROLES, type DocSharing, type GrantInput } from "./share.js";
 
 export interface LiveOptions {
   /** The Worker address, such as `https://docs.example.com`. */
@@ -163,16 +163,37 @@ export class LiveService implements DocAccess {
   constructor(private readonly options: Pick<LiveOptions, "server" | "token" | "name" | "doc">) {
     const who = (to: GrantInput) => `${to.kind}:${to.id}`;
     const path = (id: string, command: string) => `/api/v1/docs/${encodeURIComponent(id)}/${command}`;
-    const post = async (id: string, command: string, body: object) => (await this.call(path(id, command), { method: "POST", body })).json() as Promise<never>;
-    const get = async (id: string, command: string) => (await this.call(path(id, command), { method: "GET" })).json() as Promise<never>;
+    // The answer is checked like the document list is: a reply with the wrong shape is an error, never a decision made on bad data.
+    const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+    const bad = (what: string) => new DocError("INVALID_INPUT", `the server sent ${what} that is not valid`);
+    const read = async (response: Response) => (await response.json().catch(() => undefined)) as unknown;
+    const post = async (id: string, command: string, body: object) => (await this.call(path(id, command), { method: "POST", body })).json().catch(() => undefined) as Promise<unknown>;
+    const get = async <T>(id: string, command: string, item: (v: Record<string, unknown>) => boolean, what: string) => {
+      const found = await read(await this.call(path(id, command), { method: "GET" }));
+      if (!Array.isArray(found) || !found.every((v) => isObject(v) && item(v))) throw bad(what);
+      return found as T[];
+    };
+    const str = (v: unknown) => typeof v === "string" && v !== "";
+    // A change answers { ok: true }. Any other 2xx body, such as a login page from a proxy, is not a change that happened.
+    const done = (reply: unknown): void => {
+      if (!isObject(reply) || reply.ok !== true) throw bad("a reply");
+    };
     this.sharing = {
-      grants: (_ctx, id) => get(id, "grants"),
-      grant: async (_ctx, id, to, role) => void (await post(id, "grant", { to: who(to), role })),
-      revoke: async (_ctx, id, to) => void (await post(id, "revoke", { to: who(to) })),
-      invites: (_ctx, id) => get(id, "invites"),
-      invite: (_ctx, id, input) => post(id, "invite", input),
-      link: (_ctx, id, input) => post(id, "link", input),
-      unlink: async (_ctx, id, link) => void (await post(id, "unlink", { link })),
+      grants: (_ctx, id) => get(id, "grants", (g) => (g.subjectKind === "human" || g.subjectKind === "agent") && str(g.subjectId) && ROLES.includes(g.role as never), "a grant list"),
+      grant: async (_ctx, id, to, role) => done(await post(id, "grant", { to: who(to), role })),
+      revoke: async (_ctx, id, to) => done(await post(id, "revoke", { to: who(to) })),
+      invites: (_ctx, id) => get(id, "invites", (i) => str(i.id) && ROLES.includes(i.role as never) && (i.for === "email" || i.for === "handle"), "an invite list"),
+      invite: async (_ctx, id, input) => {
+        const made = await post(id, "invite", input);
+        if (!isObject(made) || !str(made.id)) throw bad("an invite");
+        return { id: made.id as string };
+      },
+      link: async (_ctx, id, input) => {
+        const made = await post(id, "link", input);
+        if (!isObject(made) || !str(made.id) || !str(made.token)) throw bad("a link");
+        return { id: made.id as string, token: made.token as string };
+      },
+      unlink: async (_ctx, id, link) => done(await post(id, "unlink", { link })),
     };
   }
 
