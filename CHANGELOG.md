@@ -11,7 +11,7 @@
 
 ### Changed
 
-- The file blob store now comes from `agentic-identity/file`. `createFileBlobs(dir, options)` and `FileBlobsOptions` keep their names and are re-exported. `createFileBlobs` takes `urlBase` and `urlSecret`, and `signedUrl` needs both (it gives a signed HTTP URL, not a `file:` path). The lock options `lockStaleMs` and `lockTimeoutMs` are gone, because the shared store manages its own lock. `agentic-identity` moves to `^0.8.0`.
+- The file blob store now comes from `agentic-identity/file`. `createFileBlobs(dir, options)` and `FileBlobsOptions` keep their names and are re-exported. `createFileBlobs` takes `urlBase` and `urlSecret`, and `signedUrl` needs both (it gives a signed HTTP URL, not a `file:` path). The lock options `lockStaleMs` and `lockTimeoutMs` are gone, because the shared store manages its own lock. `agentic-identity` moves to `^0.8.0`. The new store keeps blobs in `<dir>/blobs/<hash>.blob` with a new header. A blob that release 0.9 wrote (`<dir>/<hash>`) moves to the new layout on its first read, write, or delete, and the old catalog import still works. A blob version is now an opaque token, not a content hash. A lock wait that runs out still gives `LOCKED`. The wait is now 10 seconds and a stale lock is taken over after 60 seconds.
 
 ### Fixed
 
