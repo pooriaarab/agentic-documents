@@ -213,7 +213,8 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     else chain().extendMarkRange("link").setLink({ href: value }).run();
     // Put the caret after the link. A selection left open is replaced by the next key, and the key can arrive before the
     // editor has read the caret that a caret key set, so a quick Enter would delete the words that got the link.
-    editor?.commands.setTextSelection(editor.state.selection.to);
+    // Text typed there must not join the link, and a caret with no words selected keeps the link it just got.
+    if (editor && !editor.state.selection.empty) editor.chain().setTextSelection(editor.state.selection.to).unsetMark("link").run();
     refocus.current = true;
     setLinking(false);
   }
