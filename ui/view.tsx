@@ -7,18 +7,19 @@ import { DeleteDocument, RenameDocument, ShareDocument } from "./dialogs.js";
 import { Boundary, Surface } from "./editor.js";
 
 /** The live room of a document on this Worker. */
-function roomOf(id: string, token: string) {
-  const url = new URL(`/api/v1/docs/${encodeURIComponent(id)}/ws`, location.href);
+export function roomOf(id: string, token: string, baseUrl: string) {
+  // Keep any path in `baseUrl`, as the client does.
+  const url = new URL(`${baseUrl.replace(/\/+$/, "")}/api/v1/docs/${encodeURIComponent(id)}/ws`, location.href);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return { url: url.toString(), token };
 }
 
 export function EditorView({ id, go }: { id: string; go: (hash: string) => void }) {
-  const { api, token, me } = useSession();
+  const { api, token, me, baseUrl } = useSession();
   const [title, setTitle] = useState<{ id: string; title: string } | { id: string; error: unknown }>();
   const [dialog, setDialog] = useState<"rename" | "delete" | "share">();
   const [attempt, setAttempt] = useState(0);
-  const room = useMemo(() => roomOf(id, token), [id, token]);
+  const room = useMemo(() => roomOf(id, token, baseUrl), [id, token, baseUrl]);
   // A save on leave never makes a document, so after a delete it fails with NO_DOCUMENT and the document stays deleted.
   const load = useEditorSession(api, id, me.name, me.role === "editor", room, attempt);
 

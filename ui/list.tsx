@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, EmptyState, FileList, FileRow, IconButton, Menu, MoreIcon, PlusIcon } from "agentic-design/react";
 import type { DocSummary } from "../src/client.js";
 import { describe, isMachine, useSession } from "./api.js";
@@ -14,6 +14,7 @@ export function DocumentList({ go }: { go: (hash: string) => void }) {
   const [renaming, setRenaming] = useState<DocSummary>();
   const [deleting, setDeleting] = useState<DocSummary>();
   const canWrite = me.role === "editor";
+  const heading = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback((quiet = false) => {
     if (!quiet) setLoad({ state: "loading" });
@@ -24,12 +25,12 @@ export function DocumentList({ go }: { go: (hash: string) => void }) {
   }, [api]);
   useEffect(() => void refresh(), [refresh]);
   // After a rename or a delete the list stays on screen, and focus goes to the page heading.
-  const changed = () => void refresh(true).then(() => document.querySelector("h1")?.focus());
+  const changed = () => void refresh(true).then(() => heading.current?.querySelector("h1")?.focus());
 
   const newButton = canWrite ? <Button onClick={() => setCreating(true)}><PlusIcon aria-hidden /> New document</Button> : undefined;
   return (
     <>
-      <div className="page-head">
+      <div className="page-head" ref={heading}>
         <PageHeading>Documents</PageHeading>
         {load.state === "ready" && load.docs.length > 0 && newButton}
       </div>
