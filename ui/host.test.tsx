@@ -193,14 +193,18 @@ describe("mountEditor with a host document", () => {
 
   it("an onEditor that throws leaves no listener on the host's document", async () => {
     const doc = hostDoc("Hello");
-    const listening = () => (doc as unknown as { _observers: Map<string, Set<unknown>> })._observers.get("update")?.size ?? 0;
-    const before = listening();
+    // Track the update listeners that are added and not removed. The editor must add one, and leave none.
+    const live = new Set<unknown>();
+    const [on, off] = [doc.on.bind(doc), doc.off.bind(doc)];
+    const added = vi.spyOn(doc, "on").mockImplementation(((name: string, f: never) => (name === "update" && live.add(f), on(name as never, f))) as never);
+    vi.spyOn(doc, "off").mockImplementation(((name: string, f: never) => (name === "update" && live.delete(f), off(name as never, f))) as never);
     const quiet = vi.spyOn(console, "error").mockImplementation(() => {}); // React reports the error it caught
     element = document.body.appendChild(document.createElement("div"));
     await act(async () => void (mounted = mountEditor(element, { id: "plan", principal: ada, host: { doc }, onEditor: (e) => { if (e) throw new Error("host bug"); } })));
     await vi.waitFor(() => expect(element.textContent).toContain("The editor stopped"));
     quiet.mockRestore();
-    expect(listening()).toBe(before);
+    expect(added).toHaveBeenCalledWith("update", expect.any(Function));
+    expect(live.size).toBe(0);
   });
 
   it("each onEditor hears null only for the editor it got", async () => {
