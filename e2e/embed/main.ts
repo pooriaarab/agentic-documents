@@ -11,5 +11,5 @@ const client = createClient({ baseUrl: location.origin, token });
 const me = await client.me();
 const url = new URL(`/api/v1/docs/${encodeURIComponent(id)}/ws`, location.href);
 url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-const editor = mountEditor(document.getElementById("editor")!, { id, client, principal: me, room: params.has("solo") ? undefined : { url: url.toString(), token } });
+const editor = mountEditor(document.getElementById("editor")!, { id, client, principal: me, room: params.has("noroom") ? undefined : { url: url.toString(), token } });
 Object.assign(window, { unmountEditor: () => editor.unmount() });

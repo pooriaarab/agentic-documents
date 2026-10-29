@@ -7,7 +7,7 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.5.0. The document model, the text operations, the CLI, the MCP server,
+> Status: early, version 0.6.0. The document model, the text operations, the CLI, the MCP server,
 > the Worker API, live editing in a room, and a small web UI work. See [UI](#ui).
 
 ## Install
@@ -195,7 +195,7 @@ try {
 }
 ```
 
-- One method per route: `create`, `read`, `outline`, `edits`, `insert`, `replace`, `delete`, `append`,
+- One method per route: `create`, `list`, `read`, `rename`, `remove`, `outline`, `edits`, `insert`, `replace`, `delete`, `append`,
   `suggest`, `suggestions`, `accept`, `reject`, `comment`, `reply`, `resolve`, `reopen`, `threads`,
   `export`, `room`, `me`, `health`, `state`, and `checkpoint`. The WebSocket route is not a method. Use
   `LiveDoc` from `agentic-documents/live` for it.
@@ -256,7 +256,7 @@ code of its own. ODT and DOCX go through the neutral text model of
 import { exportFile, importFile } from "agentic-documents/formats";
 
 const { doc, title, warnings } = importFile(bytes, "docx", { kind: "human", name: "Ada" });
-const odt = exportFile(doc, "odt", { title }); // { contentType, data: Uint8Array, warnings }
+const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Array for odt), warnings }
 ```
 
 - `importFile(input, format, author, { limits? })` reads `md` (text or UTF-8 bytes), `odt`, or `docx` (bytes) into a
