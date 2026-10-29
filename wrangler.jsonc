@@ -1,8 +1,7 @@
 {
-  // Set tokens as a secret, never in this file:
-  //   wrangler secret put AGENTIC_DOCS_TOKENS
-  // The value is JSON from a token of 32 bytes or more to an author, for example
-  // {"<output of openssl rand -hex 32>":"agent_of_human:scribe"}. A shorter token refuses the whole config.
+  // The Worker signs in with agentic-identity keys stored in the D1 database below. See "Sign-in" in the README.
+  // For local development only, you can use a static token table: set AGENTIC_DOCS_UNSAFE_TOKENS=1 and the secret AGENTIC_DOCS_TOKENS.
+  // Never set either in production.
   "name": "agentic-documents",
   "main": "src/live-worker.ts",
   // Create the bucket with `wrangler r2 bucket create agentic-documents-data --jurisdiction eu`.

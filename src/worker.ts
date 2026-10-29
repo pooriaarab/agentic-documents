@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { assertRegion, parsePrincipal, parseRegion, type Auth, type PrincipalContext, type Region } from "agentic-identity";
+import { assertRegion, createStoreAuth, hasScope, parsePrincipal, parseRegion, type Auth, type PrincipalContext, type Region } from "agentic-identity";
 import { acceptWebSocketProtocol, principalFromWebSocketRequest, requirePrincipal } from "agentic-identity/http";
 import { D1_SCHEMA, createD1Store, createR2Blobs, type D1Like, type R2Like } from "agentic-identity/cloudflare";
 import type { Realtime, Role } from "agentic-realtime";
@@ -21,7 +21,12 @@ export interface WorkerEnv {
   /** R2 bucket: each document as a Yjs update. Create it with `--jurisdiction eu`. */
   DOCS?: R2Like;
   /**
-   * JSON object: bearer token (32 to 512 bytes of A-Z a-z 0-9 _ -) to `kind:name`, or to `{ "as": "kind:name", "scopes": ["docs:accept"], "role": "viewer" }`.
+   * Development only. Set to "1" to read `AGENTIC_DOCS_TOKENS` as the sign-in. Without it that variable is ignored,
+   * and the Worker reads the keys and principals of agentic-identity from the D1 database. Never set it in production.
+   */
+  AGENTIC_DOCS_UNSAFE_TOKENS?: string;
+  /**
+   * Development fallback, read only when `AGENTIC_DOCS_UNSAFE_TOKENS` is "1". JSON object: bearer token (32 to 512 bytes of A-Z a-z 0-9 _ -) to `kind:name`, or to `{ "as": "kind:name", "scopes": ["docs:accept"], "role": "viewer" }`.
    * A role is `editor` (the default) or `viewer`. A viewer reads and cannot write, over HTTP or in a live room.
    * Set it as a secret. A short token or a bad entry refuses the whole config.
    */
@@ -135,6 +140,32 @@ type AppEnv = { Bindings: WorkerEnv; Variables: { author: Principal; role: DocRo
 export interface AppOptions {
   /** Makes the live-room server from the Worker bindings. Without it, the ws route answers 404. */
   live?: (env: WorkerEnv) => Realtime;
+  /** Makes the `Auth` port from the Worker bindings. Without it, the Worker reads agentic-identity keys from the D1 database. */
+  auth?: (env: WorkerEnv) => Auth | Promise<Auth>;
+}
+
+/** What a principal of agentic-identity may do here. `docs:write` makes an editor, and no write scope makes a viewer. `docs:admin` also grants `docs:accept` and `docs:remove`. */
+function identityOfContext(context: PrincipalContext): Identity | undefined {
+  try {
+    const role: DocRole = hasScope(context.scopes, "docs:write") ? "editor" : "viewer";
+    const scopes = hasScope(context.scopes, "docs:admin") ? ["docs:accept", "docs:remove"] : [];
+    return { principal: { kind: context.kind, name: context.principalId, ...(scopes.length ? { scopes } : {}) }, role };
+  } catch {
+    return undefined; // a scope the helper cannot read grants nothing
+  }
+}
+
+let warnedTokens = false;
+
+/** The sign-in for one request: the host's `Auth`, the dev token table when it is switched on, or the keys in D1. */
+async function authFor(env: WorkerEnv, options: AppOptions): Promise<{ auth: Auth; identityOf: (context: PrincipalContext) => Identity | undefined }> {
+  if (options.auth) return { auth: await options.auth(env), identityOf: identityOfContext };
+  if (env.AGENTIC_DOCS_UNSAFE_TOKENS === "1") return tokenAuth(env.AGENTIC_DOCS_TOKENS);
+  if (env.AGENTIC_DOCS_TOKENS !== undefined && !warnedTokens) {
+    warnedTokens = true;
+    console.error("AGENTIC_DOCS_TOKENS is ignored: set AGENTIC_DOCS_UNSAFE_TOKENS=1 for local development, or use agentic-identity keys");
+  }
+  return { auth: createStoreAuth(await storeOf(env)), identityOf: identityOfContext };
 }
 
 /** The body, or INVALID_INPUT when it passes the cap. A body with no length header is cut off at the cap, never read whole. */
@@ -197,7 +228,7 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
   });
   app.get("/health", (c) => c.json({ ok: true, pack: "agentic-documents" }));
   app.use("/api/v1/*", async (c, next) => {
-    const { auth, identityOf } = tokenAuth(c.env?.AGENTIC_DOCS_TOKENS);
+    const { auth, identityOf } = await authFor(c.env ?? {}, options);
     const socket = c.req.path.endsWith("/ws");
     const found = await (socket ? principalFromWebSocketRequest(c.req.raw, auth, { protocol: WS_PROTOCOL }) : requirePrincipal(c.req.raw, auth));
     const identity = found instanceof Response ? undefined : identityOf(found);
@@ -309,11 +340,11 @@ export function regionOf(env: WorkerEnv): Region {
   return region;
 }
 
-/** The service over D1 and R2. One region claim covers D1 and R2. The bucket is declared with the "eu" jurisdiction in wrangler.jsonc: keep the two in step. */
-export async function serviceFor(env: WorkerEnv): Promise<DocsService> {
-  if (!env.DB || !env.DOCS) throw new DocError("MISCONFIGURED", "bind a D1 database as DB and an R2 bucket as DOCS");
-  const region = regionOf(env);
+/** The Store over D1, with its schema made. It holds the catalog, and the principals and keys of agentic-identity. */
+async function storeOf(env: WorkerEnv) {
+  if (!env.DB) throw new DocError("MISCONFIGURED", "bind a D1 database as DB");
   const db = env.DB;
+  const region = regionOf(env);
   let ready = schemas.get(db);
   if (!ready) {
     ready = db.prepare(D1_SCHEMA).run().catch((error: unknown) => {
@@ -323,7 +354,14 @@ export async function serviceFor(env: WorkerEnv): Promise<DocsService> {
     schemas.set(db, ready);
   }
   await ready;
-  const store = createD1Store(db, { region });
+  return createD1Store(db, { region });
+}
+
+/** The service over D1 and R2. One region claim covers D1 and R2. The bucket is declared with the "eu" jurisdiction in wrangler.jsonc: keep the two in step. */
+export async function serviceFor(env: WorkerEnv): Promise<DocsService> {
+  if (!env.DB || !env.DOCS) throw new DocError("MISCONFIGURED", "bind a D1 database as DB and an R2 bucket as DOCS");
+  const region = regionOf(env);
+  const store = await storeOf(env);
   const blobs = createR2Blobs(env.DOCS, { region, urlBase: "https://invalid.example/unused", urlSecret: (urlSecret ??= `${crypto.randomUUID()}${crypto.randomUUID()}`) });
   assertRegion(region, store, blobs);
   return new DocsService({ store, blobs });

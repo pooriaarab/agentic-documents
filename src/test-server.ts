@@ -37,7 +37,7 @@ export async function liveServer(tokens: object, options: { assets?: string } = 
       d1_databases: [{ binding: "DB", database_name: "docs-live", database_id: "00000000-0000-0000-0000-000000000000" }],
       r2_buckets: [{ binding: "DOCS", bucket_name: "docs-live", jurisdiction: "eu" }],
       ...(options.assets ? { assets: { directory: resolve(options.assets) } } : {}),
-      vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(tokens), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" },
+      vars: { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify(tokens), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" },
     }),
   );
   const url = `http://127.0.0.1:${port}`;

@@ -134,7 +134,7 @@ describe("permissions", () => {
   test("a Worker built with no live rooms answers 404 on the ws route", async () => {
     const { createApp } = await import("./worker.js");
     const app = createApp({} as never);
-    const res = await app.request("/api/v1/docs/a/ws", { headers: { authorization: `Bearer ${ADA}`, upgrade: "websocket" } }, { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS) });
+    const res = await app.request("/api/v1/docs/a/ws", { headers: { authorization: `Bearer ${ADA}`, upgrade: "websocket" } }, { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS) });
     expect(res.status).toBe(404);
   });
 });
@@ -145,7 +145,7 @@ describe("config that fails closed", () => {
     const { createApp } = await import("./worker.js");
     const app = createApp({} as never);
     for (const role of ["admin", "owner", 1, null]) {
-      const env = { AGENTIC_DOCS_TOKENS: JSON.stringify({ [ADA]: { as: "human:Ada", role }, [BOT]: "agent:bot" }) };
+      const env = { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify({ [ADA]: { as: "human:Ada", role }, [BOT]: "agent:bot" }) };
       for (const token of [ADA, BOT]) expect((await app.request("/api/v1/me", { headers: { authorization: `Bearer ${token}` } }, env)).status).toBe(401);
     }
   });

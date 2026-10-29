@@ -14,7 +14,7 @@ vi.mock("agentic-realtime/worker", () => ({
 }));
 
 const TOKEN = `ada-${"a".repeat(40)}`;
-const base = { AGENTIC_DOCS_TOKENS: JSON.stringify({ [TOKEN]: "human:Ada" }), SYNC_ROOM: {} };
+const base = { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify({ [TOKEN]: "human:Ada" }), SYNC_ROOM: {} };
 const ask = async (path: string, env: object) => {
   const { default: worker } = await import("./live-worker.js");
   const headers = { authorization: `Bearer ${TOKEN}`, upgrade: "websocket" };
