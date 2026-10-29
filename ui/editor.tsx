@@ -190,7 +190,9 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
 
   const entries: PresenceEntry[] = [{ id: "me", name: me.name, kind: isMachine(me.kind) ? "agent" : "person" }, ...peers.map(entryOf)];
   const pressed = (name: string, attrs?: object) => editor?.isActive(name, attrs) ?? false;
-  const chain = () => editor!.chain().focus();
+  // Focus the view first, in this frame. The focus command moves focus in a later frame, so a key typed right after a
+  // toolbar click would go to the button and be lost.
+  const chain = () => (editor!.view.focus(), editor!.chain().focus());
   const glyph = (text: string, style?: "b" | "i") => <span aria-hidden="true" className={`glyph glyph--${style ?? "plain"}`}>{text}</span>;
   // An icon with no text, so the accessible name of its button has nothing visible to match.
   const listIcon = (numbered: boolean) => (
@@ -211,6 +213,10 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     if (value === "") chain().extendMarkRange("link").unsetLink().run();
     else if (!/^(https?:\/\/|mailto:)\S+$/i.test(value)) return setLinkError("Use a web address that starts with https:// or http://, or a mailto: address.");
     else chain().extendMarkRange("link").setLink({ href: value }).run();
+    // Put the caret after the link. A selection left open is replaced by the next key, and the key can arrive before the
+    // editor has read the caret that a caret key set, so a quick Enter would delete the words that got the link.
+    // Text typed there must not join the link, and a caret with no words selected keeps the link it just got.
+    if (editor && !editor.state.selection.empty) editor.chain().setTextSelection(editor.state.selection.to).unsetMark("link").run();
     refocus.current = true;
     setLinking(false);
   }
@@ -219,10 +225,12 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
     if (linking || !refocus.current) return;
     refocus.current = false;
     // The dialog may give focus back after this runs, so try a few times until the text has it.
+    // Focus the view itself. The focus command moves focus in a later frame and writes the old selection back then,
+    // over a caret that the person has moved since.
     let tries = 0;
     const timer = setInterval(() => {
       if (editor?.isFocused || ++tries > 10) return clearInterval(timer);
-      editor?.commands.focus();
+      editor?.view.focus();
     }, 40);
     return () => clearInterval(timer);
   }, [linking, editor]);
