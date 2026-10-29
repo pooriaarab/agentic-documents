@@ -24,3 +24,17 @@ export { createFileBlobs, type FileBlobsOptions } from "./adapters/file-blobs.js
 export { createFileStore } from "./adapters/file-store.js";
 export { DocsService, type DocInfo, type DocsPorts } from "./service.js";
 export { exportOdt, ODT_MIME } from "./odt.js";
+export {
+  DOCX_MIME,
+  FILE_FORMATS,
+  IMPORT_FORMATS,
+  exportFile,
+  fromTextDoc,
+  importFile,
+  toTextDoc,
+  type FileFormat,
+  type FileResult,
+  type ImportFormat,
+  type ImportOptions,
+  type ImportResult,
+} from "./formats.js";

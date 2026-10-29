@@ -179,6 +179,28 @@ try {
 - The client never retries. A write is not safe to send twice.
 - Pass `fetch` to use your own, for a Worker service binding or for tests.
 
+## File formats
+
+`agentic-documents/formats` imports and exports files, so an app that embeds the editor needs no mapping
+code of its own. ODT and DOCX go through the neutral text model of
+[agentic-formats](https://github.com/pooriaarab/agentic-formats). Markdown and HTML use the mapping of this package.
+
+```ts
+import { exportFile, importFile } from "agentic-documents/formats";
+
+const { doc, title, warnings } = importFile(bytes, "docx", { kind: "human", name: "Ada" });
+const odt = exportFile(doc, "odt", { title }); // { contentType, data: Uint8Array, warnings }
+```
+
+- `importFile(input, format, author, { limits? })` reads `md` (text or UTF-8 bytes), `odt`, or `docx` (bytes) into a
+  new `AgenticDoc`. The author makes the one `create` edit, so a file that an agent imports stays labeled as agent work.
+- `exportFile(doc, format, { title?, remoteImages? })` writes `md` or `html` (text), or `odt` or `docx` (bytes).
+- Each result has `warnings`: one line for each kind of content that the other side cannot hold. The text of that
+  content stays.
+- A file that is not valid, or that goes past a limit in `limits` (the agentic-formats defaults), fails with
+  `INVALID_INPUT`. A link that is not a web, mail, or relative address is dropped, and its text stays.
+- `toTextDoc(blocks)` and `fromTextDoc(model)` are the mapping itself, for an app that works with the model.
+
 ## Features
 
 - A Yjs document that a Tiptap editor can open. It uses the y-prosemirror layout.
@@ -305,7 +327,12 @@ Limits of live editing:
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
-- Export covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are planned.
+- The `export` command covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are in
+  `agentic-documents/formats` only.
+- File formats through `agentic-documents/formats`: a quote becomes plain paragraphs, a code block becomes a paragraph
+  of code text, a horizontal rule is left out, a numbered list starts at 1, and a task list becomes a list that starts
+  each item with `☐` or `☑`. On import, underline, superscript, and subscript are left out, and a footnote becomes
+  text in brackets. Each one is named in `warnings`.
 - ODT export: comments and suggestions are not written. A code block loses its language. A table
   cell span is not written (the model has none yet). A task list becomes a bullet list that starts each
   item with `☐` or `☑`. A remote image is not linked, because an office program would ask its host
