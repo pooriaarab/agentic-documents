@@ -13,7 +13,8 @@ const BIN = resolve("dist/cli.js");
 const ADA = `ada-${"a".repeat(40)}`;
 const BOT = `bot-${"b".repeat(40)}`;
 const VIEWER = `viewer-${"v".repeat(40)}`;
-const TOKENS = { [ADA]: "human:Ada", [BOT]: "agent_of_human:scribe", [VIEWER]: { as: "human:Vic", role: "viewer" } };
+const ROBOT = `robot-${"r".repeat(40)}`;
+const TOKENS = { [ADA]: "human:Ada", [BOT]: "agent_of_human:scribe", [VIEWER]: { as: "human:Vic", role: "viewer" }, [ROBOT]: { as: "agent:robot", scopes: ["docs:admin"] } };
 
 let server: LiveServer;
 beforeAll(async () => {
@@ -37,6 +38,42 @@ const until = async (check: () => boolean, what: string) => {
   for (let i = 0; i < 100 && !check(); i++) await new Promise((r) => setTimeout(r, 50));
   if (!check()) throw new Error(`timed out waiting for ${what}`);
 };
+
+describe("sharing from the CLI and the MCP server in live mode", { timeout: 30_000 }, () => {
+  test("the owner shares through the server, and others get FORBIDDEN", async () => {
+    expect((await cli(["new", "share-live", "--markdown", "# S"], ADA)).code).toBe(0);
+    expect((await cli(["grant", "share-live", "--to", "agent:robot", "--role", "viewer"], ADA)).code).toBe(0);
+    const grants = JSON.parse((await cli(["grants", "share-live"], ADA)).out) as { subjectId: string; role: string }[];
+    expect(grants.map((g) => `${g.subjectId}:${g.role}`).sort()).toEqual(["Ada:owner", "robot:viewer"]);
+    expect((await cli(["invite", "share-live", "--role", "viewer", "--email", "kit@example.com"], ADA)).code).toBe(0);
+    const link = JSON.parse((await cli(["link", "share-live", "--role", "viewer"], ADA)).out) as { id: string; token: string };
+    expect(link.token).toBeTruthy();
+    expect((await cli(["unlink", "share-live", "--link", link.id], ADA)).code).toBe(0);
+    expect((await cli(["revoke", "share-live", "--to", "agent:robot"], ADA)).code).toBe(0);
+
+    for (const token of [BOT, VIEWER, ROBOT]) {
+      expect((await cli(["grants", "share-live"], token)).err).toContain("FORBIDDEN");
+      expect((await cli(["grant", "share-live", "--to", "agent:robot", "--role", "owner"], token)).err).toContain("FORBIDDEN");
+    }
+    expect(JSON.parse((await cli(["grants", "share-live"], ADA)).out)).toHaveLength(1);
+  });
+
+  test("the MCP server in live mode shares as the token's author", async () => {
+    const client = new Client({ name: "probe", version: "0.0.0" });
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [BIN, "mcp", "--live", server.url], env: { ...process.env, AGENTIC_DOCS_TOKEN: ROBOT } as Record<string, string> }));
+    try {
+      const made = (await client.callTool({ name: "doc_new", arguments: { id: "robot-doc", markdown: "# R" } })) as { isError?: boolean };
+      expect(made.isError).toBeFalsy();
+      const grant = (await client.callTool({ name: "doc_grant", arguments: { id: "robot-doc", to: "human:kit", role: "editor" } })) as { isError?: boolean };
+      expect(grant.isError).toBeFalsy();
+      const refused = (await client.callTool({ name: "doc_grants", arguments: { id: "share-live" } })) as { isError?: boolean; content: { text: string }[] };
+      expect(refused.isError).toBe(true);
+      expect(JSON.parse(refused.content[0].text).error.code).toBe("FORBIDDEN");
+    } finally {
+      await client.close();
+    }
+  });
+});
 
 describe("the CLI in a live room", () => {
   test("list, rename, and remove go to the server's catalog", async () => {

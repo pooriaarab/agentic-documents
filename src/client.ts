@@ -16,6 +16,28 @@ export interface Me {
   role: "editor" | "viewer";
 }
 
+export type ShareRole = "viewer" | "commenter" | "editor" | "owner";
+/** Who holds a role: `human:<id>` or `agent:<id>`. */
+export type Subject = `human:${string}` | `agent:${string}`;
+
+export interface Grant {
+  resourceId: string;
+  subjectKind: "human" | "agent";
+  subjectId: string;
+  role: ShareRole;
+}
+
+/** An invite as a list shows it. It never holds the email address. */
+export interface InviteSummary {
+  id: string;
+  resourceId: string;
+  role: ShareRole;
+  for: "email" | "handle";
+  handle?: string;
+  expiresAt?: number;
+  acceptedAt?: number;
+}
+
 export interface Contributor {
   name: string;
   kind: string;
@@ -163,6 +185,21 @@ export function createClient(options: ClientOptions) {
       (id: string, input: { format: "md" | "html"; remoteImages?: boolean }, call?: CallOptions): Promise<string>;
       (id: string, input: { format: ExportFormat; remoteImages?: boolean }, call?: CallOptions): Promise<string | Uint8Array>;
     },
+    /** `GET /grants`: who holds a role on a document. Only an owner may. Sharing calls fail with `FORBIDDEN` for anyone else. */
+    grants: (id: string, call?: CallOptions) => list<Grant>(`${doc(id)}/grants`, {}, call),
+    /** `POST /grant`: give a person or an agent a role. It replaces the role they hold. */
+    grant: (id: string, input: { to: Subject; role: ShareRole }, call?: CallOptions) => ok(`${doc(id)}/grant`, input, call),
+    /** `POST /revoke`: take a role away. */
+    revoke: (id: string, input: { to: Subject }, call?: CallOptions) => ok(`${doc(id)}/revoke`, input, call),
+    /** `GET /invites`. */
+    invites: (id: string, call?: CallOptions) => list<InviteSummary>(`${doc(id)}/invites`, {}, call),
+    /** `POST /invite`: invite a person by `email`, or an agent by `handle`. An invite never makes an owner. */
+    invite: (id: string, input: { role: Exclude<ShareRole, "owner">; email?: string; handle?: string; expiresInMs?: number }, call?: CallOptions) => withKey<{ id: string }>(`${doc(id)}/invite`, input, "id", call),
+    /** `POST /link`: make a share link. The `token` shows once. */
+    link: (id: string, input: { role: Exclude<ShareRole, "owner">; expiresAt?: number; signedInOnly?: boolean }, call?: CallOptions) =>
+      post<{ id: string; token: string }>(`${doc(id)}/link`, input, (v) => isObject(v) && typeof v.id === "string" && typeof v.token === "string", "{ id, token }", call),
+    /** `POST /unlink`: revoke a share link by its id. */
+    unlink: (id: string, input: { link: string }, call?: CallOptions) => ok(`${doc(id)}/unlink`, input, call),
     /** `GET /room`: who sent updates in the live room. */
     room: (id: string, call?: CallOptions) => get<{ contributors: Contributor[] }>(`${doc(id)}/room`, {}, (v) => isObject(v) && Array.isArray(v.contributors), "{ contributors }", call),
     /** `GET /state`: the stored document as a Yjs update. */
