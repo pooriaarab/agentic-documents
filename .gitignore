@@ -9,3 +9,4 @@ coverage/
 .dev.vars
 test-results/
 playwright-report/
+bun.lock
