@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 import { SyncClient, type Peer } from "agentic-realtime/client";
-import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal } from "./doc.js";
+import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocErrorCode, type DocOptions, type Principal } from "./doc.js";
 
 export interface LiveOptions {
   /** The Worker address, such as `https://docs.example.com`. */
@@ -28,7 +28,11 @@ const base = (server: string) => server.replace(/\/$/, "");
 
 export async function whoAmI(server: string, token: string): Promise<Me> {
   const response = await fetch(`${base(server)}/api/v1/me`, { headers: { authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new DocError("FORBIDDEN", `the server refused the token (${response.status})`);
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) throw new DocError("FORBIDDEN", `the server refused the token (${response.status})`);
+    const { error } = (await response.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
+    throw new DocError((error?.code as DocErrorCode) ?? "INVALID_INPUT", error?.message ?? `the server could not say who the token is (${response.status})`);
+  }
   const body = (await response.json()) as { kind?: unknown; name?: unknown; scopes?: unknown; role?: unknown };
   const { kind, name, scopes, role } = body;
   if (!PRINCIPAL_KINDS.includes(kind as never) || typeof name !== "string" || (role !== "editor" && role !== "viewer")) {
@@ -98,7 +102,10 @@ export class LiveDoc {
     return this.client.denied.slice(this.refusedAtStart);
   }
 
-  /** Runs one change as the token's author and waits until the room has it. A viewer fails before the change. */
+  /**
+   * Runs one change as the token's author and waits until the room has it. A viewer fails before the change.
+   * After a refusal from the room the local copy still holds the change. Leave and join again.
+   */
   async edit<T>(run: (doc: AgenticDoc, author: Principal) => T): Promise<T> {
     if (this.me.role === "viewer") throw new DocError("FORBIDDEN", "this token is a viewer; it cannot change a document");
     const seen = this.denied.length;
