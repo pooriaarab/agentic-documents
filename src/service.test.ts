@@ -1,6 +1,7 @@
 // Two services on one store, the way two replicas of a server share R2. Each test is a way a
 // document can be lost or applied twice when two writers meet.
 import { describe, expect, test } from "vitest";
+import { AgenticDoc } from "./doc.js";
 import { Suggestions } from "./review.js";
 import { createMemoryBlobs, createMemoryStore } from "agentic-identity";
 import type { Doc } from "agentic-identity";
@@ -80,5 +81,33 @@ describe("concurrent writers", () => {
     await a.create("doc", "Hello", bot);
     await expect(a.write("doc", (d) => d.replace({ text: "absent" }, "x", bot))).rejects.toMatchObject({ code: "NO_MATCH" });
     expect(await a.read("doc", (d) => d.toMarkdown())).toBe("Hello\n");
+  });
+});
+
+describe("checkpoint", () => {
+  // A Blobs port that loses the first `losses` conditional saves, as if another writer got there first.
+  function losing(losses: number) {
+    const real = createMemoryBlobs();
+    let left = losses;
+    let puts = 0;
+    const blobs = { ...real, put: async (key: string, data: Uint8Array, options?: Parameters<typeof real.put>[2]) => (++puts, left-- > 0 ? false : real.put(key, data, options)) } as typeof real;
+    return { service: new DocsService({ blobs, store: createMemoryStore() }), puts: () => puts };
+  }
+  const update = (text: string) => {
+    const d = AgenticDoc.fromMarkdown(text, ada);
+    return d.encode();
+  };
+
+  test("a lost compare-and-set loads again and merges, and the update still lands", async () => {
+    const { service, puts } = losing(3);
+    await service.checkpoint("doc", update("# Two\n\nSecond."), bot);
+    expect(puts()).toBe(4); // three lost, then one saved
+    expect(await service.read("doc", (d) => d.toMarkdown())).toContain("Second.");
+  });
+
+  test("a writer that loses every time fails with CONFLICT and stores nothing", async () => {
+    const { service } = losing(1000);
+    await expect(service.checkpoint("doc", update("# D\n\nText."), bot)).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(service.read("doc", (d) => d.toMarkdown())).rejects.toMatchObject({ code: "NO_DOCUMENT" });
   });
 });

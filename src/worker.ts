@@ -5,7 +5,7 @@ import type { Realtime, Role } from "agentic-realtime";
 import { commands, type Command } from "./commands.js";
 import { DocError, parseAuthor, PRINCIPAL_KINDS, type DocErrorCode, type Principal } from "./doc.js";
 import type { ExportResult } from "./export.js";
-import { DocsService } from "./service.js";
+import { DocsService, MAX_LIVE_BYTES } from "./service.js";
 
 export interface WorkerEnv {
   /**
@@ -128,6 +128,30 @@ export interface AppOptions {
   live?: (env: WorkerEnv) => Realtime;
 }
 
+/** The body, or INVALID_INPUT when it passes the cap. A body with no length header is cut off at the cap, never read whole. */
+async function readCapped(request: Request, cap: number): Promise<Uint8Array> {
+  const tooBig = () => new DocError("INVALID_INPUT", `the update is over ${cap} bytes`);
+  if (Number(request.headers.get("content-length") ?? 0) > cap) throw tooBig();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const reader = request.body?.getReader();
+  for (let part = await reader?.read(); part && !part.done; part = await reader?.read()) {
+    size += part.value.length;
+    if (size > cap) {
+      await reader?.cancel();
+      throw tooBig();
+    }
+    chunks.push(part.value);
+  }
+  const whole = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    whole.set(chunk, at);
+    at += chunk.length;
+  }
+  return whole;
+}
+
 const DOC_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 export function createApp(source: ServiceSource, options: AppOptions = {}): Hono<AppEnv> {
@@ -194,6 +218,20 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
     }
     return parsed as Record<string, unknown>;
   }
+
+  const serviceOf = (c: Context<AppEnv>) => (typeof source === "function" ? source(c.env ?? {}) : Promise.resolve(source));
+
+  // A live room reads its start state here and saves its state back. These are sync plumbing, not commands.
+  app.get("/api/v1/docs/:id/state", async (c) => {
+    const state = await (await serviceOf(c)).state(c.req.param("id"));
+    return c.body(new Uint8Array(state), 200, { "content-type": "application/octet-stream" });
+  });
+  app.post("/api/v1/docs/:id/checkpoint", async (c) => {
+    if (c.get("role") === "viewer") throw new DocError("FORBIDDEN", "this token is a viewer; it cannot change a document");
+    const update = await readCapped(c.req.raw, MAX_LIVE_BYTES);
+    await (await serviceOf(c)).checkpoint(c.req.param("id"), update, c.get("author"));
+    return c.json({ ok: true });
+  });
 
   const create = commands.find((c) => c.name === "new")!;
   app.post("/api/v1/docs", async (c) => run(c, create, await body(c)));

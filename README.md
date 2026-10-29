@@ -131,8 +131,10 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   that back on.
 - Every edit, message, and suggestion needs an author. The edit log keeps the kind and the name, so
   agent work stays labeled. The log holds no content. Over the CLI, MCP, and HTTP the server or
-  the operator sets the author. In a live room a client writes its own log entries, so treat the log
-  there as advisory. The room's own record of who sent updates is at `GET /api/v1/docs/:id/room`.
+  the operator sets the author. In a live room a client writes its own log entries, suggestion decisions, and
+  threads. A save merges them into the stored document. So after a live client saves, treat all three
+  as advisory. The room's own record of who sent updates in the room is at `GET /api/v1/docs/:id/room`. It does not cover
+  text written over HTTP, the CLI, or MCP before the room opened: the client that seeds the room appears there.
 
 ## Rules for text matching
 
@@ -160,6 +162,11 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - `--as` and `AGENTIC_DOCS_AS` are self-declared labels. The CLI does not prove who runs it, so
   `--as human:Ada` labels work as human on any machine that can run the command. Only the HTTP API
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
+- A live client (`LiveDoc` from `agentic-documents/live`) starts a room from the stored document
+  (`GET /api/v1/docs/:id/state`) and saves it with `save()` (`POST /api/v1/docs/:id/checkpoint`). A save
+  merges, so two saves at once both land. A document over 1,000,000 bytes cannot open in a room or be
+  saved from one, and the client says so. HTTP edits reach an open room only when a client joins and
+  seeds it. A save refuses an update with a wrong kind of content or a malformed thread, suggestion, or log entry.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
 - Export covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are planned.
