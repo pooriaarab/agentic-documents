@@ -1,38 +1,42 @@
-import { Editor } from "@tiptap/core";
+import { Editor, Extension } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import Image from "@tiptap/extension-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import StarterKit from "@tiptap/starter-kit";
 import type { Peer, Status } from "agentic-realtime/client";
-import { Extension } from "@tiptap/core";
 import { ySyncPluginKey, yCursorPlugin } from "@tiptap/y-tiptap";
 import { Component, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { Button, Dialog, DialogClose, EmptyState, Input, PresenceStack, Toolbar, ToolbarButton, ToolbarSeparator, usableName, type PresenceEntry } from "agentic-design/react";
-import { DocsApiError } from "../src/client.js";
-import { describe, isMachine, useSession } from "./api.js";
-import { PageHeading } from "./focus.js";
-import { DeleteDocument, RenameDocument, ShareDocument } from "./dialogs.js";
-import { openSession, type LiveSession } from "./live.js";
+import { isMachine } from "../src/kinds.js";
+import type { LiveSession } from "./live.js";
 import { AgentText } from "./marks.js";
 
-type Load = { state: "loading" } | { state: "error"; message: string } | { state: "ready"; live: LiveSession; title: string };
+/** Who uses the editor. The name shows in presence. The kind says if it is a person or an agent. */
+export interface EditorPrincipal {
+  kind: string;
+  name: string;
+}
+
 const SAVE_AFTER_MS = 1500;
 
 const entryOf = (peer: Peer): PresenceEntry => ({ id: String(peer.clientId), name: usableName(peer.name) ?? "Unnamed", kind: peer.machine ? "agent" : "person" });
+
+/** A removed document. The check reads the code, so an error from any copy of the client counts. */
+export const isRemoved = (error: unknown): boolean => typeof error === "object" && error !== null && (error as { code?: unknown }).code === "NO_DOCUMENT";
 
 /**
  * The caret of another person or agent. The name and the Agent tag come from the peer that the server stamped for that
  * awareness client id, never from what the peer says about itself. A caret with no such peer is not drawn.
  */
-function carets(live: LiveSession) {
+function carets(sync: NonNullable<LiveSession["sync"]>) {
   return Extension.create({
     name: "remoteCarets",
     addProseMirrorPlugins: () => [
-      yCursorPlugin(live.sync.awareness, {
+      yCursorPlugin(sync.awareness, {
         cursorBuilder: (_user, clientId) => {
           const caret = document.createElement("span");
-          const peer = live.sync.peers.find((p) => p.clientId === clientId);
+          const peer = sync.peers.find((p) => p.clientId === clientId);
           if (!peer) return caret;
           caret.className = `caret${peer.machine ? " caret--agent" : ""}`;
           const tag = document.createElement("span");
@@ -47,76 +51,19 @@ function carets(live: LiveSession) {
   });
 }
 
-class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+export class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
   render() {
     return this.state.failed ? (
-      <div role="alert" className="notice"><EmptyState title="The editor stopped" description="The document has content this page cannot show. Reload to try again." /></div>
+      <div role="alert" className="adoc notice"><EmptyState title="The editor stopped" description="The document has content this page cannot show. Reload to try again." /></div>
     ) : this.props.children;
   }
 }
 
-export function EditorView({ id, go }: { id: string; go: (hash: string) => void }) {
-  const { api, token, me } = useSession();
-  const [load, setLoad] = useState<Load>({ state: "loading" });
-  const [dialog, setDialog] = useState<"rename" | "delete" | "share">();
-  const [attempt, setAttempt] = useState(0);
-  const removed = useRef(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    let live: LiveSession | undefined;
-    setLoad({ state: "loading" });
-    (async () => {
-      try {
-        const docs = await api.list();
-        const found = await openSession(api, token, id, me.name);
-        live = found;
-        if (cancelled) return void (await found.close());
-        setLoad({ state: "ready", live: found, title: docs.find((d) => d.id === id)?.title ?? id });
-      } catch (e) {
-        if (!cancelled) setLoad({ state: "error", message: describe(e) });
-      }
-    })();
-    return () => {
-      cancelled = true;
-      // Save on leave only when this tab changed something. A save never makes a document, so a delete stays deleted.
-      if (live) void (removed.current || me.role === "viewer" || !live.dirty ? Promise.resolve() : live.save().catch(() => undefined)).finally(() => live?.close());
-    };
-  }, [api, token, id, me.name, me.role, attempt]);
-
-  if (load.state === "loading") return <p role="status" className="muted">Opening document…</p>;
-  if (load.state === "error") {
-    return (
-      <div role="alert" className="notice">
-        <EmptyState title="Could not open this document" description={load.message} action={<><Button onClick={() => setAttempt(attempt + 1)}>Try again</Button> <Button variant="secondary" onClick={() => go("#/")}>Back to documents</Button></>} />
-      </div>
-    );
-  }
-  const { live, title } = load;
-  return (
-    <>
-      <div className="page-head">
-        <PageHeading>{title}</PageHeading>
-        <div className="page-actions">
-          {me.role === "editor" && <Button variant="secondary" onClick={() => setDialog("rename")}>Rename</Button>}
-          <Button onClick={() => setDialog("share")}>Share</Button>
-          {me.role === "editor" && <Button variant="danger" onClick={() => setDialog("delete")}>Delete</Button>}
-        </div>
-      </div>
-      <Boundary><Surface live={live} editable={me.role === "editor"} /></Boundary>
-      <RenameDocument id={id} current={title} open={dialog === "rename"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => void api.list().then((docs) => setLoad((l) => (l.state === "ready" ? { ...l, title: docs.find((d) => d.id === id)?.title ?? id } : l)))} />
-      <DeleteDocument id={id} name={title} open={dialog === "delete"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => ((removed.current = true), go("#/"))} />
-      <ShareDocument id={id} open={dialog === "share"} onOpenChange={(o) => !o && setDialog(undefined)} />
-    </>
-  );
-}
-
-function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
-  const { me } = useSession();
+export function Surface({ live, editable, principal: me }: { live: LiveSession; editable: boolean; principal: EditorPrincipal }) {
   const host = useRef<HTMLDivElement>(null);
   const [editor, setEditor] = useState<Editor>();
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -137,15 +84,15 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
         StarterKit.configure({ undoRedo: false, underline: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
         Image, TaskList, TaskItem, Table, TableRow, TableCell, TableHeader,
         Collaboration.configure({ document: live.doc, field: "default" }),
-        carets(live),
+        ...(live.sync ? [carets(live.sync)] : []),
         AgentText,
       ],
       editorProps: { attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "prose" } },
     });
     setEditor(editor);
     editor.on("transaction", () => (setAgentText(host.current?.querySelector(".agent-text") != null), refresh()));
-    const offPeers = live.sync.onPeers(setPeers);
-    setPeers(live.sync.peers);
+    const offPeers = live.sync?.onPeers(setPeers);
+    setPeers(live.sync?.peers ?? []);
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false; // set when the editor goes, so a late result starts nothing
@@ -157,7 +104,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
         () => !stopped && setSaved("saved"),
         (error: unknown) => {
           if (stopped) return;
-          if (error instanceof DocsApiError && error.code === "NO_DOCUMENT") {
+          if (isRemoved(error)) {
             gone = true;
             editor.setEditable(false); // text that can never be saved is not left open for typing
             return setSaved("removed");
@@ -183,7 +130,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
       live.doc.off("update", changed);
       offStatus();
       if (timer) clearTimeout(timer);
-      offPeers();
+      offPeers?.();
       editor.destroy();
     };
   }, [live, editable, me.name]);
@@ -236,7 +183,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
   }, [linking, editor]);
 
   return (
-    <section aria-label="Editor">
+    <section aria-label="Editor" className="adoc">
       <div className="editor-bar">
         <Toolbar label="Formatting">
           {tool("Bold", glyph("B", "b"), pressed("bold"), () => chain().toggleBold().run())}
@@ -264,7 +211,7 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
         {agentText ? <><span className="agent-text">Dotted text</span> was written by an agent.</> : "Text that an agent writes shows with a dotted underline."}
       </p>
       <Dialog open={linking} onOpenChange={setLinking} title="Link" description="Leave it empty to remove the link.">
-        <form className="form" onSubmit={(e) => (e.preventDefault(), applyLink())}>
+        <form className="adoc form" onSubmit={(e) => (e.preventDefault(), applyLink())}>
           <Input label="Address" value={href} onChange={(e) => setHref(e.target.value)} error={linkError} placeholder="https://" autoComplete="off" />
           <div className="form-actions">
             <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>

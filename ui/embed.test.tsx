@@ -1,0 +1,129 @@
+// @vitest-environment jsdom
+import type { Editor } from "@tiptap/core";
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AgenticDoc } from "../src/doc.js";
+import { mountEditor, type EditorClient, type MountedEditor } from "./embed.js";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// jsdom has no layout. ProseMirror asks for rectangles when it scrolls the caret into view.
+Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] }) as unknown as DOMRectList;
+Range.prototype.getBoundingClientRect = () => new DOMRect();
+document.elementFromPoint = () => null;
+
+const ada = { kind: "human" as const, name: "Ada", role: "editor" as const };
+
+function fakeClient(markdown: string | Error) {
+  const saves: { id: string; markdown: string; create?: boolean }[] = [];
+  const client: EditorClient = {
+    state: vi.fn(async () => {
+      if (markdown instanceof Error) throw markdown;
+      return AgenticDoc.fromMarkdown(markdown, { kind: "human", name: "Seed" }).encode();
+    }),
+    checkpoint: vi.fn(async (id: string, update: Uint8Array, call?: { create?: boolean }) => {
+      saves.push({ id, markdown: AgenticDoc.fromUpdate(update).toMarkdown(), create: call?.create });
+      return { ok: true as const };
+    }),
+  };
+  return { client, saves };
+}
+
+const noDocument = Object.assign(new Error("no document"), { code: "NO_DOCUMENT" });
+
+let mounted: MountedEditor | undefined;
+let host: HTMLElement;
+afterEach(async () => {
+  await act(async () => mounted?.unmount());
+  mounted = undefined;
+  host?.remove();
+});
+
+async function mount(...args: Parameters<typeof mountEditor> extends [HTMLElement, infer O] ? [O] : never) {
+  host = document.body.appendChild(document.createElement("div"));
+  await act(async () => void (mounted = mountEditor(host, ...args)));
+  await vi.waitFor(() => expect(host.querySelector('[role="textbox"]')).not.toBeNull());
+  return host.querySelector<HTMLElement>('[role="textbox"]')!;
+}
+
+const editorOf = (box: HTMLElement) => (box as HTMLElement & { editor: Editor }).editor;
+
+describe("mountEditor", () => {
+  it("renders the stored document with a toolbar, and the text can be edited", async () => {
+    const { client } = fakeClient("# Plan\n\nShip it.");
+    const box = await mount({ id: "plan", client, principal: ada });
+    expect(client.state).toHaveBeenCalledWith("plan");
+    await vi.waitFor(() => expect(box.textContent).toContain("Ship it."));
+    expect(box.querySelector("h1")?.textContent).toBe("Plan");
+    expect(box.getAttribute("contenteditable")).toBe("true");
+    expect(host.querySelector('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Formatting");
+    expect(host.textContent).toContain("Saved");
+  });
+
+  it("saves this tab's change on unmount, and the save never makes a document", async () => {
+    const { client, saves } = fakeClient("Hello");
+    const box = await mount({ id: "plan", client, principal: ada });
+    await act(async () => void editorOf(box).commands.insertContentAt(editorOf(box).state.doc.content.size - 1, " world"));
+    await act(async () => mounted!.unmount());
+    mounted = undefined;
+    await vi.waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0]).toEqual({ id: "plan", markdown: "Hello world\n", create: false });
+  });
+
+  it("leaving without a change saves nothing", async () => {
+    const { client } = fakeClient("Hello");
+    await mount({ id: "plan", client, principal: ada });
+    await act(async () => mounted!.unmount());
+    mounted = undefined;
+    await new Promise((r) => setTimeout(r, 50));
+    expect(client.checkpoint).not.toHaveBeenCalled();
+  });
+
+  it("a viewer, or a role it does not know, reads the text but cannot change it", async () => {
+    for (const role of ["viewer", "owner"]) {
+      const { client } = fakeClient("Hello");
+      const box = await mount({ id: "plan", client, principal: { ...ada, role: role as "viewer" } });
+      expect(box.getAttribute("contenteditable")).toBe("false");
+      expect(host.textContent).toContain("Read only.");
+      expect(host.querySelector<HTMLButtonElement>('button[aria-label="Bold"]')?.disabled).toBe(true);
+      await act(async () => mounted!.unmount());
+      mounted = undefined;
+      host.remove();
+    }
+  });
+
+  it("an agent principal shows as an agent in presence", async () => {
+    const { client } = fakeClient("Hello");
+    await mount({ id: "plan", client, principal: { kind: "agent_of_human", name: "Scribe" } });
+    expect(host.querySelector(".ad-stack__summary")?.textContent).toBe("1 agent");
+  });
+
+  it("a principal with no kind, an unknown kind, or no name is refused before anything loads", () => {
+    const { client } = fakeClient("Hello");
+    const el = document.createElement("div");
+    for (const principal of [{ name: "Ada" }, { kind: "robot", name: "R" }, { kind: "human", name: " " }, null]) {
+      expect(() => mountEditor(el, { id: "plan", client, principal: principal as never })).toThrow(TypeError);
+    }
+    expect(client.state).not.toHaveBeenCalled();
+    expect(el.childElementCount).toBe(0);
+  });
+
+  it("a missing document shows an error, calls onError, and Try again loads again", async () => {
+    const { client } = fakeClient(noDocument);
+    const onError = vi.fn();
+    host = document.body.appendChild(document.createElement("div"));
+    await act(async () => void (mounted = mountEditor(host, { id: "gone", client, principal: ada, onError })));
+    await vi.waitFor(() => expect(host.querySelector('[role="alert"]')?.textContent).toContain("does not exist"));
+    expect(onError).toHaveBeenCalledWith(noDocument);
+    const retry = [...host.querySelectorAll("button")].find((b) => b.textContent === "Try again")!;
+    await act(async () => retry.click());
+    await vi.waitFor(() => expect(client.state).toHaveBeenCalledTimes(2));
+  });
+
+  it("update opens another document in the same place", async () => {
+    const { client } = fakeClient("First");
+    const box = await mount({ id: "one", client, principal: ada });
+    await vi.waitFor(() => expect(box.textContent).toContain("First"));
+    await act(async () => mounted!.update({ id: "two", client: fakeClient("Second").client, principal: ada }));
+    await vi.waitFor(() => expect(host.querySelector('[role="textbox"]')?.textContent).toContain("Second"));
+  });
+});

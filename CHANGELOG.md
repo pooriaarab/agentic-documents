@@ -24,6 +24,10 @@
 - `agentic-documents/formats`: `importFile` (md, odt, docx) and `exportFile` (md, html, odt, docx), with the
   `toTextDoc` and `fromTextDoc` mapping to the agentic-formats text model. Each result names lost content in `warnings`.
 - `AgenticDoc.fromBlocks(blocks, author)` makes a document from ProseMirror JSON blocks and checks them against the schema.
+- `agentic-documents/ui`: `mountEditor(element, { id, client, principal, room? })` and the `DocumentEditor` React component
+  render the editor in a host app, with live co-editing through agentic-realtime when a room is given. Its styles are
+  in `agentic-documents/ui.css`. `react` and `react-dom` are optional peer dependencies; the Tiptap packages and
+  `agentic-design` are now dependencies.
 
 ### Changed
 

@@ -3,10 +3,11 @@ import { createRoot } from "react-dom/client";
 import { AppShell, Button, Input, Select, SidebarNav, ThemeProvider, ToastProvider, TooltipProvider, useTheme, type ThemePreference } from "agentic-design/react";
 import type { Me } from "../src/client.js";
 import { clientFor, describe, forgetToken, SessionContext, saveToken, savedToken, type Session } from "./api.js";
-import { EditorView } from "./editor.js";
+import { EditorView } from "./view.js";
 import { routeChanged } from "./focus.js";
 import { DocumentList } from "./list.js";
 import "agentic-design/styles.css";
+import "./editor.css";
 import "./app.css";
 
 const useRoute = (): [string, (hash: string) => void] => {
