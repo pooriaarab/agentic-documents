@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/core";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgenticDoc } from "../src/doc.js";
+import { schema as engineSchema } from "../src/schema.js";
 import { mountEditor, type EditorClient, type MountedEditor } from "./embed.js";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -57,6 +58,26 @@ describe("mountEditor", () => {
     expect(box.getAttribute("contenteditable")).toBe("true");
     expect(host.querySelector('[role="toolbar"]')?.getAttribute("aria-label")).toBe("Formatting");
     expect(host.textContent).toContain("Saved");
+  });
+
+  it("shows a document with an inline image and a nested task list, as the engine writes them", async () => {
+    const { client } = fakeClient("Text ![pic](https://example.com/a.png) more\n\n- [ ] one\n  - [ ] nested");
+    const box = await mount({ id: "plan", client, principal: ada });
+    await vi.waitFor(() => expect(box.textContent).toContain("Text  more"));
+    expect(box.querySelector("p img")?.getAttribute("alt")).toBe("pic");
+    expect(box.querySelector('ul[data-type="taskList"] ul[data-type="taskList"]')?.textContent).toContain("nested");
+  });
+
+  it("has every node of the engine schema, inline where the engine is inline, so any stored document opens", async () => {
+    const { client } = fakeClient("Hello");
+    const editor = editorOf(await mount({ id: "plan", client, principal: ada }));
+    for (const [name, type] of Object.entries(engineSchema.nodes)) {
+      expect(editor.schema.nodes[name], name).toBeDefined();
+      expect(editor.schema.nodes[name].isInline, name).toBe(type.isInline);
+    }
+    for (const name of Object.keys(engineSchema.marks)) expect(editor.schema.marks[name], name).toBeDefined();
+    const rich = AgenticDoc.fromMarkdown("# T\n\nA ![i](https://example.com/i.png) **b** [l](https://example.com)\n\n- [x] a\n  - [ ] b\n\n| h |\n| - |\n| c |\n\n> q\n\n```\ncode\n```", { kind: "human", name: "Seed" });
+    expect(() => editor.schema.nodeFromJSON(rich.toJSON()).check()).not.toThrow();
   });
 
   it("saves this tab's change on unmount, and the save never makes a document", async () => {

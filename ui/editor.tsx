@@ -86,7 +86,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
       injectCSS: false,
       extensions: [
         StarterKit.configure({ undoRedo: false, underline: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
-        Image, TaskList, TaskItem, Table, TableRow, TableCell, TableHeader,
+        // The same rules as the engine schema (src/schema.ts): an image sits in a line, and a task item can hold a list.
+        Image.configure({ inline: true }), TaskList, TaskItem.configure({ nested: true }), Table, TableRow, TableCell, TableHeader,
         Collaboration.configure({ document: live.doc, field: "default" }),
         ...(live.sync ? [carets(live.sync)] : []),
         AgentText,
