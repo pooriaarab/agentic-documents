@@ -1,6 +1,8 @@
 // End to end: the real CLI binary and the real MCP server join live rooms on a Worker under `wrangler dev`. Needs `npm run build`.
-import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
@@ -53,6 +55,9 @@ describe("the CLI in a live room", () => {
     // The agent's read joins a fresh room client. It sees both edits, and its log names the agent kind.
     const read = await cli(["read", "shared"]);
     expect(read.out).toContain("Ship on Monday.");
+    // The change is in the stored document too, not only in the room.
+    const stored = await fetch(`${server.url}/api/v1/docs/shared/read`, { headers: { authorization: `Bearer ${ADA}` } });
+    expect(await stored.text()).toContain("Ship on Monday.");
     expect(read.out).toContain("Human note.");
     const edits = JSON.parse((await cli(["edits", "shared"])).out) as { op: string; author: { kind: string } }[];
     expect(edits.find((e) => e.op === "replace")?.author.kind).toBe("agent_of_human");
@@ -72,8 +77,23 @@ describe("the CLI in a live room", () => {
     expect((await cli(["read", "ghost"], "")).code).toBe(2);
     const bad = await cli(["read", "ghost"], `nope-${"x".repeat(40)}`);
     expect([bad.code, bad.err]).toEqual([1, expect.stringContaining("FORBIDDEN")]);
-    const as = await cli(["read", "shared", "--as", "human:Ada"]);
-    expect([as.code, as.err]).toEqual([2, expect.stringContaining("do not apply with --live")]);
+    for (const flags of [["--as", "human:Ada"], ["--scopes", "docs:accept"], ["--dir", "/tmp/elsewhere"]]) {
+      const run = await cli(["read", "shared", ...flags]);
+      expect([run.code, run.err]).toEqual([2, expect.stringContaining("do not apply with --live")]);
+    }
+  });
+
+  test("an empty or bad --live address never falls back to local files", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agentic-documents-cwd-"));
+    const run = (live: string) => spawnSync(process.execPath, [BIN, "append", "plan", "--content", "x", "--live", live], { cwd, encoding: "utf8", env: { ...process.env, AGENTIC_DOCS_AS: "agent:bot", AGENTIC_DOCS_TOKEN: BOT } });
+    for (const live of ["", "ftp://x", "docs.example.com"]) {
+      const result = run(live);
+      expect([result.status, result.stdout]).toEqual([2, ""]);
+    }
+    expect(existsSync(join(cwd, ".agentic-documents"))).toBe(false);
+    const down = spawnSync(process.execPath, [BIN, "read", "plan", "--live", "http://127.0.0.1:1"], { cwd, encoding: "utf8", env: { ...process.env, AGENTIC_DOCS_TOKEN: BOT } });
+    expect([down.status, down.stderr]).toEqual([1, expect.stringContaining("MISCONFIGURED: could not reach the live server")]);
+    rmSync(cwd, { recursive: true, force: true });
   });
 });
 

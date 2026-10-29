@@ -42,7 +42,7 @@ function help(): string {
     "  --scopes <a,b>    Rights for the author, such as docs:accept. Or set AGENTIC_DOCS_SCOPES. An agent",
     "                    needs docs:accept to accept a suggestion.",
     "  --live <url>      Join live rooms on this server, as the author of AGENTIC_DOCS_TOKEN. Or set",
-    "                    AGENTIC_DOCS_LIVE_URL. The server sets your author kind, so --as does not apply.",
+    "                    AGENTIC_DOCS_LIVE_URL. The server sets your author kind, so --as, --scopes, and --dir are refused.",
     "  --dir <path>      Where documents live. Or set AGENTIC_DOCS_DIR. Default: .agentic-documents",
     "  --file <path>     Read content (or markdown for new) from a file.",
     "  --out <path>      Write the export to a file.",
@@ -76,12 +76,17 @@ export async function main(argv: string[], env = process.env): Promise<number> {
     return 0;
   }
 
-  const liveUrl = values.live ?? env.AGENTIC_DOCS_LIVE_URL;
+  // An explicit flag never falls back to local mode. An empty AGENTIC_DOCS_LIVE_URL means "not set".
+  const liveUrl = values.live ?? (env.AGENTIC_DOCS_LIVE_URL || undefined);
   let service: DocAccess;
   let author;
-  if (liveUrl) {
-    if (values.as !== undefined || values.scopes !== undefined) {
-      console.error("--as and --scopes do not apply with --live: the server sets the author kind and the scopes from the token.");
+  if (liveUrl !== undefined) {
+    if (!/^https?:\/\/[^/\s]+/.test(liveUrl)) {
+      console.error(`--live needs an http:// or https:// address, not "${liveUrl}"`);
+      return 2;
+    }
+    if (values.as !== undefined || values.scopes !== undefined || values.dir !== undefined) {
+      console.error("--as, --scopes, and --dir do not apply with --live: the server sets the author kind and the scopes from the token, and keeps the documents.");
       return 2;
     }
     const token = env.AGENTIC_DOCS_TOKEN;

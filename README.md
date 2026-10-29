@@ -156,15 +156,17 @@ The CLI and the MCP server join rooms too. Every command then runs in the room a
 
 ```sh
 export AGENTIC_DOCS_TOKEN=...   # a bearer token. The server sets the author kind and the role.
+export AGENTIC_DOCS_LIVE_URL=https://docs.example.com   # or pass --live <url>
 npx agentic-documents append plan --content "Ship on Friday." --live https://docs.example.com
 npx agentic-documents mcp --live https://docs.example.com
 ```
 
 - The server reads your author kind and role from the token (`GET /api/v1/me`). An agent token writes
-  agent edits. `--as` and `--scopes` do not apply with `--live`.
+  agent edits. `--as`, `--scopes`, and `--dir` do not apply with `--live`: the CLI refuses them and exits 2. This
+  holds when `AGENTIC_DOCS_LIVE_URL` is set too, so unset it for a local call.
 - A room starts from the stored document. `save` merges the room back into the stored document, so
   `read`, `export`, and the other commands see live edits. A save also creates a document that has none.
-  The CLI and MCP server save after each change. A document over 1,000,000 bytes cannot open in a room or be saved from one. A save refuses an update with a wrong
+  The CLI and MCP server save after each change. If a save fails, the room keeps the change and the error says so: do not repeat it. `new` makes the document in the store, and a room picks it up on the next join. A document over 1,000,000 bytes cannot open in a room or be saved from one. A save refuses an update with a wrong
   kind of content or a malformed thread, suggestion, or log entry. HTTP edits reach an open room only when a client joins and seeds it.
 - A `viewer` token joins and reads. The room drops its updates, and `edit` and `save` fail with `FORBIDDEN`.
   Set a role in `AGENTIC_DOCS_TOKENS` with `{ "as": "human:Vic", "role": "viewer" }`. A token with no role is an editor.
