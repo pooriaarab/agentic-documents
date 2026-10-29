@@ -18,7 +18,8 @@
 - The ODT export holds less than before, because the agentic-formats text model has no block for a quote, a rule, or a
   code block, no list start number, one paragraph for each list item, and no WebP image. The text stays.
   `ExportResult` has a `warnings` field that names each loss. It is empty for `md` and `html`. The field is required, so
-  code that builds an `ExportResult` by hand must add it.
+  code that builds an `ExportResult` by hand must add it. The CLI prints each warning on stderr. The HTTP API sends them
+  in the `x-export-warnings` header.
 
 ## 0.5.0
 

@@ -256,7 +256,7 @@ code of its own. ODT and DOCX go through the neutral text model of
 import { exportFile, importFile } from "agentic-documents/formats";
 
 const { doc, title, warnings } = importFile(bytes, "docx", { kind: "human", name: "Ada" });
-const odt = exportFile(doc, "odt", { title }); // { contentType, data: Uint8Array, warnings }
+const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Array for odt), warnings }
 ```
 
 - `importFile(input, format, author, { limits? })` reads `md` (text or UTF-8 bytes), `odt`, or `docx` (bytes) into a
