@@ -306,6 +306,24 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data: Uint8Arra
   as advisory. The room's own record of who sent updates in the room is at `GET /api/v1/docs/:id/room`. It does not cover
   text written over HTTP, the CLI, or MCP before the room opened: the client that seeds the room appears there.
 
+## Live demo
+
+A demo Worker runs at <https://agentic-documents-demo.hello-fd1.workers.dev>. It is a staging build. Open the
+address to see the web UI. `GET /health` answers 200 with no token. The UI and the API need a token, and the demo does
+not publish one, so run your own Worker to try edits (see [Live editing](#live-editing)). The demo may be reset at any
+time.
+
+The demo uses `wrangler.demo.jsonc`: a D1 database in `weur`, an R2 bucket with the `eu` jurisdiction, live rooms in
+Durable Objects, and `AGENTIC_DOCS_REGION=eu`. To redeploy, a maintainer with a Cloudflare token runs:
+
+```sh
+CLOUDFLARE_API_TOKEN=<token> npm run deploy:demo
+```
+
+The tokens live in a Worker secret, never in the repo or in CI. Set them with
+`npx wrangler secret put AGENTIC_DOCS_TOKENS --config wrangler.demo.jsonc`. To make your own demo, copy
+`wrangler.demo.jsonc`, change the name, and put your own database id and bucket name in it.
+
 ## Live editing
 
 A person and an agent can edit one document at the same time. Each sees the other's changes. The Worker
