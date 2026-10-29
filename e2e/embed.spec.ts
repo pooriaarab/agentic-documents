@@ -121,3 +121,27 @@ test("the embedded editor takes an image from a web address or a file, a chosen 
   await expect(textbox(ada).locator('img[alt="dropped"]')).toHaveCount(0);
   await ada.context().close();
 });
+
+test("a host adds a slash item, a bubble tool that a viewer gets too, and a Tiptap extension", async ({ browser }) => {
+  const id = `embed-extras-${Date.now()}`;
+  await sdk(ADA).create({ id, markdown: "Shared plan for the week." });
+  const ada = await host(browser, ADA, id, "&extras");
+  await typeAtEnd(ada, " ");
+  await ada.keyboard.type("/sign");
+  await ada.getByRole("listbox", { name: "Insert a block" }).getByRole("option", { name: /^Signature/ }).click();
+  await expect(textbox(ada)).toContainText("Signed, the host");
+  await ada.keyboard.press("Control+Shift+y");
+  expect(await ada.evaluate(() => (window as unknown as { seen: { shortcut?: boolean } }).seen.shortcut)).toBe(true);
+
+  // A viewer cannot format, but gets the host's read-only tool over a selection.
+  const vic = await host(browser, VIC, id, "&extras");
+  await expect(textbox(vic)).toContainText("Shared plan");
+  await textbox(vic).getByText("Shared plan for the week.", { exact: false }).dblclick();
+  const bubble = vic.getByRole("toolbar", { name: "Selection" });
+  await expect(bubble.getByRole("button", { name: "Comment" })).toBeVisible();
+  await expect(bubble.getByRole("button", { name: "Bold" })).toHaveCount(0);
+  await bubble.getByRole("button", { name: "Comment" }).click();
+  expect(await vic.evaluate(() => (window as unknown as { seen: { comment?: string } }).seen.comment)).toMatch(/\w+/);
+  await ada.context().close();
+  await vic.context().close();
+});

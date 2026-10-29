@@ -1,4 +1,4 @@
-import { Editor, Extension } from "@tiptap/core";
+import { Editor, Extension, type AnyExtension } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
@@ -13,11 +13,11 @@ import * as Y from "yjs";
 import { isMachine } from "../src/kinds.js";
 import { MAX_LIVE_BYTES } from "../src/limits.js";
 import type { LiveSession } from "./live.js";
-import { BubbleMenu } from "./bubble.js";
+import { BubbleMenu, type BubbleAction } from "./bubble.js";
 import { CodeBlock } from "./code.js";
 import { DocImage, ImageDialog } from "./image.js";
 import { AgentText } from "./marks.js";
-import { defaultSlashItems, SlashMenu } from "./slash.js";
+import { defaultSlashItems, SlashMenu, type SlashItem } from "./slash.js";
 import { FormatBar } from "./toolbar.js";
 
 /** Who uses the editor. The name shows in presence. The kind says if it is a person or an agent. */
@@ -27,6 +27,19 @@ export interface EditorPrincipal {
 }
 
 const SAVE_AFTER_MS = 1500;
+
+/** What an app adds to the editor: the extension points for comments, an assistant, and the like. */
+export interface EditorExtras {
+  /** More slash menu items, after the built-in ones. */
+  slashItems?: SlashItem[];
+  /** More bubble menu tools, after the built-in ones. A tool with `readOnly` shows for a person who cannot edit too. */
+  bubbleActions?: BubbleAction[];
+  /**
+   * More Tiptap extensions, read when a document opens. Use extensions that add no node or mark, such as plugins,
+   * decorations, and keyboard shortcuts: the stored document keeps only the nodes and marks of `schema`.
+   */
+  extensions?: AnyExtension[];
+}
 
 const entryOf = (peer: Peer): PresenceEntry => ({ id: String(peer.clientId), name: usableName(peer.name) ?? "Unnamed", kind: peer.machine ? "agent" : "person" });
 
@@ -53,7 +66,11 @@ function carets(sync: NonNullable<LiveSession["sync"]>) {
           caret.append(tag);
           return caret;
         },
-        selectionBuilder: () => ({}),
+        // The text another person or agent has selected: a tint, from the same stamped peer as the caret.
+        selectionBuilder: (_user, clientId) => {
+          const peer = sync.peers.find((p) => p.clientId === clientId);
+          return peer ? { class: `agd-peer-selection${peer.machine ? " agd-peer-selection--agent" : ""}` } : {};
+        },
       }),
     ],
   });
@@ -71,7 +88,7 @@ export class Boundary extends Component<{ children: ReactNode }, { failed: boole
   }
 }
 
-export function Surface({ live, editable, principal: me, onEditor }: { live: LiveSession; editable: boolean; principal: EditorPrincipal; onEditor?: (editor: Editor | null) => void }) {
+export function Surface({ live, editable, principal: me, onEditor, extras }: { live: LiveSession; editable: boolean; principal: EditorPrincipal; onEditor?: (editor: Editor | null) => void; extras?: EditorExtras }) {
   const host = useRef<HTMLDivElement>(null);
   const [editor, setEditor] = useState<Editor>();
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -87,6 +104,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
   const refocus = useRef(false);
   const tell = useRef(onEditor);
   tell.current = onEditor;
+  const added = useRef(extras?.extensions);
+  added.current = extras?.extensions;
 
   useEffect(() => {
     const fits = (slice: Slice): boolean => {
@@ -110,6 +129,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
         ...(live.sync ? [carets(live.sync)] : []),
         AgentText,
         ...(editable ? [Placeholder.configure({ placeholder: "Write, or type / to add a block" })] : []),
+        ...(added.current ?? []),
       ],
       editorProps: {
         // Alt+F10 moves the focus into the bubble menu of a selection.
@@ -201,7 +221,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
   // Focus the view first, in this frame. The focus command moves focus in a later frame.
   const chain = () => (editor!.view.focus(), editor!.chain().focus());
 
-  const slashItems = useMemo(() => defaultSlashItems({ image: () => setImaging(true) }), []);
+  const builtIn = useMemo(() => defaultSlashItems({ image: () => setImaging(true) }), []);
+  const slashItems = useMemo(() => [...builtIn, ...(extras?.slashItems ?? [])], [builtIn, extras?.slashItems]);
 
   function openLink() {
     setHref((editor?.getAttributes("link").href as string | undefined) ?? "");
@@ -265,7 +286,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
         </form>
       </Dialog>
       {editor && editable && <SlashMenu editor={editor} items={slashItems} />}
-      {editor && <BubbleMenu editor={editor} editable={editable} onLink={openLink} />}
+      {editor && <BubbleMenu editor={editor} editable={editable} onLink={openLink} actions={extras?.bubbleActions} />}
       <ImageDialog editor={editor} doc={live.doc} open={imaging} onOpenChange={setImaging} />
     </section>
   );

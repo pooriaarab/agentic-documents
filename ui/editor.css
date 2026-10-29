@@ -118,7 +118,9 @@
 .agd-doc .agd-agent-text { text-decoration: underline dotted 2px var(--agd-color-agent); text-underline-offset: 3px; background: var(--agd-color-agent-subtle); border-radius: 2px; }
 .agd-doc .agd-legend { margin-block-start: var(--agd-space-8); }
 
-/* The caret of another person or agent. */
+/* The caret and the selection of another person or agent. */
+.agd-doc .agd-peer-selection { background: var(--agd-color-accent-subtle); border-radius: 2px; }
+.agd-doc .agd-peer-selection--agent { background: var(--agd-color-agent-subtle); }
 .agd-doc .agd-caret { position: relative; border-inline-start: 2px solid var(--agd-color-accent); margin-inline: -1px; pointer-events: none; word-break: normal; }
 .agd-doc .agd-caret--agent { border-inline-start: 2px dashed var(--agd-color-agent); }
 .agd-doc .agd-caret__tag { position: absolute; top: -1.45em; inset-inline-start: -2px; white-space: nowrap; font-size: var(--agd-font-size-xs); line-height: 1.3; padding: 0 var(--agd-space-1); border-radius: var(--agd-radius-sm) var(--agd-radius-sm) var(--agd-radius-sm) 0; background: var(--agd-color-accent); color: var(--agd-color-text-on-accent); user-select: none; }

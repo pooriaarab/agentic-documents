@@ -425,6 +425,18 @@ const editor = mountEditor(document.getElementById("editor")!, {
   image dialogs (`.agd-form`, `.agd-form-actions`), which apply page-wide because the dialogs render
   in a portal. Load `agentic-design/styles.css` first.
 - File import and export are in `agentic-documents/formats` (see [File formats](#file-formats)).
+- Extension points for an app, such as comments or an assistant:
+  - `slashItems`: more slash menu items, after the built-in ones. Each is `{ title, description, keywords?, icon?, run(editor) }`.
+  - `bubbleActions`: more tools in the bubble menu over a selection. Each is `{ label, icon, run(editor), readOnly? }`.
+    `run` gets the editor with the selection in place. A tool with `readOnly: true` also shows for a person who cannot
+    edit, for example to comment.
+  - `extensions`: more Tiptap extensions, read when a document opens. Use extensions that add no node or mark
+    (plugins, decorations, keyboard shortcuts): the stored document keeps only the nodes and marks of `schema`.
+  - `editorMarkdown(editor)` and `setEditorMarkdown(editor, markdown, remote?)` read and replace the text as Markdown,
+    with the same conversion as the server.
+  - The types `SlashItem`, `BubbleAction`, and `EditorExtras` are exported.
+- The carets and the selections of the other people and agents in the room show in the text, each with the name that
+  the server stamped for that peer. An agent's caret is dashed.
 - `onEditor` gets the Tiptap editor when it is ready, and `null` when it goes. Use it to read the selection or the
   JSON, or to insert content. The editor sets `injectCSS: false`, and `ui.css` has the base rules, so a page whose
   content security policy forbids inline styles shows it right.

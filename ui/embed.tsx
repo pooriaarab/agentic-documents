@@ -7,9 +7,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { PRINCIPAL_KINDS, type PrincipalKind } from "agentic-identity";
 import { checkHost, hostSession, openSession, type EditorClient, type EditorRoom, type HostDocument, type LiveSession, type RoomPresence } from "./live.js";
-import { Boundary, Surface, isRemoved } from "./editor.js";
+import { Boundary, Surface, isRemoved, type EditorExtras } from "./editor.js";
 
-export type { Editor, EditorClient, EditorRoom, HostDocument, LiveSession, RoomPresence };
+export type { Editor, EditorClient, EditorExtras, EditorRoom, HostDocument, LiveSession, RoomPresence };
+export type { BubbleAction } from "./bubble.js";
+export type { SlashItem } from "./slash.js";
+export { editorMarkdown, setEditorMarkdown } from "./transfer.js";
 
 /** Who uses the editor. The server still checks every write against its own token. */
 export interface EmbedPrincipal {
@@ -19,7 +22,7 @@ export interface EmbedPrincipal {
   role?: "editor" | "viewer";
 }
 
-export interface DocumentEditorOptions {
+export interface DocumentEditorOptions extends EditorExtras {
   /** The document id. */
   id: string;
   /** Loads and saves the document. A client from `createClient` in `agentic-documents/client` works. Not needed with `host`. */
@@ -112,7 +115,7 @@ const describe = (error: unknown): string => {
 };
 
 /** The editor on a document the app keeps. */
-function HostedEditor({ host, principal, onEditor }: { host: HostDocument; principal: EmbedPrincipal; onEditor?: (editor: Editor | null) => void }) {
+function HostedEditor({ host, principal, onEditor, extras }: { host: HostDocument; principal: EmbedPrincipal; onEditor?: (editor: Editor | null) => void; extras: EditorExtras }) {
   // The app may make the host object on each render. Only the document and the presence decide when to bind again.
   const latest = useRef(host);
   latest.current = host;
@@ -122,7 +125,7 @@ function HostedEditor({ host, principal, onEditor }: { host: HostDocument; princ
   );
   return (
     <Boundary>
-      <Surface live={live} editable={principal.role === "editor"} principal={principal} onEditor={onEditor} />
+      <Surface live={live} editable={principal.role === "editor"} principal={principal} onEditor={onEditor} extras={extras} />
     </Boundary>
   );
 }
@@ -130,11 +133,12 @@ function HostedEditor({ host, principal, onEditor }: { host: HostDocument; princ
 /** The editor for one document, with its toolbar, presence, and save state. */
 export function DocumentEditor(options: DocumentEditorOptions) {
   checkOptions(options);
-  return options.host ? <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} /> : <StoredEditor {...options} client={options.client!} />;
+  const extras: EditorExtras = { slashItems: options.slashItems, bubbleActions: options.bubbleActions, extensions: options.extensions };
+  return options.host ? <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} extras={extras} /> : <StoredEditor {...options} client={options.client!} />;
 }
 
 /** The editor on a document that it loads and saves with the client. */
-function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor }: DocumentEditorOptions & { client: EditorClient }) {
+function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor, slashItems, bubbleActions, extensions }: DocumentEditorOptions & { client: EditorClient }) {
   const editable = principal.role === "editor";
   const [attempt, setAttempt] = useState(0);
   const load = useEditorSession(client, id, principal.name, editable, room, attempt, onLeave);
@@ -156,7 +160,7 @@ function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor 
   }
   return (
     <Boundary>
-      <Surface live={load.live} editable={editable} principal={principal} onEditor={onEditor} />
+      <Surface live={load.live} editable={editable} principal={principal} onEditor={onEditor} extras={{ slashItems, bubbleActions, extensions }} />
     </Boundary>
   );
 }
