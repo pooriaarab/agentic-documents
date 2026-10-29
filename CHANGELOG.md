@@ -12,7 +12,7 @@
   with `agentic-identity` keys over the HTTP API, an agent that creates one for a person makes that person the owner. A
   link token shows once. An invite list shows no email address. Removing a document erases its sharing data. Roles are
   stored and audited. Reads and writes do not check them yet. A document with no owner record is claimed by its creator,
-  when the caller is that creator, acting for itself, and has a write scope. A document with no creator in the catalog,
+  when the root of the caller's delegation chain is that creator, and the caller has a write scope. A document with no creator in the catalog,
   one whose author name is not a valid grant name, or one made by an agent that acts for a person, cannot be claimed. A
   rename can record a creator for a document with no creator.
 - `DocsService.sharing` and the `DocSharing` type.

@@ -316,11 +316,12 @@ npx agentic-documents unlink plan --link <link id>
 ```
 
 The same commands are MCP tools (`doc_grant` and so on), HTTP routes (`POST /api/v1/docs/:id/grant`), and SDK methods
-(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document can have no owner record. This happens to a document made before sharing. It also happens when its author
-had no `docs:write` scope, or when its author name is not a valid grant name (1 to 128 letters, digits, `-`, and `_`).
-The creator claims such a document with a write scope, when the caller is that creator, acting for itself. A document
-with no creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for
-a person, cannot be claimed. A rename can record a creator for a document with no creator, so check again after a rename.
+(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document can have
+no owner record. This happens to a document made before sharing. It also happens when its author had no `docs:write`
+scope, or when its author name is not a valid grant name (1 to 128 letters, digits, `-`, and `_`). The creator claims
+such a document with a write scope, when the root of the caller's delegation chain is that creator. A document with no
+creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for a person,
+cannot be claimed. A rename can record a creator for a document with no creator, so check again after a rename.
 
 ## Features
 
