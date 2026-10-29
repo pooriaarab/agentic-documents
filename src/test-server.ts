@@ -21,7 +21,8 @@ export interface LiveServer {
   dispose(): void;
 }
 
-export async function liveServer(tokens: object): Promise<LiveServer> {
+/** `assets` is a folder of static files that the Worker serves, such as the built web UI. */
+export async function liveServer(tokens: object, options: { assets?: string } = {}): Promise<LiveServer> {
   const dir = mkdtempSync(join(tmpdir(), "agentic-documents-live-"));
   const port = await freePort();
   writeFileSync(
@@ -35,6 +36,7 @@ export async function liveServer(tokens: object): Promise<LiveServer> {
       migrations: [{ tag: "v1", new_sqlite_classes: ["SyncRoom"] }],
       d1_databases: [{ binding: "DB", database_name: "docs-live", database_id: "00000000-0000-0000-0000-000000000000" }],
       r2_buckets: [{ binding: "DOCS", bucket_name: "docs-live", jurisdiction: "eu" }],
+      ...(options.assets ? { assets: { directory: resolve(options.assets) } } : {}),
       vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(tokens), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" },
     }),
   );

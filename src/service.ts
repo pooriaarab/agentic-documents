@@ -14,7 +14,8 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const isString = (v: unknown): v is string => typeof v === "string";
 const isWho = (v: unknown): v is { kind: PrincipalKind; name: string } => isObject(v) && PRINCIPAL_KINDS.includes(v.kind as PrincipalKind) && isString(v.name) && v.name !== "";
 const isAnchor = (v: unknown): boolean => isObject(v) && isString(v.text) && isObject(v.start) && isObject(v.end);
-const ROOTS = new Set(["default", "edits", "suggestions", "threads", "applied"]);
+// The last one is a marker that the Tiptap editor writes when it opens a document. It holds no content.
+const ROOTS = new Set(["default", "edits", "suggestions", "threads", "applied", "__tiptap_position_migrations:root:default"]);
 
 /** What the catalog keeps for each document. The author kind stays, so machine-made work stays labeled. */
 export interface DocInfo {
@@ -96,7 +97,7 @@ export class DocsService implements DocAccess {
    * has none. A merge is safe to repeat and to run in any order. The save is conditional, so two
    * checkpoints at once both land.
    */
-  async checkpoint(id: string, update: Uint8Array, author: Principal): Promise<void> {
+  async checkpoint(id: string, update: Uint8Array, author: Principal, options: { create?: boolean } = {}): Promise<void> {
     const key = this.key(id);
     const scratch = new Y.Doc();
     try {
@@ -111,6 +112,8 @@ export class DocsService implements DocAccess {
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       const found = await this.blobs.get(key);
       if (!found) {
+        // A client that only saves, such as the web UI, must not bring back a document that someone removed.
+        if (options.create === false) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
         const created = AgenticDoc.fromUpdate(update, this.options);
         const fresh = this.checked(id, created);
         this.fits(id, fresh);
@@ -139,7 +142,7 @@ export class DocsService implements DocAccess {
     const refuse = (what: string) => new DocError("INVALID_INPUT", `the update would leave document "${id}" unreadable: ${what}`);
     try {
       doc.toMarkdown();
-      if (!doc.edits().every((e) => isObject(e) && isWho(e.author) && isString(e.at) && isString(e.op) && (e.client === undefined || typeof e.client === "number"))) throw refuse("an edit log entry is malformed");
+      if (!doc.edits().every((e) => isObject(e) && isWho(e.author) && isString(e.at) && isString(e.op) && (e.client === undefined || (Number.isSafeInteger(e.client) && (e.client as number) >= 0)))) throw refuse("an edit log entry is malformed");
       for (const [, t] of doc.ydoc.getMap<Y.Map<unknown>>("threads")) {
         const messages = t instanceof Y.Map ? t.get("messages") : undefined;
         const ok = t instanceof Y.Map && isAnchor(t.get("anchor")) && ["open", "resolved"].includes(t.get("status") as string) && messages instanceof Y.Array && messages.length > 0 &&

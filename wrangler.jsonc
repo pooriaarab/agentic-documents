@@ -9,6 +9,8 @@
   // Create the database with `wrangler d1 create agentic-documents --jurisdiction eu`, then put its id below.
   "compatibility_date": "2026-01-01",
   "compatibility_flags": ["nodejs_compat"],
+  // The web UI. Run `npm run build` first: it writes dist/ui. The Worker answers /api and /health, and serves the UI for the rest.
+  "assets": { "directory": "./dist/ui" },
   // The live rooms. One Durable Object holds one document.
   "durable_objects": { "bindings": [{ "name": "SYNC_ROOM", "class_name": "SyncRoom" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncRoom"] }],

@@ -9,6 +9,12 @@
   `docs:remove` scope to remove a document.
 - A browser can open a live room: the token goes in a WebSocket subprotocol
   (`agentic-docs.bearer.<base64url>`) on the live-room route only.
+- A web UI that the Worker serves from `dist/ui` (the `assets` entry in `wrangler.jsonc`): a document list, a
+  rich-text editor on the live room, rename, delete, share, presence, and a mark on agent text. It is built on
+  `agentic-design` and the typed client. Playwright tests run it under `wrangler dev` with an axe check (WCAG 2.2 AA rules)
+  in the light and the dark theme, and screenshots are in `docs/screenshots`.
+- The saved update may hold the marker root that the Tiptap editor writes when it opens a document.
+- `POST /checkpoint?create=false` (client option `create: false`) fails with `NO_DOCUMENT` instead of making a missing document. The UI saves this way, so a removed document stays removed.
 - Each edit log entry holds `client`, the Yjs client id of its writer, so a UI can mark agent text.
 
 ## 0.4.0
