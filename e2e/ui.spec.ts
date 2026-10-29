@@ -16,6 +16,54 @@ async function createDocument(page: Page, title: string): Promise<string> {
   return idOf(page);
 }
 
+test("the share dialog lists, changes, and removes roles, invites, and makes a link, for an owner only", async ({ browser }) => {
+  const ada = await newPage(await browser.newContext(), ADA);
+  const id = await createDocument(ada, "Shared plan");
+  const sdk = createClient({ baseUrl: url(), token: ADA });
+  await sdk.grant(id, { to: "human:Bob", role: "editor" });
+
+  await ada.getByRole("button", { name: "Share" }).click();
+  const dialog = ada.getByRole("dialog", { name: "Share document" });
+  await expect(dialog).not.toContainText("not available yet");
+  await expect(dialog.getByRole("combobox", { name: "Role for Ada" })).toHaveValue("owner");
+  await expect(dialog.getByRole("combobox", { name: "Role for Bob" })).toHaveValue("editor");
+
+  await dialog.getByRole("combobox", { name: "Role for Bob" }).selectOption("viewer");
+  await expect(dialog.getByRole("status").filter({ hasText: "Bob is now viewer." })).toBeVisible();
+  expect((await sdk.grants(id)).find((g) => g.subjectId === "Bob")?.role).toBe("viewer");
+
+  await dialog.getByLabel("Invite by email or @handle").fill("nobody");
+  await dialog.getByRole("button", { name: "Invite" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("email address");
+  await dialog.getByLabel("Invite by email or @handle").fill("kit@example.com");
+  await dialog.getByRole("button", { name: "Invite" }).click();
+  await expect(dialog.getByRole("status").filter({ hasText: "Invite made" })).toBeVisible();
+  expect(await sdk.invites(id)).toHaveLength(1);
+
+  await dialog.getByRole("button", { name: "Make a link" }).click();
+  const token = dialog.getByLabel("Link token (shows once)");
+  await expect(token).toBeVisible();
+  expect((await token.inputValue()).length).toBeGreaterThanOrEqual(32);
+  await expectAccessible(ada);
+  await dialog.getByRole("button", { name: "Revoke link" }).click();
+  await expect(token).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Remove Bob" }).click();
+  await expect(dialog.getByRole("combobox", { name: "Role for Bob" })).toHaveCount(0);
+  expect((await sdk.grants(id)).map((g) => g.subjectId)).toEqual(["Ada"]);
+
+  // Bob is not an owner. The server refuses him, and the dialog shows no controls.
+  const bob = await newPage(await browser.newContext(), BOB);
+  await bob.goto(`${url()}/#/d/${id}`);
+  await bob.getByRole("button", { name: "Share" }).click();
+  const other = bob.getByRole("dialog", { name: "Share document" });
+  await expect(other.getByText("Only an owner can see or change who has access.")).toBeVisible();
+  await expect(other.getByRole("button", { name: "Invite" })).toHaveCount(0);
+  await expectAccessible(bob);
+  await bob.context().close();
+  await ada.context().close();
+});
+
 test("create a document, type, reload, and a second browser sees the edit live", async ({ browser }) => {
   const ada = await newPage(await browser.newContext(), ADA);
   const id = await createDocument(ada, "Weekly plan");

@@ -15,6 +15,8 @@
 - `DocsService.sharing` and the `DocSharing` type.
 - The SDK client has `grants`, `grant`, `revoke`, `invites`, `invite`, `link`, and `unlink`. The CLI and the MCP
   server run the same commands in live mode, through the server.
+- The share dialog in the web UI lists who has access, changes and removes roles, makes invites, and makes and
+  revokes a share link. Only an owner sees the controls. The text "not available yet" is gone.
 
 ## 0.8.0
 

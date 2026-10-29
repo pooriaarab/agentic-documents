@@ -25,11 +25,12 @@ agentic-documents outline plan --as agent_of_human:scribe
 agentic-documents mcp --as agent_of_human:scribe
 ```
 
-Tools are named `doc_<command>`: `doc_read`, `doc_outline`, `doc_replace`, `doc_suggest`.
+Tools are named `doc_<command>`: `doc_read`, `doc_outline`, `doc_replace`, `doc_suggest`, `doc_grant`.
 
 ## Rules
 
 - Pass your author kind and name on every change.
+- Share only a document that you own, and only when asked. `grant`, `revoke`, `invite`, and `link` need an owner, and an agent needs the `docs:admin` scope. On `FORBIDDEN`, stop. Never grant yourself a role.
 - Read the outline, then the section, before you edit.
 - On an ambiguous match, pass `occurrence`.
 - Report errors as failures.

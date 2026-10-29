@@ -190,7 +190,7 @@ try {
 
 - One method per route: `create`, `list`, `read`, `rename`, `remove`, `outline`, `edits`, `insert`, `replace`, `delete`, `append`,
   `suggest`, `suggestions`, `accept`, `reject`, `comment`, `reply`, `resolve`, `reopen`, `threads`,
-  `export`, `room`, `me`, `health`, `state`, and `checkpoint`. The WebSocket route is not a method. Use
+  `grants`, `grant`, `revoke`, `invites`, `invite`, `link`, `unlink`, `export`, `room`, `me`, `health`, `state`, and `checkpoint`. The WebSocket route is not a method. Use
   `LiveDoc` from `agentic-documents/live` for it.
 - Every method takes an optional `{ signal }` last. An abort rejects with what `fetch` throws.
 - An API error throws `DocsApiError` with `code` (the API error code), `status` (the HTTP status), and
@@ -295,6 +295,26 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Arra
   `INVALID_INPUT`. For `md`, only `maxInputBytes` applies. A link that is not a web, mail, or relative address is dropped, and its text stays.
 - `toTextDoc(blocks)` and `fromTextDoc(model)` are the mapping itself, for an app that works with the model.
 
+## Sharing
+
+A document has roles: `viewer`, `commenter`, `editor`, and `owner`. Grants, invites, and links come from
+`agentic-identity`. Only an owner may use them. The person who creates a document owns it. An agent that creates a
+document for a person makes that person the owner. An agent also needs the `docs:admin` scope. Everyone else gets
+`FORBIDDEN` (HTTP 403), and an agent cannot grant itself a role.
+
+```sh
+npx agentic-documents grant plan --to human:kit --role editor     # --to is human:<id> or agent:<id>
+npx agentic-documents grants plan                                 # who holds a role
+npx agentic-documents revoke plan --to human:kit
+npx agentic-documents invite plan --role viewer --email kit@example.com   # or --handle <agent>
+npx agentic-documents link plan --role viewer --expiresAt 1893456000000 --signedInOnly true   # the token shows once
+npx agentic-documents unlink plan --link <link id>
+```
+
+The same commands are MCP tools (`doc_grant` and so on), HTTP routes (`POST /api/v1/docs/:id/grant`), and SDK methods
+(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document made
+before sharing has no owner record: its creator becomes the owner on the first share call.
+
 ## Features
 
 - A Yjs document that a Tiptap editor can open. It uses the y-prosemirror layout.
@@ -303,6 +323,7 @@ const odt = exportFile(doc, "odt", { title }); // { contentType, data (Uint8Arra
 - An outline. Each section has an id that stays the same when people edit around it. Blocks before the
   first heading are the `preamble` section (level 0). It is listed when they exist, and it is always a
   valid target. A replace or delete on it has no heading to keep.
+- Share a document: roles, invites, and share links, for an owner (see [Sharing](#sharing)).
 - Insert, replace, and delete by section id or by exact text. Append to the end.
 - Text anchors that follow their text when other replicas edit.
 - Clear errors: `NO_MATCH`, `AMBIGUOUS_MATCH`, `STALE_ANCHOR`, `NO_SECTION`, `FORBIDDEN`.
@@ -459,18 +480,16 @@ Limits of live editing:
 
 ## Limits
 
-- The UI has no accounts. You paste a token, and the token sets your role. The share dialog shows a link and who
-  changed the document. Roles, invites, and expiring links wait for the sharing API in the Worker.
+- The UI has no accounts. You paste a token, and the token sets your role. The share dialog lists, changes, and
+  removes roles, makes invites, and makes a share link, for an owner (see [Sharing](#sharing)).
 - The UI marks agent text from the edit log, which a client writes. A modified client can mark its own text as a
   person's, or a person's as an agent's. The last edit shown in the list is approximate when two writes race.
 - The UI is English only. It needs a browser with `WebSocket` and ES2022.
-- A document holds no roles of its own. The token table gives `editor` or `viewer`. To share a document
-  by person, use `createSharing` from `agentic-identity` 0.4. A grant names its subject by kind
-  (`human` or `agent`) and id, so a person and an agent with the same id hold separate roles. When you
-  delete a document, call `deleteResource` on its resource so its grants do not outlive it. If
-  `deleteResource` fails, treat the delete as failed and run it again. If it throws
-  `EraseRefusedError`, remove the child resources or the extra owners first. Do not reuse the id
-  until it succeeds. The `remove` command deletes the document and its catalog entry. It does not touch grants.
+- Sharing stores roles, invites, and link tokens. The document commands do not check them yet: a token's role
+  (`editor` or `viewer`) still decides what it may do. Nothing sends an invite email, and nothing accepts an
+  invite or opens a link token in this package yet. The list of links is not available, so keep the id of a link
+  that you make. A person who removes a document that they do not own leaves its sharing data behind. An owner's
+  `remove` erases it.
 - The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
   shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
   overwrite each other. The CLI and MCP server keep the same data in local files.
