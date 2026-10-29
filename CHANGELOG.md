@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- A typed client for the Worker HTTP API: `createClient({ baseUrl, token, fetch? })` from the new
+  `agentic-documents/client` subpath. It has one method per route, throws `DocsApiError` with the API
+  error code and the HTTP status, takes an `AbortSignal` on every call, and never retries. A 2xx reply
+  with the wrong content type or shape throws `DocsApiError` with the code `BAD_RESPONSE`. It uses only
+  `fetch`, so it runs in browsers, Workers, and Node 22. Tests run it against the real Worker under
+  `wrangler dev`.
+
+Nothing else changed since 0.3.0.
+
 ## 0.3.0
 
 ### Breaking changes
