@@ -172,7 +172,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
       {numbered ? <path d="M3 4.5l1-.5v4M3 11.5h2l-2 2.5h2.2" strokeLinejoin="round" /> : <path d="M3.5 5h.01M3.5 10h.01M3.5 15h.01" strokeWidth="2.6" />}
     </svg>
   );
-  const tool = (label: string, icon: ReactNode, active: boolean, run: () => void) => <ToolbarButton label={label} icon={icon} pressed={active} onClick={run} disabled={!editable} />;
+  const tool = (label: string, icon: ReactNode, active: boolean | undefined, run: () => void) => <ToolbarButton label={label} icon={icon} pressed={active} onClick={run} disabled={!editable} />;
 
   function openLink() {
     setHref((editor?.getAttributes("link").href as string | undefined) ?? "");
@@ -220,7 +220,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           {tool("Numbered list", listIcon(true), pressed("orderedList"), () => chain().toggleOrderedList().run())}
           <ToolbarSeparator />
           {tool("Link", glyph("↗"), pressed("link"), openLink)}
-          {tool("Image", glyph("▣"), false, () => setPicturing(true))}
+          {/* It opens a dialog, so it has no pressed state. */}
+          {tool("Image", glyph("▣"), undefined, () => setPicturing(true))}
         </Toolbar>
         <div className="editor-meta">
           <PresenceStack entries={entries} label="People and agents here" />

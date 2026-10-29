@@ -22,8 +22,9 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
 
   useEffect(() => {
     if (!open) return;
-    const now = editor?.getAttributes("image") ?? {};
-    const current = editor?.isActive("image") ? (now.alt as string | null) : null;
+    // getAttributes reads any image in the selected range, so only a selected image fills the fields.
+    const now = editor?.isActive("image") ? editor.getAttributes("image") : {};
+    const current = typeof now.alt === "string" ? now.alt : null;
     setSrc(typeof now.src === "string" ? now.src : "");
     setAlt(current ?? "");
     setDecorative(current === "");
@@ -50,7 +51,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
     if (problem.src || problem.alt) return setError(problem);
     const attrs = { src: address, alt: decorative ? "" : text };
     if (editor.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();
-    else editor.chain().focus().insertContent({ type: "image", attrs }).run();
+    else editor.chain().focus().insertContentAt(editor.state.selection.to, { type: "image", attrs }).run(); // after the selection, so no text is replaced
     // Put the caret after the image. A selected image is replaced by the next key.
     editor.chain().setTextSelection(editor.state.selection.to).run();
     refocus.current = true;

@@ -24,6 +24,7 @@ test("an image gets alt text, or is marked decorative, and both reach the stored
   const read = async () => (await fetch(`${url()}/api/v1/docs/${id}/read`, { headers: { authorization: `Bearer ${ADA}` } })).text();
   await textbox(ada).click();
 
+  await expect(ada.getByRole("button", { name: "Image" })).not.toHaveAttribute("aria-pressed", /.*/); // it opens a dialog, so it is not a toggle
   await ada.getByRole("button", { name: "Image" }).click();
   const dialog = ada.getByRole("dialog", { name: "Insert image" });
   await dialog.getByLabel("Image address").fill(PIXEL);
