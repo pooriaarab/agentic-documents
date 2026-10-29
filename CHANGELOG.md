@@ -10,8 +10,8 @@
   and an agent also needs the `docs:admin` scope. The person who creates a document owns it, and an agent that creates
   one for a person makes that person the owner. A link token shows once. An invite list shows no email address. Removing
   a document erases its sharing data. Roles are stored and audited. Reads and writes do not check them yet. A document
-  made before sharing, with no creator in the catalog or made by an agent that acts for a person, has no owner and
-  cannot be claimed.
+  with no owner record is claimed by its creator, when the caller is that creator. A document with no creator in the
+  catalog, or one made by an agent that acts for a person, cannot be claimed.
 - `DocsService.sharing` and the `DocSharing` type.
 - The SDK client has `grants`, `grant`, `revoke`, `invites`, `invite`, `link`, and `unlink`. The CLI and the MCP
   server run the same commands in live mode, through the server.

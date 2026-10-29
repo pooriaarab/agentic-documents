@@ -313,10 +313,10 @@ npx agentic-documents unlink plan --link <link id>
 ```
 
 The same commands are MCP tools (`doc_grant` and so on), HTTP routes (`POST /api/v1/docs/:id/grant`), and SDK methods
-(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document made
-before sharing has no owner record. On the first share call, its creator becomes the owner, but only when the catalog
-names that creator as a person. A document with no creator in the catalog, or one made by an agent that acts for a
-person, cannot be shared.
+(`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document can have
+no owner record. It happens to a document made before sharing, and to one whose author had no `docs:write` scope when
+it was made. On the first share call, its creator becomes the owner when the caller is that creator, acting for
+itself. A document with no creator in the catalog, or one made by an agent that acts for a person, cannot be shared.
 
 ## Features
 
@@ -497,7 +497,9 @@ Limits of live editing:
   overwrite each other. The CLI and MCP server keep the same data in local files.
 - The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. Files from an older release that sit
   directly in `<dir>` are not read.
-- Each key has one role, set by its scopes: `editor` (with a write scope) or `viewer` (without one). A viewer cannot call a write command or write in a live room. The role is not per document: the Worker does not check the roles that sharing stores yet.
+- A key's role comes from its scopes: `editor` with a scope that covers `docs:write`, `viewer` without one. A
+  development token (see [Sign-in](#sign-in)) sets its own role instead. A viewer cannot call a write command or write
+  in a live room. The role is not per document: the Worker does not check the roles that sharing stores yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs
   its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that
