@@ -1,6 +1,6 @@
 {
   "name": "agentic-documents",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Write documents with people and agents in real time.",
   "keywords": [
     "documents",
@@ -32,6 +32,7 @@
     "dist",
     "SECURITY.md",
     "SKILL.md",
+    "CHANGELOG.md",
     "llms.txt"
   ],
   "publishConfig": {
@@ -60,6 +61,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "clean": "rm -rf dist",
@@ -67,7 +69,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "agentic-identity": "^0.2.0",
+    "agentic-identity": "^0.3.0",
     "agentic-realtime": "^0.1.0",
     "fflate": "^0.8.3",
     "hono": "^4.13.14",
