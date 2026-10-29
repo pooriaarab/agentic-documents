@@ -81,7 +81,9 @@
     "clean": "rm -rf dist",
     "ci:local": "npm run build && npm run typecheck && npm test && playwright test",
     "e2e": "npm run build && playwright test",
-    "deploy:demo": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy --config wrangler.demo.jsonc"
+    "deploy:demo": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy --config wrangler.demo.jsonc",
+    "dev": "npm run build && WRANGLER_SEND_METRICS=false wrangler dev --var AGENTIC_DOCS_REGION:unknown --var AGENTIC_DOCS_UNSAFE_REGION:1",
+    "dev:smoke": "node scripts/dev-smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.23.0",
