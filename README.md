@@ -7,7 +7,7 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.7.0. The document model, the text operations, the CLI, the MCP server,
+> Status: early, version 0.7.1. The document model, the text operations, the CLI, the MCP server,
 > the Worker API, live editing in a room, and a small web UI work. See [UI](#ui).
 
 ## Install
@@ -149,7 +149,7 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   `{"<32 or more random bytes>":"agent_of_human:scribe"}`. To give an agent the right to accept
   suggestions, use `{"as":"agent_of_human:approver","scopes":["docs:accept"]}` as the value.
   Make a token with `openssl rand -hex 32`. A token holds only `A-Z a-z 0-9 _ -` (32 to 512 bytes), and an
-  author name holds only `A-Z a-z 0-9 . _ -` (up to 128 characters, no space or `@`).
+  author name holds only `A-Z a-z 0-9 . _ -` (up to 128 characters, not starting with `.`, no space or `@`).
 - A token under 32 bytes, a token with other characters (for example base64 with `+` or `/`), a value that is not a valid author, or a value that is not a JSON
   object makes the Worker refuse every request (401). It logs the reason once, never the token.
   A body cannot name its own author. With no tokens the API refuses every request.
@@ -436,7 +436,7 @@ Limits of live editing:
   overwrite each other. The CLI and MCP server keep the same data in local files.
 - The CLI and MCP server keep files under `<dir>/blobs` and `<dir>/store`. Files from an older release that sit
   directly in `<dir>` are not read.
-- Token auth is a stopgap until the `Auth` port exists. A token has one role for the whole server: `editor` (the default) or `viewer`. A viewer cannot call a write command or write in a live room. There is no per-document sharing yet.
+- Each token has one role: `editor` (the default) or `viewer`. A viewer cannot call a write command or write in a live room. The Worker checks each token through the `Auth` port of `agentic-identity` 0.6. Tokens are a stopgap: there is no per-document sharing in the Worker yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs
   its change again. A lock older than 10 seconds counts as dead and is taken over. A lock that
