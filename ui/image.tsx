@@ -5,8 +5,8 @@ import { Button, Checkbox, Dialog, DialogClose, Input } from "agentic-design/rea
 /** The sources the engine renders: web addresses, and small embedded pictures. */
 const SOURCE = /^(https?:\/\/\S+|data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+)$/i;
 
-/** The most characters in an embedded image. The text goes into the document and to every peer in the room. */
-const MAX_SOURCE = 1_000_000;
+/** The most characters in an embedded image. It goes into the document and to every peer, and the whole document has a 1 MB limit. */
+const MAX_SOURCE = 256_000;
 
 /**
  * Insert an image, or change the one that is selected. Every image has alt text (WCAG 1.1.1): a description, or the
@@ -50,7 +50,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
     const address = src.trim();
     const text = alt.trim();
     // An image the engine took from Markdown can have a source this dialog would not accept. Its alt text can still change.
-    const problem = { src: (editing && address === opened) || (SOURCE.test(address) && address.length <= MAX_SOURCE) ? undefined : "Use a web address that starts with https:// or http://, or a small embedded PNG, JPEG, GIF, or WebP image.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
+    const problem = { src: (editing && address === opened) || (SOURCE.test(address) && address.length <= MAX_SOURCE) ? undefined : "Use a web address that starts with https:// or http://, or an embedded PNG, JPEG, GIF, or WebP image under 256 KB.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
     if (problem.src || problem.alt) return setError(problem);
     const attrs = { src: address, alt: decorative ? "" : text };
     if (editor.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();
@@ -64,7 +64,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={editing ? "Image" : "Insert image"} description="Alt text tells people who cannot see the image what it shows.">
       <form className="adoc form" onSubmit={(e) => (e.preventDefault(), apply())}>
-        <Input label="Image address" value={src} onChange={(e) => setSrc(e.target.value)} error={error.src} placeholder="https://" autoComplete="off" />
+        <Input label="Image address" value={src} onChange={(e) => setSrc(e.target.value)} error={error.src} placeholder="https://" hint="A page can block web images. An embedded image always shows." autoComplete="off" />
         <Input label="Alt text" value={decorative ? "" : alt} onChange={(e) => setAlt(e.target.value)} error={error.alt} disabled={decorative} autoComplete="off" />
         <Checkbox label="Decorative image, with no description" checked={decorative} onChange={(e) => (setDecorative(e.target.checked), setError((now) => ({ ...now, alt: undefined })))} />
         <div className="form-actions">
