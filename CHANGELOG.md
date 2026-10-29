@@ -20,6 +20,8 @@
 - The `agentic-realtime` dependency (`^0.1.0`, the version on npm) for the live rooms.
 - `--live <url>` on the CLI and the MCP server, or `AGENTIC_DOCS_LIVE_URL`. Set `AGENTIC_DOCS_TOKEN`
   to join a room. The server sets the author kind and the role from the token.
+- With `--live`, the CLI refuses `--as`, `--scopes`, and `--dir`, and exits 2. The server sets these
+  from the token.
 - A `viewer` role. A viewer reads and cannot write, over HTTP or in a live room. The default role is
   `editor`.
 - Worker routes for live rooms: `GET /api/v1/me`, `GET /api/v1/docs/:id/room`,
@@ -27,11 +29,6 @@
 - Live rooms save through the shared `Store` and `Blobs` ports. A stored document too big for a room
   fails the join with a clear error.
 - `npm pack` and `npm publish` build `dist/` first (`prepack`).
-
-### Changed
-
-- With `--live`, the CLI refuses `--as`, `--scopes`, and `--dir`, and exits 2. The server sets these
-  from the token.
 
 ## 0.1.0
 
