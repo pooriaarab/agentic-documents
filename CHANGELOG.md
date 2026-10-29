@@ -14,6 +14,9 @@
   removed. Pasted HTML keeps an image only when its source passes the same check as the dialog, so a relative address
   is dropped from a paste. A paste or a drop whose images would take the document past the room the dialog allows is
   refused, and a save that fails on the 1,000,000 byte limit of a live room says so.
+- A slash menu (type `/`) adds a block, and a bubble menu over a selection formats it. Alt+F10 reaches the bubble
+  menu from the keyboard. An empty document shows a hint. Both menus are ports of gitmarkdown.
+- `@tiptap/extensions` is a direct dependency, for the placeholder.
 - The editor classes use the `agd-` prefix. Update any style that targets the old names: `.agd-doc` (was `.adoc`),
   `.agd-app` (was `.adoc-app`), `.agd-prose` (was `.prose`), `.agd-agent-text` (was `.agent-text`), `.agd-caret`,
   `.agd-caret--agent`, and `.agd-caret__tag` (were `.caret`, `.caret--agent`, and `.caret__tag`), and `.agd-muted`,
