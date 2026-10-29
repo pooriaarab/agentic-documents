@@ -33,6 +33,7 @@ export function BubbleMenu({ editor, editable, onLink }: { editor: Editor; edita
       const bar = Math.max(editor.view.dom.closest(".agd-doc")?.querySelector(".agd-doc__bar")?.getBoundingClientRect().bottom ?? 0, 0);
       const above = start.top - height - GAP;
       const below = end.bottom + GAP;
+      if (end.bottom < bar || start.top > window.innerHeight) return setAt(undefined); // scrolled out of view: nothing to point at
       const top = above >= bar + GAP ? above : below + height + GAP <= window.innerHeight ? below : above >= GAP ? above : below;
       setAt({ top: Math.max(GAP, Math.min(top, window.innerHeight - height - GAP)), left });
     };

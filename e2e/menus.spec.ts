@@ -139,6 +139,13 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   const box = (await page.locator(".agd-bubble").boundingBox())!;
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(500);
+  // A selection scrolled fully out of view has no menu.
+  await page.keyboard.press("Shift+ArrowLeft"); // a selection at the end only
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect(bubble).toBeVisible();
+  await page.mouse.wheel(0, -100000);
+  await expect(bubble).toHaveCount(0);
   await page.context().close();
 });
 
