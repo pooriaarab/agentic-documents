@@ -42,17 +42,25 @@ test("in a table, the Table tool adds and removes rows and columns, and deletes 
 });
 
 test("a code block takes a language, shows syntax colors, and keeps the language in Markdown", async ({ browser }) => {
-  const { page, id } = await open(browser, "```\nconst answer = 42;\n```");
+  const { page, id } = await open(browser, "```\nconst answer = 42;\n```\n\n```ts\nlet a = 1;\n```\n\n```mermaid\ngraph TD; const --> x\n```");
   const text = textbox(page);
-  await text.locator("pre").click();
+  await text.locator("pre").first().click();
   const language = bar(page).getByRole("button", { name: "Code language: Plain text" });
   await language.click();
   await page.getByRole("menuitem", { name: "TypeScript" }).click();
   await expect(bar(page).getByRole("button", { name: "Code language: TypeScript" })).toBeVisible();
-  await expect(text.locator("pre code")).toHaveClass(/language-typescript/);
-  await expect(text.locator("pre .hljs-keyword").first()).toHaveText("const");
-  await expect(text.locator("pre")).toHaveText("const answer = 42;"); // colors are decorations, not text
+  await expect(text.locator("pre code").first()).toHaveClass(/language-typescript/);
+  await expect(text.locator("pre").first().locator(".hljs-keyword").first()).toHaveText("const");
+  await expect(text.locator("pre").first()).toHaveText("const answer = 42;"); // colors are decorations, not text
   await expect.poll(() => stored(id)).toContain("```typescript\nconst answer = 42;\n```");
+
+  // A fence alias names its language, and the menu marks it in use.
+  await text.locator("pre").nth(1).click();
+  await bar(page).getByRole("button", { name: "Code language: TypeScript" }).click();
+  await expect(page.getByRole("menuitem", { name: "TypeScript (in use)" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  // A language with no bundled grammar is plain text: nothing is guessed.
+  await expect(text.locator("pre").nth(2).locator("[class^='hljs-']")).toHaveCount(0);
   await expectAccessible(page);
   await page.context().close();
 });
@@ -80,14 +88,15 @@ test("Download Markdown saves the text, and Import Markdown replaces it for ever
   await expect(dialog.getByRole("alert")).toContainText("cannot be imported");
   await expect(page.locator(".agd-prose")).toContainText("First draft."); // a refused file changes nothing (the dialog hides the text from the accessibility tree)
 
-  await dialog.getByLabel("Markdown file").setInputFiles(write("plan.md", "# Plan\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nlet x;\n```\n"));
+  await dialog.getByLabel("Markdown file").setInputFiles(write("plan.md", "# Plan\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nlet x;\n```\n\n![far](https://example.com/far.png)\n"));
   await expectAccessible(page);
   await dialog.getByRole("button", { name: "Replace the text" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(textbox(page).locator("h1")).toHaveText("Plan");
   await expect(textbox(page)).not.toContainText("First draft.");
   await expect(textbox(other).locator("table")).toBeVisible(); // the other tab gets it live
-  await expect.poll(() => stored(id)).toBe("# Plan\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nlet x;\n```\n");
+  await expect.poll(() => stored(id)).toContain("# Plan\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nlet x;\n```\n");
+  expect(await stored(id)).not.toContain("example.com"); // the page's policy blocks other hosts, so the import drops that image
 
   // Undo takes the import back.
   await textbox(page).click();

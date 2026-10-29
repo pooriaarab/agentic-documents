@@ -4,6 +4,7 @@ import type { Editor } from "@tiptap/core";
 import { Button, Dialog, DialogClose, Input } from "agentic-design/react";
 import { useEffect, useState, type FormEvent } from "react";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "../src/markdown.js";
+import { allowedSource } from "./image.js";
 
 /** The largest Markdown file an import reads. */
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
@@ -11,9 +12,17 @@ const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
 /** The text of the editor as Markdown. */
 export const editorMarkdown = (editor: Editor): string => blocksToMarkdown((editor.getJSON().content ?? []) as PmNode[]);
 
-/** Replace the text of the editor with Markdown. It throws an error with a message when the Markdown has a part the document cannot keep. */
-export function setEditorMarkdown(editor: Editor, markdown: string): void {
-  const content = markdownToBlocks(markdown);
+/** The blocks without an image that a paste would not keep either: see `allowedSource`. */
+const keepImages = (nodes: PmNode[], remote: boolean): PmNode[] =>
+  nodes.flatMap((node) => (node.type === "image" && !allowedSource(String(node.attrs?.src ?? ""), remote) ? [] : [node.content ? { ...node, content: keepImages(node.content, remote) } : node]));
+
+/**
+ * Replace the text of the editor with Markdown. An image is dropped when the editor would not keep it from a paste:
+ * with `remote`, an `https://` address is kept. It throws an error with a message when the Markdown has a part the
+ * document cannot keep.
+ */
+export function setEditorMarkdown(editor: Editor, markdown: string, remote = true): void {
+  const content = keepImages(markdownToBlocks(markdown), remote);
   editor.chain().focus().setContent(content.length ? content : [{ type: "paragraph" }]).run();
 }
 
@@ -28,7 +37,7 @@ export function downloadMarkdown(editor: Editor, title: string): void {
 }
 
 /** Read a Markdown file and put it in place of the text, for everyone in the room. */
-export function ImportDialog({ editor, open, onOpenChange }: { editor: Editor | undefined; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ImportDialog({ editor, open, onOpenChange, remote }: { editor: Editor | undefined; open: boolean; onOpenChange: (open: boolean) => void; remote: boolean }) {
   const [file, setFile] = useState<File>();
   const [error, setError] = useState<string>();
   useEffect(() => {
@@ -47,7 +56,7 @@ export function ImportDialog({ editor, open, onOpenChange }: { editor: Editor | 
       return setError("The file could not be read. Choose it again.");
     }
     try {
-      setEditorMarkdown(editor, markdown);
+      setEditorMarkdown(editor, markdown, remote);
     } catch (e) {
       return setError(`This file cannot be imported. ${e instanceof Error ? e.message : ""}`.trim());
     }

@@ -3,7 +3,7 @@
 import type { Editor } from "@tiptap/core";
 import { Menu, Toolbar, ToolbarButton, ToolbarGroup, type MenuItem } from "agentic-design/react";
 import type { ReactNode } from "react";
-import { LANGUAGES, languageName } from "./code.js";
+import { LANGUAGES, languageId, languageName } from "./code.js";
 import { glyph, icons } from "./icons.js";
 
 /** The text styles of a block, in the order the menu shows them. */
@@ -43,13 +43,12 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
     "separator",
     { label: "Delete row", onSelect: () => chain().deleteRow().run() },
     { label: "Delete column", onSelect: () => chain().deleteColumn().run() },
-    { label: "Header row on or off", onSelect: () => chain().toggleHeaderRow().run() },
     "separator",
     { label: "Delete table", danger: true, onSelect: () => chain().deleteTable().run() },
   ];
   const language = editor.getAttributes("codeBlock").language as string | null | undefined;
   const languages: MenuItem[] = [["", "Plain text"] as const, ...LANGUAGES].map(([id, name]) => ({
-    label: (language ?? "") === id ? `${name} (in use)` : name,
+    label: languageId(language) === id ? `${name} (in use)` : name,
     onSelect: () => chain().updateAttributes("codeBlock", { language: id || null }).run(),
   }));
   const styles: MenuItem[] = STYLES.map((s) => ({ label: s.name, icon: glyph(s.short), onSelect: () => (editor.view.focus(), s.run(editor)) }));

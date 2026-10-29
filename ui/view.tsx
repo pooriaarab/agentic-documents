@@ -61,7 +61,7 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
   const more: MenuItem[] = [
     ...(editor ? [{ label: "Download Markdown", onSelect: () => downloadMarkdown(editor, title.title) }] : []),
     ...(editor && me.role === "editor" ? [{ label: "Import Markdown", onSelect: () => setDialog("import") }] : []),
-    "separator" as const,
+    ...(editor ? ["separator" as const] : []),
     ...(me.role === "editor" ? [{ label: "Rename", onSelect: () => setDialog("rename") }, { label: "Delete", danger: true, onSelect: () => setDialog("delete") }, "separator" as const] : []),
     ...themes.map(([value, label]) => ({ label: preference === value ? `${label} (in use)` : label, onSelect: () => setPreference(value) })),
     ...(signOut ? ["separator" as const, { label: `Sign out ${me.name}`, onSelect: signOut }] : []),
@@ -79,7 +79,7 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
       <Boundary><Surface live={load.live} editable={me.role === "editor"} principal={me} onEditor={setEditor} /></Boundary>
       <RenameDocument id={id} current={title.title} open={dialog === "rename"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => void readTitle()} />
       <DeleteDocument id={id} name={title.title} open={dialog === "delete"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => go("#/")} />
-      <ImportDialog editor={editor ?? undefined} open={dialog === "import"} onOpenChange={(o) => !o && setDialog(undefined)} />
+      <ImportDialog editor={editor ?? undefined} remote={false} open={dialog === "import"} onOpenChange={(o) => !o && setDialog(undefined)} />
       <ShareDocument id={id} open={dialog === "share"} onOpenChange={(o) => !o && setDialog(undefined)} />
     </Page>
   );

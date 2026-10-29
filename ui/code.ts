@@ -32,17 +32,24 @@ export const LANGUAGES: [id: string, name: string][] = [
   ["yaml", "YAML"],
 ];
 
+const ALIASES: Record<string, string> = { sh: "bash", shell: "bash", js: "javascript", ts: "typescript", py: "python", yml: "yaml", xml: "html" };
+
 const lowlight = createLowlight({ bash, css, go, javascript, json, markdown, plaintext, python, rust, sql, typescript, xml, yaml });
 lowlight.registerAlias({ xml: ["html"], bash: ["sh", "shell"], javascript: ["js"], typescript: ["ts"], python: ["py"], yaml: ["yml"] });
 
-/** The name of a code block language, or the fence name itself for a language the menu does not list. */
-export const languageName = (id: string | null | undefined): string => (id ? (LANGUAGES.find(([key]) => key === id)?.[1] ?? id) : "Plain text");
+/** The menu id of a fence language: `ts` is `typescript`. */
+export const languageId = (id: string | null | undefined): string => (id ? (ALIASES[id] ?? id) : "");
 
-// A block with no language is plain text. It is not guessed, so its colors do not change while a person types. The
-// stored language stays empty: `defaultLanguage` alone would also store "plaintext" in each new block.
+/** The name of a code block language, or the fence name itself for a language the menu does not list. */
+export const languageName = (id: string | null | undefined): string => (id ? (LANGUAGES.find(([key]) => key === languageId(id))?.[1] ?? id) : "Plain text");
+
+// A block with no language, or a language with no bundled grammar, is plain text. It is never guessed, so its colors do
+// not change while a person types, and a large block does not run every grammar on each key. The stored language stays
+// empty: `defaultLanguage` alone would also store "plaintext" in each new block.
+const plain = { ...lowlight, highlightAuto: (value: string) => lowlight.highlight("plaintext", value) };
 export const CodeBlock = CodeBlockLowlight.extend({
   addAttributes() {
     const parent: Record<string, object> = this.parent?.() ?? {};
     return { ...parent, language: { ...parent.language, default: null } };
   },
-}).configure({ lowlight, defaultLanguage: "plaintext" });
+}).configure({ lowlight: plain, defaultLanguage: "plaintext" });
