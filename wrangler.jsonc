@@ -5,5 +5,10 @@
   // {"<output of openssl rand -hex 32>":"agent_of_human:scribe"}. A shorter token refuses the whole config.
   "name": "agentic-documents",
   "main": "src/worker.ts",
-  "compatibility_date": "2026-01-01"
+  // Create the bucket with `wrangler r2 bucket create agentic-documents-data --jurisdiction eu`.
+  // Create the database with `wrangler d1 create agentic-documents --jurisdiction eu`, then put its id below.
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{ "binding": "DB", "database_name": "agentic-documents", "database_id": "00000000-0000-0000-0000-000000000000" }],
+  "r2_buckets": [{ "binding": "DOCS", "bucket_name": "agentic-documents-data", "jurisdiction": "eu" }]
 }

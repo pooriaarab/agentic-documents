@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { AgenticDoc } from "./doc.js";
 import { exportDoc } from "./export.js";
-import { MemoryBlobs } from "./memory-blobs.js";
+import { createMemoryBlobs, createMemoryStore } from "agentic-identity";
 import { DocsService } from "./service.js";
 import { createApp } from "./worker.js";
 
@@ -31,11 +31,11 @@ let server: ChildProcess;
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), "agentic-documents-worker-"));
   const config = join(dir, "wrangler.jsonc");
-  writeFileSync(config, JSON.stringify({ name: "docs-e2e", main: resolve("src/worker.ts"), compatibility_date: "2026-01-01", vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS) } }));
+  writeFileSync(config, JSON.stringify({ name: "docs-e2e", main: resolve("src/worker.ts"), compatibility_date: "2026-01-01", compatibility_flags: ["nodejs_compat"], d1_databases: [{ binding: "DB", database_name: "docs-e2e", database_id: "00000000-0000-0000-0000-000000000000" }], r2_buckets: [{ binding: "DOCS", bucket_name: "docs-e2e", jurisdiction: "eu" }], vars: { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS), AGENTIC_DOCS_REGION: "unknown", AGENTIC_DOCS_UNSAFE_REGION: "1" } }));
   const [port, inspector] = [await freePort(), await freePort()];
   BASE = `http://127.0.0.1:${port}`;
   // Its own process group: workerd children outlive a kill of wrangler alone.
-  server = spawn(resolve("node_modules/.bin/wrangler"), ["dev", "--config", config, "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspector), "--local"], {
+  server = spawn(resolve("node_modules/.bin/wrangler"), ["dev", "--config", config, "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspector), "--local", "--persist-to", join(dir, "state")], {
     cwd: dir,
     detached: true,
     env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" },
@@ -64,6 +64,17 @@ const api = (path: string, token: string | null, init: { method?: string; body?:
 const post = (path: string, token: string, body: unknown) => api(path, token, { body });
 
 describe("worker failures", () => {
+  test("the real Worker refuses to serve without a region claim or without its bindings", async () => {
+    const { default: worker } = await import("./worker.js");
+    const env = { AGENTIC_DOCS_TOKENS: JSON.stringify(TOKENS) };
+    const ask = (extra: object) =>
+      worker.fetch(new Request("http://x/api/v1/docs/a/read", { headers: { authorization: `Bearer ${ADA}` } }), { ...env, DB: {}, DOCS: {}, ...extra } as never, {});
+    for (const extra of [{}, { AGENTIC_DOCS_REGION: "EU" }, { AGENTIC_DOCS_REGION: "mars" }, { AGENTIC_DOCS_REGION: "unknown" }, { AGENTIC_DOCS_REGION: "eu", DB: undefined }]) {
+      const res = await ask(extra);
+      expect([res.status, ((await res.json()) as any).error.code]).toEqual([500, "MISCONFIGURED"]);
+    }
+  });
+
   test("no token, a wrong token, and a malformed header are 401", async () => {
     expect((await api("/x/read", null)).status).toBe(401);
     expect((await api("/x/read", "nope")).status).toBe(401);
@@ -72,7 +83,7 @@ describe("worker failures", () => {
   });
 
   test("with no tokens configured the API is closed", async () => {
-    const app = createApp(new DocsService(new MemoryBlobs()));
+    const app = createApp(new DocsService({ blobs: createMemoryBlobs(), store: createMemoryStore() }));
     const res = await app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${BOT}` } }, {});
     expect(res.status).toBe(401);
     const broken = await app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${BOT}` } }, { AGENTIC_DOCS_TOKENS: "{oops" });
@@ -80,7 +91,7 @@ describe("worker failures", () => {
   });
 
   test("a short token, or a config that is not a table of valid entries, closes the whole API", async () => {
-    const app = createApp(new DocsService(new MemoryBlobs()));
+    const app = createApp(new DocsService({ blobs: createMemoryBlobs(), store: createMemoryStore() }));
     const good = `ok-${"k".repeat(40)}`;
     const ask = (tokens: string) => app.request("/api/v1/docs/x/read", { headers: { authorization: `Bearer ${good}` } }, { AGENTIC_DOCS_TOKENS: tokens });
     expect((await ask(JSON.stringify({ [good]: "human:Ada" }))).status).toBe(404); // valid config: passes auth, no document

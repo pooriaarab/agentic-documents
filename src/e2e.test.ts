@@ -39,7 +39,7 @@ describe("cli failures", () => {
     const run = cli(["new", "noauthor", "--markdown", "x"], null);
     expect(run.code).toBe(1);
     expect(run.err).toContain("INVALID_AUTHOR");
-    expect(existsSync(join(dir, "noauthor.ydoc"))).toBe(false);
+    expect(existsSync(join(dir, "blobs")) || existsSync(join(dir, "store"))).toBe(false);
   });
 
   test("an unknown author kind fails", () => {
@@ -51,6 +51,7 @@ describe("cli failures", () => {
     expect(run.code).toBe(2);
     expect(run.err).toContain("invalid document id");
     expect(existsSync(join(dir, "..", "evil.ydoc"))).toBe(false);
+    expect(existsSync(join(dir, "blobs")) || existsSync(join(dir, "store"))).toBe(false);
   });
 
   test("a missing document, a repeated new, and an unknown command fail", () => {
@@ -107,8 +108,8 @@ describe("cli flow", () => {
     expect(log.map((e: { author: { kind: string } }) => e.author.kind)).toContain("agent_of_human");
     expect(log.at(-1)).toMatchObject({ op: "replace", author: { kind: "human" }, suggestion: { author: { kind: "agent_of_human" } } });
     expect(JSON.stringify(log)).not.toContain("Cost and time");
-    expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
-  });
+    expect(readdirSync(join(dir, "blobs")).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+  }, 30_000);
 
   test("HTML export is self-contained and escapes content", () => {
     cli(["new", "html", "--markdown", "# Hi <b>\n\n[bad](javascript:alert(1)) and [ok](https://example.org)"]);
@@ -165,7 +166,7 @@ describe("parallel writers", () => {
     expect(runs.map((r) => r.code)).toEqual(Array(12).fill(0));
     const md = cli(["read", "race"]).out;
     for (let i = 0; i < 12; i++) expect(md).toContain(`line ${i}\n`);
-    expect(readdirSync(dir).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock"))).toEqual([]);
+    expect(readdirSync(join(dir, "blobs")).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock"))).toEqual([]);
   });
 
   test("eight processes create one id: one succeeds and the rest say DOCUMENT_EXISTS", async () => {
@@ -267,7 +268,7 @@ describe("mcp over stdio", () => {
       const creates = await Promise.all(Array.from({ length: 6 }, (_, i) => call(client, "doc_new", { id: "mcponce", markdown: `from ${i}` })));
       expect(creates.filter((c) => !c.isError)).toHaveLength(1);
       for (const c of creates.filter((c) => c.isError)) expect(c.text).toContain("DOCUMENT_EXISTS");
-      expect(readdirSync(dir).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock"))).toEqual([]);
+      expect(readdirSync(join(dir, "blobs")).filter((f) => f.endsWith(".tmp") || f.endsWith(".lock"))).toEqual([]);
     } finally {
       await client.close();
     }

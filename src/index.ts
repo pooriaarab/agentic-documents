@@ -18,9 +18,9 @@ export {
 export { blocksToMarkdown, markdownToBlocks, type PmNode } from "./markdown.js";
 export { schema } from "./schema.js";
 export { Suggestions, Threads, type Message, type Suggestion, type Thread } from "./review.js";
-export { MemoryBlobs } from "./memory-blobs.js";
 export { commands, type Command } from "./commands.js";
 export { EXPORT_FORMATS, exportDoc, type ExportFormat, type ExportOptions, type ExportResult } from "./export.js";
-export type { Blobs, BlobObject, Region } from "./ports.js";
-export { DocsService } from "./service.js";
+export { createFileBlobs, type FileBlobsOptions } from "./adapters/file-blobs.js";
+export { createFileStore } from "./adapters/file-store.js";
+export { DocsService, type DocInfo, type DocsPorts } from "./service.js";
 export { exportOdt, ODT_MIME } from "./odt.js";
