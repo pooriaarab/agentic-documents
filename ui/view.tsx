@@ -6,6 +6,8 @@ import { PageHeading } from "./focus.js";
 import { DeleteDocument, RenameDocument, ShareDocument } from "./dialogs.js";
 import { Boundary, Surface } from "./editor.js";
 import { icons } from "./icons.js";
+import { downloadMarkdown, ImportDialog } from "./transfer.js";
+import type { Editor } from "@tiptap/core";
 
 /** The live room of a document on this Worker. */
 export function roomOf(id: string, token: string, baseUrl: string) {
@@ -33,7 +35,8 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
   const { api, token, me, baseUrl, signOut } = useSession();
   const { preference, setPreference } = useTheme();
   const [title, setTitle] = useState<{ id: string; title: string } | { id: string; error: unknown }>();
-  const [dialog, setDialog] = useState<"rename" | "delete" | "share">();
+  const [dialog, setDialog] = useState<"rename" | "delete" | "share" | "import">();
+  const [editor, setEditor] = useState<Editor | null>(null);
   const [attempt, setAttempt] = useState(0);
   const room = useMemo(() => roomOf(id, token, baseUrl), [id, token, baseUrl]);
   // A save on leave never makes a document, so after a delete it fails with NO_DOCUMENT and the document stays deleted.
@@ -56,6 +59,9 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
   // The list page has these in its top bar. A document has no side bar or top bar of the app, so they are here.
   const themes: [ThemePreference, string][] = [["system", "System theme"], ["light", "Light theme"], ["dark", "Dark theme"]];
   const more: MenuItem[] = [
+    ...(editor ? [{ label: "Download Markdown", onSelect: () => downloadMarkdown(editor, title.title) }] : []),
+    ...(editor && me.role === "editor" ? [{ label: "Import Markdown", onSelect: () => setDialog("import") }] : []),
+    "separator" as const,
     ...(me.role === "editor" ? [{ label: "Rename", onSelect: () => setDialog("rename") }, { label: "Delete", danger: true, onSelect: () => setDialog("delete") }, "separator" as const] : []),
     ...themes.map(([value, label]) => ({ label: preference === value ? `${label} (in use)` : label, onSelect: () => setPreference(value) })),
     ...(signOut ? ["separator" as const, { label: `Sign out ${me.name}`, onSelect: signOut }] : []),
@@ -70,9 +76,10 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
         </>
       }
     >
-      <Boundary><Surface live={load.live} editable={me.role === "editor"} principal={me} /></Boundary>
+      <Boundary><Surface live={load.live} editable={me.role === "editor"} principal={me} onEditor={setEditor} /></Boundary>
       <RenameDocument id={id} current={title.title} open={dialog === "rename"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => void readTitle()} />
       <DeleteDocument id={id} name={title.title} open={dialog === "delete"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => go("#/")} />
+      <ImportDialog editor={editor ?? undefined} open={dialog === "import"} onOpenChange={(o) => !o && setDialog(undefined)} />
       <ShareDocument id={id} open={dialog === "share"} onOpenChange={(o) => !o && setDialog(undefined)} />
     </Page>
   );

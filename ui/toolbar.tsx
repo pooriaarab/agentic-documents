@@ -3,6 +3,7 @@
 import type { Editor } from "@tiptap/core";
 import { Menu, Toolbar, ToolbarButton, ToolbarGroup, type MenuItem } from "agentic-design/react";
 import type { ReactNode } from "react";
+import { LANGUAGES, languageName } from "./code.js";
 import { glyph, icons } from "./icons.js";
 
 /** The text styles of a block, in the order the menu shows them. */
@@ -33,6 +34,24 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
   const on = (name: string, attrs?: object) => editor.isActive(name, attrs);
   // A block that is not a paragraph or a heading, such as a code block, or a selection over several kinds, is "Other".
   const style = STYLES.find((s) => s.active(editor));
+  // In a table, the Table tool opens the table changes. Elsewhere it puts in a new table.
+  const tables: MenuItem[] = [
+    { label: "Add row above", onSelect: () => chain().addRowBefore().run() },
+    { label: "Add row below", onSelect: () => chain().addRowAfter().run() },
+    { label: "Add column before", onSelect: () => chain().addColumnBefore().run() },
+    { label: "Add column after", onSelect: () => chain().addColumnAfter().run() },
+    "separator",
+    { label: "Delete row", onSelect: () => chain().deleteRow().run() },
+    { label: "Delete column", onSelect: () => chain().deleteColumn().run() },
+    { label: "Header row on or off", onSelect: () => chain().toggleHeaderRow().run() },
+    "separator",
+    { label: "Delete table", danger: true, onSelect: () => chain().deleteTable().run() },
+  ];
+  const language = editor.getAttributes("codeBlock").language as string | null | undefined;
+  const languages: MenuItem[] = [["", "Plain text"] as const, ...LANGUAGES].map(([id, name]) => ({
+    label: (language ?? "") === id ? `${name} (in use)` : name,
+    onSelect: () => chain().updateAttributes("codeBlock", { language: id || null }).run(),
+  }));
   const styles: MenuItem[] = STYLES.map((s) => ({ label: s.name, icon: glyph(s.short), onSelect: () => (editor.view.focus(), s.run(editor)) }));
 
   return (
@@ -53,8 +72,15 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
       <ToolbarGroup label="Blocks">
         {tool("Quote", icons.quote, () => chain().toggleBlockquote().run(), on("blockquote"))}
         {tool("Code block", icons.codeBlock, () => chain().toggleCodeBlock().run(), on("codeBlock"))}
+        {on("codeBlock") && (
+          <Menu trigger={<ToolbarButton label={`Code language: ${languageName(language)}`} icon={<span className="agd-style">{glyph(languageName(language))}{icons.chevronDown}</span>} className="agd-style-button" disabled={!editable} />} items={languages} />
+        )}
         {tool("Divider", icons.divider, () => chain().setHorizontalRule().run())}
-        {tool("Table", icons.table, () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), on("table"))}
+        {on("table") ? (
+          <Menu trigger={<ToolbarButton label="Table changes" icon={<>{icons.table}{icons.chevronDown}</>} pressed className="agd-style-button" disabled={!editable} />} items={tables} />
+        ) : (
+          tool("Table", icons.table, () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())
+        )}
         {tool("Image", icons.image, onImage)}
       </ToolbarGroup>
       <ToolbarGroup label="History">

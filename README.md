@@ -73,6 +73,14 @@ Enter or Tab picks, and Escape closes it. The text keeps the focus and names the
 Select text to get a bubble menu with bold, italic, strikethrough, inline code, and link. Alt+F10 moves the focus
 into it, and Escape gives the focus back to the text. An empty document says how to start.
 
+In a table, the Table tool opens the table changes: add a row above or below, add a column before or after, delete a
+row or a column, turn the header row on or off, and delete the table. In a code block, a Code language tool sets the
+language of the fence. Twelve languages have syntax colors (Shell, CSS, Go, HTML, JavaScript, JSON, Markdown, Python,
+Rust, SQL, TypeScript, YAML). The colors are decorations, so the stored text has none. The document menu has Download
+Markdown, which saves the text as a `.md` file, and Import Markdown, which replaces the text for everyone in the room
+with a `.md` file of 2 MB or less. Both use the same conversion as `doc_read` and `doc_new`, so an import refuses what
+`doc_new` refuses (a footnote, for example). Undo takes an import back.
+
 Run it on your machine:
 
 ```sh

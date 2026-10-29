@@ -84,6 +84,14 @@
 .agd-doc .agd-prose ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
 .agd-doc .agd-prose ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--agd-color-text-muted); text-decoration: line-through; }
 
+/* Syntax colors of a code block, from the text tokens, so they keep their contrast in both themes. */
+.agd-doc .agd-prose pre .hljs-keyword, .agd-doc .agd-prose pre .hljs-selector-tag, .agd-doc .agd-prose pre .hljs-built_in, .agd-doc .agd-prose pre .hljs-type { color: var(--agd-color-accent-text); }
+.agd-doc .agd-prose pre .hljs-string, .agd-doc .agd-prose pre .hljs-attribute, .agd-doc .agd-prose pre .hljs-addition { color: var(--agd-color-success-text); }
+.agd-doc .agd-prose pre .hljs-number, .agd-doc .agd-prose pre .hljs-literal, .agd-doc .agd-prose pre .hljs-symbol, .agd-doc .agd-prose pre .hljs-variable { color: var(--agd-color-warning-text); }
+.agd-doc .agd-prose pre .hljs-title, .agd-doc .agd-prose pre .hljs-name, .agd-doc .agd-prose pre .hljs-section, .agd-doc .agd-prose pre .hljs-attr { color: var(--agd-color-agent-text); }
+.agd-doc .agd-prose pre .hljs-comment, .agd-doc .agd-prose pre .hljs-quote, .agd-doc .agd-prose pre .hljs-meta { color: var(--agd-color-text-muted); font-style: italic; }
+.agd-doc .agd-prose pre .hljs-deletion, .agd-doc .agd-prose pre .hljs-regexp { color: var(--agd-color-danger-text); }
+
 /* The empty text says how to start. */
 .agd-doc .agd-prose p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: inline-start; height: 0; color: var(--agd-color-text-muted); pointer-events: none; }
 

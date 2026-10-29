@@ -14,6 +14,9 @@
 - A slash menu (type `/`) adds a block, and a bubble menu over a selection formats it. Alt+F10 reaches the bubble
   menu from the keyboard. An empty document shows a hint. Both menus are ports of gitmarkdown.
 - `@tiptap/extensions` is a direct dependency, for the placeholder.
+- Table changes from the Table tool in a table, a language for a code block with syntax colors for twelve languages,
+  and Download Markdown and Import Markdown in the document menu. New dependencies: `@tiptap/extension-code-block`,
+  `@tiptap/extension-code-block-lowlight`, `lowlight` (MIT), and `highlight.js` (BSD-3-Clause).
 - The editor classes use the `agd-` prefix. Update any style that targets the old names: `.agd-doc` (was `.adoc`),
   `.agd-app` (was `.adoc-app`), `.agd-prose` (was `.prose`), `.agd-agent-text` (was `.agent-text`), `.agd-caret`,
   `.agd-caret--agent`, and `.agd-caret__tag` (were `.caret`, `.caret--agent`, and `.caret__tag`), and `.agd-muted`,
