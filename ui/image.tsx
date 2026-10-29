@@ -16,6 +16,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
   const [src, setSrc] = useState("");
   const [alt, setAlt] = useState("");
   const [decorative, setDecorative] = useState(false);
+  const [opened, setOpened] = useState("");
   const [error, setError] = useState<{ src?: string; alt?: string }>({});
   const refocus = useRef(false);
   const editing = open && editor?.isActive("image") === true;
@@ -26,6 +27,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
     const now = editor?.isActive("image") ? editor.getAttributes("image") : {};
     const current = typeof now.alt === "string" ? now.alt : null;
     setSrc(typeof now.src === "string" ? now.src : "");
+    setOpened(typeof now.src === "string" ? now.src : "");
     setAlt(current ?? "");
     setDecorative(current === "");
     setError({});
@@ -47,7 +49,8 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
     if (!editor) return;
     const address = src.trim();
     const text = alt.trim();
-    const problem = { src: SOURCE.test(address) && address.length <= MAX_SOURCE ? undefined : "Use a web address that starts with https:// or http://, or a small embedded PNG, JPEG, GIF, or WebP image.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
+    // An image the engine took from Markdown can have a source this dialog would not accept. Its alt text can still change.
+    const problem = { src: (editing && address === opened) || (SOURCE.test(address) && address.length <= MAX_SOURCE) ? undefined : "Use a web address that starts with https:// or http://, or a small embedded PNG, JPEG, GIF, or WebP image.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
     if (problem.src || problem.alt) return setError(problem);
     const attrs = { src: address, alt: decorative ? "" : text };
     if (editor.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();

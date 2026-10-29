@@ -47,6 +47,20 @@ test("an image gets alt text, or is marked decorative, and both reach the stored
   await expect(textbox(ada).locator("img[src^=data]")).toHaveAttribute("alt", "");
   await expect.poll(read).toContain("![](data:image/png");
   await expectAccessible(ada);
+
+  // An image from Markdown can have a relative source. The dialog still sets its alt text.
+  const agent = await LiveDoc.join({ server: url(), id, token: BOT, name: "Scribe" });
+  await agent.edit((doc, author) => doc.append("![](images/chart.png)", author));
+  await agent.leave();
+  const chart = textbox(ada).locator("img[src='images/chart.png']");
+  await textbox(ada).click(); // the image has no size, as the file is missing, so the keyboard selects it
+  await ada.keyboard.press("Control+End");
+  await ada.keyboard.press("Shift+ArrowLeft");
+  await ada.getByRole("button", { name: "Image" }).click();
+  await ada.getByLabel("Decorative image").uncheck(); // an empty alt reads as decorative
+  await ada.getByRole("textbox", { name: "Alt text" }).fill("Sales chart");
+  await ada.getByRole("button", { name: "Apply" }).click();
+  await expect(chart).toHaveAttribute("alt", "Sales chart");
   await ada.context().close();
 });
 
