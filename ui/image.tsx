@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
-import { Button, Dialog, DialogClose, Input } from "agentic-design/react";
+import { Button, Checkbox, Dialog, DialogClose, Input } from "agentic-design/react";
 
 /** The sources the engine renders: web addresses, and small embedded pictures. */
 const SOURCE = /^(https?:\/\/\S+|data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+)$/i;
@@ -25,11 +25,11 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
     if (!open) return;
     // getAttributes reads any image in the selected range, so only a selected image fills the fields.
     const now = editor?.isActive("image") ? editor.getAttributes("image") : {};
-    const current = typeof now.alt === "string" ? now.alt : null;
     setSrc(typeof now.src === "string" ? now.src : "");
     setOpened(typeof now.src === "string" ? now.src : "");
-    setAlt(current ?? "");
-    setDecorative(current === "");
+    // An empty alt can mean decorative, or that nobody wrote a description. The person chooses, so Decorative starts off.
+    setAlt(typeof now.alt === "string" ? now.alt : "");
+    setDecorative(false);
     setError({});
   }, [open, editor]);
 
@@ -66,9 +66,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
       <form className="adoc form" onSubmit={(e) => (e.preventDefault(), apply())}>
         <Input label="Image address" value={src} onChange={(e) => setSrc(e.target.value)} error={error.src} placeholder="https://" autoComplete="off" />
         <Input label="Alt text" value={decorative ? "" : alt} onChange={(e) => setAlt(e.target.value)} error={error.alt} disabled={decorative} autoComplete="off" />
-        <label className="check">
-          <input type="checkbox" checked={decorative} onChange={(e) => (setDecorative(e.target.checked), setError((now) => ({ ...now, alt: undefined })))} /> Decorative image, with no description
-        </label>
+        <Checkbox label="Decorative image, with no description" checked={decorative} onChange={(e) => (setDecorative(e.target.checked), setError((now) => ({ ...now, alt: undefined })))} />
         <div className="form-actions">
           <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
           <Button type="submit">{editing ? "Apply" : "Insert"}</Button>

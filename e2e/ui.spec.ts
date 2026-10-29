@@ -57,7 +57,6 @@ test("an image gets alt text, or is marked decorative, and both reach the stored
   await ada.keyboard.press("Control+End");
   await ada.keyboard.press("Shift+ArrowLeft");
   await ada.getByRole("button", { name: "Image" }).click();
-  await ada.getByLabel("Decorative image").uncheck(); // an empty alt reads as decorative
   await ada.getByRole("textbox", { name: "Alt text" }).fill("Sales chart");
   await ada.getByRole("button", { name: "Apply" }).click();
   await expect(chart).toHaveAttribute("alt", "Sales chart");
