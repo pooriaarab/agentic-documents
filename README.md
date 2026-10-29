@@ -488,8 +488,7 @@ Limits of live editing:
 - Sharing stores roles, invites, and link tokens. The document commands do not check them yet: a token's role
   (`editor` or `viewer`) still decides what it may do. Nothing sends an invite email, and nothing accepts an
   invite or opens a link token in this package yet. The list of links is not available, so keep the id of a link
-  that you make. A person who removes a document that they do not own leaves its sharing data behind. An owner's
-  `remove` erases it.
+  that you make. The share dialog shows it next to the token. Removing a document erases its sharing data.
 - The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
   shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
   overwrite each other. The CLI and MCP server keep the same data in local files.

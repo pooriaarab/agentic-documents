@@ -30,6 +30,7 @@ test("the share dialog lists, changes, and removes roles, invites, and makes a l
 
   await dialog.getByRole("combobox", { name: "Role for Bob" }).selectOption("viewer");
   await expect(dialog.getByRole("status").filter({ hasText: "Bob is now viewer." })).toBeVisible();
+  await expect(dialog).toContainText("reads and writes do not check them yet");
   expect((await sdk.grants(id)).find((g) => g.subjectId === "Bob")?.role).toBe("viewer");
 
   await dialog.getByLabel("Invite by email or @handle").fill("nobody");
@@ -38,7 +39,10 @@ test("the share dialog lists, changes, and removes roles, invites, and makes a l
   await dialog.getByLabel("Invite by email or @handle").fill("kit@example.com");
   await dialog.getByRole("button", { name: "Invite" }).click();
   await expect(dialog.getByRole("status").filter({ hasText: "Invite made" })).toBeVisible();
-  expect(await sdk.invites(id)).toHaveLength(1);
+  await dialog.getByLabel("Invite by email or @handle").fill("@Helper"); // the handle is lower-cased, as the server needs
+  await dialog.getByRole("button", { name: "Invite" }).click();
+  await expect(dialog.getByRole("status").filter({ hasText: "Invite made for @Helper" })).toBeVisible();
+  expect((await sdk.invites(id)).map((i) => `${i.for}:${i.handle ?? ""}`).sort()).toEqual(["email:", "handle:helper"]);
 
   await dialog.getByRole("button", { name: "Make a link" }).click();
   const token = dialog.getByLabel("Link token (shows once)");
