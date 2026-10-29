@@ -164,7 +164,8 @@ npx agentic-documents mcp --live https://docs.example.com
   agent edits. `--as` and `--scopes` do not apply with `--live`.
 - A room starts from the stored document. `save` merges the room back into the stored document, so
   `read`, `export`, and the other commands see live edits. A save also creates a document that has none.
-  The CLI and MCP server save after each change.
+  The CLI and MCP server save after each change. A document over 1,000,000 bytes cannot open in a room or be saved from one. A save refuses an update with a wrong
+  kind of content or a malformed thread, suggestion, or log entry. HTTP edits reach an open room only when a client joins and seeds it.
 - A `viewer` token joins and reads. The room drops its updates, and `edit` and `save` fail with `FORBIDDEN`.
   Set a role in `AGENTIC_DOCS_TOKENS` with `{ "as": "human:Vic", "role": "viewer" }`. A token with no role is an editor.
 - `GET /api/v1/docs/:id/room` lists who sent updates in the room, and whether each is machine-made.
@@ -208,11 +209,6 @@ Limits of live editing:
 - `--as` and `AGENTIC_DOCS_AS` are self-declared labels. The CLI does not prove who runs it, so
   `--as human:Ada` labels work as human on any machine that can run the command. Only the HTTP API
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
-- A live client (`LiveDoc` from `agentic-documents/live`) starts a room from the stored document
-  (`GET /api/v1/docs/:id/state`) and saves it with `save()` (`POST /api/v1/docs/:id/checkpoint`). A save
-  merges, so two saves at once both land. A document over 1,000,000 bytes cannot open in a room or be
-  saved from one, and the client says so. HTTP edits reach an open room only when a client joins and
-  seeds it. A save refuses an update with a wrong kind of content or a malformed thread, suggestion, or log entry.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
 - Export covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are planned.

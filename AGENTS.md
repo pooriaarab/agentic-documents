@@ -49,7 +49,7 @@ An error returns `isError` with `{ error: { code, message, matches } }`.
 Add `--live <url>` to the CLI or the MCP server, and set `AGENTIC_DOCS_TOKEN`. Every command then runs in
 the live room for that document and saves to the stored document. The server sets your author kind and your
 role from the token, so `--as` does not apply. A `viewer` token gets `FORBIDDEN` on every change. In the SDK,
-`LiveDoc.join({ server, id, token })` gives you `edit`, `save`, `peers`, and `leave`.
+`LiveDoc.join({ server, id, token })` gives you `edit`, `save`, `peers`, and `leave`. The Worker also has two routes that are not commands: `GET /api/v1/docs/:id/state` (the stored document as a Yjs update) and `POST /api/v1/docs/:id/checkpoint` (merge a room into it).
 
 ## HTTP API
 
