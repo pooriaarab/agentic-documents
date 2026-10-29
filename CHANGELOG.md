@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.1
+
+### Changed
+
+- `agentic-identity` moves from `^0.8.0` to `^0.9.0`, `agentic-design` from `^0.4.0` to `^0.5.0`, `agentic-realtime` from `^0.4.1` to `^0.4.3`, and `agentic-formats` from `^0.3.0` to `^0.4.2`. The `overrides` entry for `agentic-formats` keeps zod at `^4.6.7`. `agentic-formats` 0.4.2 no longer uses zod 3, which closes a high advisory.
+
 ## 0.11.0
 
 ### Changed
