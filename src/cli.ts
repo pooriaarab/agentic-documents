@@ -130,7 +130,8 @@ export async function main(argv: string[], env = process.env): Promise<number> {
     }
     const result = await command.run(service, input, author);
     if (name === "export") {
-      const { data, encoding } = result as ExportResult;
+      const { data, encoding, warnings } = result as ExportResult;
+      for (const line of warnings) console.error(`warning: ${line}`);
       const bytes = encoding === "base64" ? Buffer.from(data, "base64") : data;
       if (out === undefined) process.stdout.write(bytes);
       else writeFileSync(out, bytes);

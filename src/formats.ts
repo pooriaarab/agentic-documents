@@ -267,7 +267,7 @@ export function importFile(input: string | Uint8Array, format: ImportFormat, aut
 
 export const ODT_MIME = CONTENT_TYPES.odt;
 
-/** Write blocks as an OpenDocument text file (.odt). */
+/** Write blocks as an OpenDocument text file (.odt). It drops the warnings; use `exportFile` or `exportDoc` to read what the file cannot hold. */
 export function exportOdt(blocks: PmNode[]): Uint8Array {
   try {
     return writeOdt(toTextDoc(blocks).model).bytes;

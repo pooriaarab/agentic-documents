@@ -224,10 +224,12 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
       if (!command.readOnly && c.get("role") === "viewer") throw new DocError("FORBIDDEN", "this token is a viewer; it cannot change a document");
       const result = await command.run(await (typeof source === "function" ? source(c.env ?? {}) : source), input, c.get("author"));
       if (command.name === "export") {
-        const { data, contentType, encoding, format } = result as ExportResult;
+        const { data, contentType, encoding, format, warnings } = result as ExportResult;
         const images = input.remoteImages === true || input.remoteImages === "true" ? "data: https:" : "data:";
         const disposition: Record<string, string> = format === "odt" ? { "content-disposition": `attachment; filename="${input.id}.odt"` } : {};
-        const headers = { ...disposition, "content-type": contentType, "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; img-src ${images}; sandbox` };
+        // A JSON list with non-ASCII escaped, so the value is a legal header.
+        const lost: Record<string, string> = warnings.length ? { "x-export-warnings": JSON.stringify(warnings).replace(/[^\x20-\x7e]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`) } : {};
+        const headers = { ...disposition, ...lost, "content-type": contentType, "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; img-src ${images}; sandbox` };
         return encoding === "base64" ? c.body(Uint8Array.from(atob(data), (ch) => ch.charCodeAt(0)), 200, headers) : c.body(data, 200, headers);
       }
       if (typeof result === "string") return c.body(result, 200, { "content-type": "text/markdown; charset=utf-8" });

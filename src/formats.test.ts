@@ -173,8 +173,16 @@ describe("the ODT export is safe and says what it loses", () => {
   });
 
   it("exportDoc lists what the ODT cannot hold, so a caller does not see a silent loss", () => {
-    const doc = AgenticDoc.fromMarkdown("3. three\n4. four\n\n---\n\n> quote", ada);
-    expect(exportDoc(doc, "odt").warnings.length).toBeGreaterThan(0);
+    const doc = AgenticDoc.fromMarkdown("3. three\n4. four\n\n---\n\n> quote\n\n```\ncode\n```\n\n![w](data:image/webp;base64,UklGRg==)", ada);
+    expect(exportDoc(doc, "odt").warnings).toEqual(
+      expect.arrayContaining([
+        "a numbered list that does not start at 1 starts at 1",
+        "a horizontal rule is left out",
+        "a quote is kept as plain paragraphs",
+        "a code block is kept as a paragraph of code text",
+        "an image that is not an embedded PNG, JPEG, or GIF is kept as its alt text",
+      ]),
+    );
     expect(exportDoc(doc, "md").warnings).toEqual([]);
   });
 });
