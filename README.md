@@ -630,6 +630,16 @@ The demo is a staging build, so it sets `AGENTIC_DOCS_UNSAFE_TOKENS=1` and reads
 A person and an agent can edit one document at the same time. Each sees the other's changes. The Worker
 hosts one room per document, on a Durable Object, through [agentic-realtime](https://www.npmjs.com/package/agentic-realtime).
 Deploy `agentic-documents/live-worker`. The sample `wrangler.jsonc` binds `SYNC_ROOM` and sets the migration.
+Your Worker's main module must export the `SyncRoom` class, as the example does.
+
+```ts
+import worker, { SyncRoom } from "agentic-documents/live-worker";
+
+export { SyncRoom };
+export default worker;
+```
+
+A person or an agent joins a room with `LiveDoc`:
 
 ```ts
 import { LiveDoc } from "agentic-documents/live";
