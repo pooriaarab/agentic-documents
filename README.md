@@ -213,6 +213,152 @@ try {
 - The client never retries. A write is not safe to send twice.
 - Pass `fetch` to use your own, for a Worker service binding or for tests.
 
+## Library API
+
+The root import, `agentic-documents`, exports the document model and the helpers that the CLI, the MCP server, and the
+Worker use. Each group below has a short example. The other subpaths have their own sections: [SDK](#sdk),
+[File formats](#file-formats), [Worker subpath](#worker-subpath), [Live editing](#live-editing), and [UI](#ui).
+
+| Export | Use it for |
+| --- | --- |
+| `AgenticDoc`, `DocOptions`, `Section`, `Target`, `TextTarget`, `SectionTarget`, `Anchor`, `AnchorTarget`, `EditEntry` | The document. See [Quick start](#quick-start). |
+| `DocError`, `DocErrorCode` | The error that a failed call throws. It has a `code`. |
+| `parseAuthor`, `PRINCIPAL_KINDS`, `Principal`, `PrincipalKind` | Read a `kind:name` string. List the kinds. |
+| `markdownToBlocks`, `blocksToMarkdown`, `PmNode`, `schema` | Convert Markdown to and from ProseMirror JSON. `schema` is the editor schema. |
+| `Threads`, `Suggestions`, `Thread`, `Suggestion`, `Message` | Comments and suggested edits on text. |
+| `commands`, `Command` | The command table. The CLI, the MCP server, and the HTTP API each read it. |
+| `EXPORT_FORMATS`, `exportDoc`, `ExportFormat`, `ExportOptions`, `ExportResult` | Export a document as `md`, `html`, or `odt`. |
+| `exportOdt` | Write blocks as an OpenDocument text file. It returns bytes. |
+| `createFileStore`, `createFileBlobs`, `FileBlobsOptions` | The local file store. It keeps the catalog and the document bytes. |
+| `DocsService`, `DocsPorts`, `DocInfo` | Create, read, change, and share documents over a store and blobs. |
+| `ROLES`, `INVITE_ROLES`, `SHARE_SCOPE`, `parseSubject`, `contextOf`, `StoreSharing`, `DocSharing`, `GrantInput`, `InviteInput`, `LinkInput` | Roles, sharing helpers, and the sharing port. |
+
+### Document and author
+
+```ts
+import { AgenticDoc, parseAuthor, PRINCIPAL_KINDS } from "agentic-documents";
+
+PRINCIPAL_KINDS; // "human", "agent_of_human", "agent_of_agent", "agent", "user_token"
+parseAuthor("agent_of_human:scribe"); // { kind: "agent_of_human", name: "scribe" }
+
+const doc = AgenticDoc.fromMarkdown("# Plan\n\nShip on Friday.", { kind: "agent_of_human", name: "scribe" });
+doc.replace({ text: "Friday" }, "Monday", { kind: "agent_of_human", name: "scribe" });
+```
+
+- `parseAuthor` returns `undefined` for no value. It does not check the kind. A change checks it and throws `DocError` with `INVALID_AUTHOR`.
+
+### Markdown and blocks
+
+```ts
+import { blocksToMarkdown, markdownToBlocks, schema } from "agentic-documents";
+
+const blocks = markdownToBlocks("# Plan\n\nShip **Friday**.");
+blocks[0].type; // "heading"
+blocksToMarkdown(blocks); // "# Plan\n\nShip **Friday**.\n"
+schema.nodeFromJSON(blocks[0]); // a ProseMirror node, for an editor you build yourself
+```
+
+### Comments and suggestions
+
+```ts
+import { AgenticDoc, Suggestions, Threads } from "agentic-documents";
+
+const person = { kind: "human", name: "ada" } as const;
+const agent = { kind: "agent_of_human", name: "scribe" } as const;
+const doc = AgenticDoc.fromMarkdown("# Plan\n\nShip on Friday.", person);
+
+new Threads(doc).add({ text: "Friday" }, "Is this date firm?", agent); // returns the thread id
+const change = new Suggestions(doc).add({ text: "Friday" }, "Monday", agent); // returns the suggestion id
+new Suggestions(doc).accept(change, person);
+```
+
+- `Threads` has `add`, `reply`, `resolve`, `reopen`, and `list`. `Suggestions` has `add`, `accept`, `reject`, and `list`.
+- A person (`human` or `user_token`) accepts a suggestion that someone else made. An agent accepts one only when it holds the `docs:accept` scope. Nobody accepts their own suggestion. Otherwise the call throws `FORBIDDEN`.
+
+### Commands
+
+```ts
+import { commands } from "agentic-documents";
+
+// `service` is a DocsService, as in "Stores". `author` is a Principal.
+commands.map((command) => command.name); // "new", "list", "read", "replace", "export", ...
+const read = commands.find((command) => command.name === "read")!;
+await read.run(service, { id: "plan" }, author); // the same call the CLI, MCP, and HTTP make
+```
+
+- A `Command` has `name`, `description`, `shape` (a Zod shape for the input), `readOnly`, and `run(service, input, author, context?)`.
+- Use the table to list or call the commands in your own host. Each call still needs an author.
+
+### Export
+
+```ts
+import { exportDoc, exportOdt, markdownToBlocks } from "agentic-documents";
+import { writeFile } from "node:fs/promises";
+
+// `doc` is an AgenticDoc, as in "Document and author".
+const md = exportDoc(doc, "md"); // { format, contentType, encoding: "utf8", data: "# Plan...", warnings: [] }
+const odt = exportDoc(doc, "odt"); // encoding "base64": data is the .odt file in base64
+await writeFile("plan.odt", exportOdt(markdownToBlocks("# Plan\n\nShip on Friday.")));
+```
+
+- `exportDoc(doc, format, { remoteImages? })` returns an `ExportResult`. For `odt` it sets `encoding` to `base64`. For `md` and `html` it sets `utf8`.
+- `exportOdt(blocks)` returns the bytes of an `.odt` file. It drops the warnings. Use `exportDoc`, or `exportFile` from [File formats](#file-formats), to read them.
+
+### Stores
+
+```ts
+import { createFileBlobs, createFileStore, DocsService } from "agentic-documents";
+import { join } from "node:path";
+
+const dir = ".agentic-documents";
+const service = new DocsService({
+  blobs: createFileBlobs(join(dir, "blobs")),
+  store: createFileStore(join(dir, "store")),
+});
+```
+
+- `createFileStore(dir, options?)` keeps the catalog in `<dir>/store.json`. Two stores on the same path share data across processes. A write that loses a race runs again, up to 64 times, then throws `StoreConflictError`.
+- `createFileBlobs(dir, options?)` keeps each document as a file under `<dir>/blobs/`. A conditional write that loses returns `null`. A lock wait that runs out (10 seconds) throws `LOCKED`.
+- Both take `region`. `now` sets the clock, for tests. `createFileBlobs` also takes `urlBase` and `urlSecret` (32 bytes or more). With both set, `signedUrl` returns a signed HTTP URL.
+- Release 0.9 and earlier kept blobs in `<dir>/<hash>`. The first read or write of a key moves its old blob to the new layout. A delete removes it.
+- The CLI uses `<dir>/blobs` and `<dir>/store`, as in the example above. So the CLI's blob files sit in `<dir>/blobs/blobs/`.
+
+### Service
+
+```ts
+const ada = { kind: "human", name: "ada" } as const;
+
+await service.create("plan", "# Plan\n\nShip on Friday.", ada);
+await service.write("plan", (doc) => doc.replace({ text: "Friday" }, "Monday", ada), ada);
+await service.read("plan", (doc) => doc.toMarkdown()); // "# Plan\n\nShip on Monday.\n"
+await service.list(); // [{ id: "plan", title: "plan", createdBy, createdAt, updatedAt, updatedBy }]
+```
+
+- `DocsService` takes `{ blobs, store }` (the `DocsPorts`) and optional `DocOptions`.
+- `service.info(id)` returns a `DocInfo` with `createdBy` and `createdAt`, or `null` when the document has no catalog entry. A `list` row adds `id`, `title`, `updatedAt`, and `updatedBy`.
+- `create` throws `DOCUMENT_EXISTS` when the id is taken. `write` saves only when nobody saved in between. If someone did, it loads the document and runs your callback again, up to 64 times, then throws `CONFLICT`.
+- `read` gives the document to a callback and returns the callback's result.
+- `service.sharing` is a `StoreSharing`. See the next group.
+
+### Sharing helpers
+
+```ts
+import { contextOf, INVITE_ROLES, parseSubject, ROLES, SHARE_SCOPE } from "agentic-documents";
+
+ROLES; // "viewer", "commenter", "editor", "owner"
+INVITE_ROLES; // "viewer", "commenter", "editor"
+SHARE_SCOPE; // "docs:admin"
+parseSubject("agent:scribe"); // { kind: "agent", id: "scribe" }
+
+const ada = { kind: "human", name: "ada" } as const;
+await service.sharing.grant(contextOf(ada), "plan", parseSubject("human:grace"), "editor");
+await service.sharing.grants(contextOf(ada), "plan");
+```
+
+- `contextOf(author)` gives the sign-in context for a call that has no HTTP sign-in: the CLI, the MCP server, and the development token table. A `human` holds `docs:admin`. Any other kind keeps only its `read`, `comment`, `write`, and `admin` scopes.
+- Each sharing call needs an owner of the document. The creator of a document is its owner, unless the author cannot own one.
+- `StoreSharing` implements `DocSharing`. It takes the store and a lookup for documents. `DocsService` builds it for you. `GrantInput`, `InviteInput`, and `LinkInput` are the input types.
+
 ## Embed the editor
 
 `agentic-documents/ui` renders the editor inside your own app. You give it a document id, a client, the principal who
