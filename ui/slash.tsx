@@ -33,8 +33,8 @@ export function defaultSlashItems({ image }: { image: () => void }): SlashItem[]
   ];
 }
 
-/** The height of one item in the menu: 2.5rem, as in editor.css, at the root font size the person chose. */
-const itemPx = () => 2.5 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+/** The root font size the person chose, in px. The menu sizes in editor.css are in rem. */
+const remPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
 const matches = (item: SlashItem, query: string) => [item.title, item.description, ...(item.keywords ?? [])].some((w) => w.toLowerCase().includes(query));
 
@@ -63,7 +63,9 @@ function find(editor: Editor): Omit<Open, "top" | "left" | "rows"> | undefined {
 export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[] }) {
   const [open, setOpen] = useState<Open>();
   const [active, setActive] = useState(0);
-  const dismissed = useRef<number | undefined>(undefined); // the slash that Escape closed, so it stays closed
+  // Escape closes the menu for the slash at the caret. It stays closed until the caret is no longer after a slash, so
+  // typing on, or a peer writing before it, does not open it again. A position would not do: a peer's change can move it.
+  const dismissed = useRef(false);
   const id = useId();
   const shown = open ? items.filter((item) => matches(item, open.query)) : [];
   const state = useRef({ open, shown, active });
@@ -72,9 +74,8 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
   useEffect(() => {
     const update = () => {
       const hit = editor.isFocused ? find(editor) : undefined;
-      if (!hit) dismissed.current = undefined; // that slash is gone, so a new one opens the menu
-      if (!hit || hit.from === dismissed.current) return setOpen(undefined);
-      dismissed.current = undefined;
+      if (!hit && editor.isFocused) dismissed.current = false; // that slash is gone, so a new one opens the menu
+      if (!hit || dismissed.current) return setOpen(undefined);
       const at = editor.view.coordsAtPos(hit.from);
       setOpen((old) => {
         if (old?.query !== hit.query) setActive(0);
@@ -83,11 +84,14 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
         const below = window.innerHeight - at.bottom - 16;
         const above = at.top - 16;
         const room = Math.max(below, above);
-        const row = itemPx();
-        const rows = Math.max(3, Math.min(count, Math.floor((room - 10 - row / 2) / row)));
-        const height = Math.min(count, rows) * row + 10 + (rows < count ? row / 2 : 0);
+        const rem = remPx();
+        const row = 2.5 * rem; // .agd-menu__item
+        const frame = 0.5 * rem + 2; // the padding and the border of .agd-menu
+        const width = Math.min(18 * rem, window.innerWidth - rem);
+        const rows = Math.max(3, Math.min(count, Math.floor((room - frame - row / 2) / row)));
+        const height = Math.min(count, rows) * row + frame + (rows < count ? row / 2 : 0);
         const top = height <= below || below >= above ? at.bottom + 4 : at.top - 4 - height;
-        return { ...hit, rows, top, left: Math.max(8, Math.min(at.left, window.innerWidth - 296)) };
+        return { ...hit, rows, top, left: Math.max(8, Math.min(at.left, window.innerWidth - width - 8)) };
       });
     };
     const blur = () => setOpen(undefined);
@@ -138,7 +142,7 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        dismissed.current = at.from;
+        dismissed.current = true;
         setOpen(undefined);
       }
     };

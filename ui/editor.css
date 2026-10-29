@@ -85,23 +85,23 @@
 .agd-doc .agd-prose ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--agd-color-text-muted); text-decoration: line-through; }
 
 /* The empty text says how to start. */
-.agd-doc .agd-prose p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: inline-start; height: 0; color: var(--ad-color-text-muted); pointer-events: none; }
+.agd-doc .agd-prose p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: inline-start; height: 0; color: var(--agd-color-text-muted); pointer-events: none; }
 
 /* The slash menu and the bubble menu float over the text. Their menu item highlight follows tinylittleoffice (MIT). */
-.agd-doc .agd-menu, .agd-doc .agd-bubble { position: fixed; z-index: 3; background: var(--ad-color-surface-raised); color: var(--ad-color-text); border: 1px solid var(--ad-color-border); border-radius: var(--ad-radius-md); box-shadow: var(--ad-shadow-floating); }
-.agd-doc .agd-menu { width: min(18rem, calc(100vw - 1rem)); padding: var(--ad-space-1); }
+.agd-doc .agd-menu, .agd-doc .agd-bubble { position: fixed; z-index: 3; background: var(--agd-color-surface-raised); color: var(--agd-color-text); border: 1px solid var(--agd-color-border); border-radius: var(--agd-radius-md); box-shadow: var(--agd-shadow-floating); }
+.agd-doc .agd-menu { width: min(18rem, calc(100vw - 1rem)); padding: var(--agd-space-1); }
 .agd-doc .agd-menu ul { list-style: none; margin: 0; padding: 0; }
-.agd-doc .agd-menu__item { display: flex; align-items: center; gap: var(--ad-space-3); height: 2.5rem; padding: var(--ad-space-1) var(--ad-space-2); border-radius: var(--ad-radius-sm); cursor: pointer; }
-.agd-doc .agd-menu__item[aria-selected="true"] { background: var(--ad-color-surface-hover); box-shadow: inset 2px 0 0 var(--ad-color-accent); }
-.agd-doc .agd-menu__icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.75rem; height: 1.75rem; border: 1px solid var(--ad-color-border); border-radius: var(--ad-radius-sm); background: var(--ad-color-surface); }
-.agd-doc .agd-menu__words { display: flex; flex-direction: column; min-width: 0; line-height: var(--ad-line-height-snug); }
-.agd-doc .agd-menu__words > span { font-size: var(--ad-font-size-sm); font-weight: var(--ad-font-weight-medium); }
-.agd-doc .agd-menu__words small { color: var(--ad-color-text-muted); font-size: var(--ad-font-size-xs); }
-.agd-doc .agd-menu__more { margin: 0; padding: var(--ad-space-1) var(--ad-space-2) 0; color: var(--ad-color-text-muted); font-size: var(--ad-font-size-xs); }
+.agd-doc .agd-menu__item { display: flex; align-items: center; gap: var(--agd-space-3); height: 2.5rem; padding: var(--agd-space-1) var(--agd-space-2); border-radius: var(--agd-radius-sm); cursor: pointer; }
+.agd-doc .agd-menu__item[aria-selected="true"] { background: var(--agd-color-surface-hover); box-shadow: inset 2px 0 0 var(--agd-color-accent); }
+.agd-doc .agd-menu__icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.75rem; height: 1.75rem; border: 1px solid var(--agd-color-border); border-radius: var(--agd-radius-sm); background: var(--agd-color-surface); }
+.agd-doc .agd-menu__words { display: flex; flex-direction: column; min-width: 0; line-height: var(--agd-line-height-snug); }
+.agd-doc .agd-menu__words > span { font-size: var(--agd-font-size-sm); font-weight: var(--agd-font-weight-medium); }
+.agd-doc .agd-menu__words small { color: var(--agd-color-text-muted); font-size: var(--agd-font-size-xs); }
+.agd-doc .agd-menu__more { margin: 0; padding: var(--agd-space-1) var(--agd-space-2) 0; color: var(--agd-color-text-muted); font-size: var(--agd-font-size-xs); }
 .agd-doc .agd-bubble { padding: 0; }
 .agd-doc .agd-bubble [role="toolbar"] { border: 0; background: transparent; }
 @media (prefers-reduced-motion: no-preference) {
-  .agd-doc .agd-menu, .agd-doc .agd-bubble { animation: agd-pop var(--ad-duration-fast) var(--ad-easing-out); }
+  .agd-doc .agd-menu, .agd-doc .agd-bubble { animation: agd-pop var(--agd-duration-fast) var(--agd-easing-out); }
 }
 @keyframes agd-pop { from { opacity: 0; transform: translateY(2px); } }
 

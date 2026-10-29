@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createClient } from "../src/client.js";
-import { ADA, VIC } from "./tokens.js";
+import { LiveDoc } from "../src/live.js";
+import { ADA, BOB, VIC } from "./tokens.js";
 import { expectAccessible, newPage, shoot, themes, url } from "./helpers.js";
 
 const textbox = (page: Page) => page.getByRole("textbox", { name: "Document text" });
@@ -94,6 +95,26 @@ test("on a short window the slash menu shows a part of the list, and the arrow k
   const box = (await page.locator(".agd-slash").boundingBox())!;
   expect(box.y + box.height).toBeLessThanOrEqual(420);
   await expectAccessible(page);
+  await page.context().close();
+});
+
+test("a slash that Escape closed stays closed when a peer writes before it", async ({ browser }) => {
+  const { page, id } = await open(browser, "Intro");
+  const text = textbox(page);
+  await expect(text).toContainText("Intro");
+  await text.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" /");
+  const list = page.getByRole("listbox", { name: "Insert a block" });
+  await expect(list).toBeVisible();
+  await page.keyboard.press("Escape");
+  const peer = await LiveDoc.join({ server: url(), id, token: BOB });
+  await peer.edit((doc, author) => doc.replace({ text: "Intro" }, "A longer opening", author));
+  await peer.flush();
+  await expect(text).toContainText("A longer opening /");
+  await page.keyboard.type("x"); // "x" finds Text, so a lost dismissal would open the menu
+  await expect(list).toHaveCount(0);
+  await peer.leave();
   await page.context().close();
 });
 
