@@ -6,7 +6,8 @@
 
 - `agentic-documents/ui`: an Image button in the toolbar. It opens a dialog to insert an image, or to change the selected one. The
   dialog asks for alt text (WCAG 1.1.1), and has a Decorative choice that writes an empty alt. The alt text is kept in the
-  document and in the Markdown and HTML reads and the ODF and OOXML exports.
+  document and in the Markdown and HTML reads. The ODF and OOXML exports keep a description. An empty alt is not marked as
+  decorative there, and a WebP image becomes text, as before.
 
 ## 0.11.0
 

@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { Button, Dialog, DialogClose, Input } from "agentic-design/react";
 
 /** The sources the engine renders: web addresses, and small embedded pictures. */
 const SOURCE = /^(https?:\/\/\S+|data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+)$/i;
+
+/** The most characters in an embedded image. The text goes into the document and to every peer in the room. */
+const MAX_SOURCE = 1_000_000;
 
 /**
  * Insert an image, or change the one that is selected. Every image has alt text (WCAG 1.1.1): a description, or the
@@ -14,6 +17,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
   const [alt, setAlt] = useState("");
   const [decorative, setDecorative] = useState(false);
   const [error, setError] = useState<{ src?: string; alt?: string }>({});
+  const refocus = useRef(false);
   const editing = open && editor?.isActive("image") === true;
 
   useEffect(() => {
@@ -26,14 +30,30 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
     setError({});
   }, [open, editor]);
 
+  // The dialog gives focus back to the toolbar button when it closes. After Apply, writing goes on in the text.
+  useEffect(() => {
+    if (open || !refocus.current) return;
+    refocus.current = false;
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (editor?.isFocused || ++tries > 10) return clearInterval(timer);
+      editor?.view.focus();
+    }, 40);
+    return () => clearInterval(timer);
+  }, [open, editor]);
+
   function apply() {
+    if (!editor) return;
     const address = src.trim();
     const text = alt.trim();
-    const problem = { src: SOURCE.test(address) ? undefined : "Use a web address that starts with https:// or http://, or an embedded PNG, JPEG, GIF, or WebP image.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
+    const problem = { src: SOURCE.test(address) && address.length <= MAX_SOURCE ? undefined : "Use a web address that starts with https:// or http://, or a small embedded PNG, JPEG, GIF, or WebP image.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
     if (problem.src || problem.alt) return setError(problem);
     const attrs = { src: address, alt: decorative ? "" : text };
-    if (editor?.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();
-    else editor?.chain().focus().insertContent({ type: "image", attrs }).run();
+    if (editor.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();
+    else editor.chain().focus().insertContent({ type: "image", attrs }).run();
+    // Put the caret after the image. A selected image is replaced by the next key.
+    editor.chain().setTextSelection(editor.state.selection.to).run();
+    refocus.current = true;
     onOpenChange(false);
   }
 
@@ -43,7 +63,7 @@ export function ImageDialog({ editor, open, onOpenChange }: { editor: Editor | u
         <Input label="Image address" value={src} onChange={(e) => setSrc(e.target.value)} error={error.src} placeholder="https://" autoComplete="off" />
         <Input label="Alt text" value={decorative ? "" : alt} onChange={(e) => setAlt(e.target.value)} error={error.alt} disabled={decorative} autoComplete="off" />
         <label className="check">
-          <input type="checkbox" checked={decorative} onChange={(e) => setDecorative(e.target.checked)} /> Decorative image, with no description
+          <input type="checkbox" checked={decorative} onChange={(e) => (setDecorative(e.target.checked), setError((now) => ({ ...now, alt: undefined })))} /> Decorative image, with no description
         </label>
         <div className="form-actions">
           <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>

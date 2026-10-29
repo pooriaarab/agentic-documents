@@ -220,7 +220,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
           {tool("Numbered list", listIcon(true), pressed("orderedList"), () => chain().toggleOrderedList().run())}
           <ToolbarSeparator />
           {tool("Link", glyph("↗"), pressed("link"), openLink)}
-          {tool("Image", glyph("▣"), pressed("image"), () => setPicturing(true))}
+          {tool("Image", glyph("▣"), false, () => setPicturing(true))}
         </Toolbar>
         <div className="editor-meta">
           <PresenceStack entries={entries} label="People and agents here" />
