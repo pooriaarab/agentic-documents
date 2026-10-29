@@ -8,13 +8,16 @@ export const savedToken = (): string | null => sessionStorage.getItem(KEY);
 export const saveToken = (token: string): void => sessionStorage.setItem(KEY, token);
 export const forgetToken = (): void => sessionStorage.removeItem(KEY);
 
-export const clientFor = (token: string): DocsClient => createClient({ baseUrl: location.origin, token });
+export const clientFor = (token: string, baseUrl: string = location.origin): DocsClient => createClient({ baseUrl, token });
 
 export interface Session {
   api: DocsClient;
   token: string;
   me: Me;
-  signOut: () => void;
+  /** The origin of the server, for the live room and the share link. */
+  baseUrl: string;
+  /** Absent when the host app owns sign in. */
+  signOut?: () => void;
 }
 
 export const SessionContext = createContext<Session | null>(null);

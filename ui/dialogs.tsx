@@ -88,7 +88,7 @@ export function DeleteDocument({ id, name, open, onOpenChange, onDone }: Shared 
 
 /** Who made changes here, and a link. Roles and invites need the sharing API, which this server does not have yet. */
 export function ShareDocument({ id, open, onOpenChange }: Shared & { id: string }) {
-  const { api } = useSession();
+  const { api, baseUrl } = useSession();
   const [people, setPeople] = useState<PresenceEntry[]>();
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -96,7 +96,7 @@ export function ShareDocument({ id, open, onOpenChange }: Shared & { id: string 
     setCopied(false);
     api.room(id).then(({ contributors }) => setPeople(contributors.map((c) => ({ id: `${c.kind}:${c.name}`, name: c.name, kind: isMachine(c.kind) ? "agent" : "person" }))), () => setPeople([]));
   }, [open, api, id]);
-  const link = `${location.origin}/#/d/${encodeURIComponent(id)}`;
+  const link = `${baseUrl.replace(/\/+$/, "")}/#/d/${encodeURIComponent(id)}`;
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title="Share document" description="Anyone with an access token for this server can open this link.">
       <div className="form">

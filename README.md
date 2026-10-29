@@ -246,6 +246,34 @@ const editor = mountEditor(document.getElementById("editor")!, {
 - The styles sit under the `.adoc` class and use the agentic-design tokens. Load `agentic-design/styles.css` first.
 - File import and export are in `agentic-documents/formats` (see [File formats](#file-formats)).
 
+## Mount the whole app
+
+`mount(element, options)` of `agentic-documents/ui` renders the whole web UI inside your page: the document list, the
+editor, rename, delete, and share. You give it a base URL and a callback that returns the token. Your page keeps
+sign in and its own address. It needs `react` and `react-dom` 19 (peer dependencies).
+
+```ts
+import { mount } from "agentic-documents/ui";
+import "agentic-design/styles.css";
+import "agentic-documents/ui.css";
+import "agentic-documents/app.css";
+
+const app = mount(document.getElementById("app")!, {
+  baseUrl: "https://docs.example.com",
+  getToken: () => session.token(), // a string, or a promise of one
+  documentId: "plan", // optional: open this document first
+  onError: (error) => console.warn(error),
+});
+// Later: app.update({ ...options, documentId: "other" }), or app.unmount().
+```
+
+- `getToken` runs when the app opens, and again when the person picks Try again after an error. The server sets the
+  author and the role from the token. The app shows no Sign out button.
+- A link in the app moves inside the app. It does not change the address of your page.
+- `unmount` removes the app. An open document saves its changes and leaves its room.
+- `app.css` holds the layout rules of the app. They use plain class names such as `.page-head` and `.muted`, so load
+  them on a page that has its own styles with care. To embed one document only, use `mountEditor` above.
+
 ## File formats
 
 `agentic-documents/formats` imports and exports files, so an app that embeds the editor needs no mapping

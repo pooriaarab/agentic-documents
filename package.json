@@ -67,13 +67,14 @@
       "import": "./dist/embed.js"
     },
     "./ui.css": "./dist/editor.css",
+    "./app.css": "./dist/app.css",
     "./live-worker": {
       "types": "./dist/live-worker.d.ts",
       "import": "./dist/live-worker.js"
     }
   },
   "scripts": {
-    "build": "tsup && node ui/build.mjs",
+    "build": "rm -rf dist && tsup && node ui/build.mjs",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

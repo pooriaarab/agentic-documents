@@ -1,11 +1,10 @@
 import { StrictMode, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
-import { AppShell, Button, Input, Select, SidebarNav, ThemeProvider, ToastProvider, TooltipProvider, useTheme, type ThemePreference } from "agentic-design/react";
+import { Button, Input, ThemeProvider, ToastProvider, TooltipProvider } from "agentic-design/react";
 import type { Me } from "../src/client.js";
-import { clientFor, describe, forgetToken, SessionContext, saveToken, savedToken, type Session } from "./api.js";
-import { EditorView } from "./view.js";
+import { clientFor, describe, forgetToken, saveToken, savedToken, type Session } from "./api.js";
 import { routeChanged } from "./focus.js";
-import { DocumentList } from "./list.js";
+import { Workspace } from "./app.js";
 import "agentic-design/styles.css";
 import "./editor.css";
 import "./app.css";
@@ -48,41 +47,8 @@ function SignIn({ onSignedIn }: { onSignedIn: (token: string, me: Me) => void })
   );
 }
 
-function ThemePick() {
-  const { preference, setPreference } = useTheme();
-  return (
-    <Select label="Theme" hideLabel value={preference} onChange={(e) => setPreference(e.target.value as ThemePreference)}>
-      <option value="system">Theme: System</option>
-      <option value="light">Theme: Light</option>
-      <option value="dark">Theme: Dark</option>
-    </Select>
-  );
-}
-
-function Signed({ session }: { session: Session }) {
-  const [hash, go] = useRoute();
-  const open = /^#\/d\/([^/]+)$/.exec(hash);
-  const id = open ? decodeURIComponent(open[1]) : undefined;
-  return (
-    <SessionContext.Provider value={session}>
-      <AppShell
-        brand="Documents"
-        sidebar={<SidebarNav label="Main" items={[{ href: "#/", label: "Documents", current: id === undefined }]} />}
-        topbar={
-          <>
-            <ThemePick />
-            <span className="muted">{session.me.name}{session.me.role === "viewer" ? " (viewer)" : ""}</span>
-            <Button variant="secondary" size="sm" onClick={session.signOut}>Sign out</Button>
-          </>
-        }
-      >
-        {id === undefined ? <DocumentList go={go} /> : <EditorView key={id} id={id} go={go} />}
-      </AppShell>
-    </SessionContext.Provider>
-  );
-}
-
 function App() {
+  const [hash, go] = useRoute();
   const [auth, setAuth] = useState<{ token: string; me: Me } | "checking" | null>(savedToken() ? "checking" : null);
   const [problem, setProblem] = useState<string>();
   useEffect(() => {
@@ -94,10 +60,11 @@ function App() {
     );
   }, []);
   const signOut = useCallback(() => (forgetToken(), setAuth(null), (location.hash = "#/")), []);
-  const session = useMemo<Session | null>(() => (auth && auth !== "checking" ? { api: clientFor(auth.token), token: auth.token, me: auth.me, signOut } : null), [auth, signOut]);
+  const session = useMemo<Session | null>(() => (auth && auth !== "checking" ? { api: clientFor(auth.token), token: auth.token, me: auth.me, baseUrl: location.origin, signOut } : null), [auth, signOut]);
   if (auth === "checking") return <p role="status" className="signin muted">Checking your token…</p>;
   if (!session) return <>{problem && <p role="alert" className="signin form-error">{problem}</p>}<SignIn onSignedIn={(token, me) => (saveToken(token), setAuth({ token, me }))} /></>;
-  return <Signed session={session} />;
+  const open = /^#\/d\/([^/]+)$/.exec(hash);
+  return <Workspace session={session} id={open ? decodeURIComponent(open[1]) : undefined} go={go} />;
 }
 
 createRoot(document.getElementById("root")!).render(

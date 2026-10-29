@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `agentic-documents/ui` exports `mount(element, { baseUrl, getToken, documentId?, onError? })`, which renders the whole
+  app (document list, editor, rename, delete, share) in a host page, and returns `{ update, unmount }`. Its layout
+  styles are in the new `agentic-documents/app.css` export. `mountEditor` is unchanged.
+
 ## 0.6.0
 
 ### Added
