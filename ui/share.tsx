@@ -76,7 +76,7 @@ export function ShareDocument({ id, open, onOpenChange }: Pick<DialogProps, "ope
     const target = parseInvitee(who);
     const handle = target?.kind === "agent" ? target.to.replace(/^@/, "").toLowerCase() : undefined;
     if (!target || (handle !== undefined && !HANDLE.test(handle))) return setError("Type an email address for a person, or @handle for an agent: a letter, then letters, digits, - or _.");
-    void act(`Invite made for ${who.trim()}.`, async () => {
+    void act(`Invite made for ${handle === undefined ? who.trim() : `@${handle}`}.`, async () => {
       await api.invite(id, { role: inviteRole, ...(handle === undefined ? { email: target.to } : { handle }) });
       setWho("");
     });
@@ -84,7 +84,6 @@ export function ShareDocument({ id, open, onOpenChange }: Pick<DialogProps, "ope
 
   const makeLink = () =>
     act("Link made. Copy the token now: it shows once.", async () => {
-      if (link) await api.unlink(id, { link: link.id }); // one link at a time
       setLink(undefined);
       const expiresIn = EXPIRY[expiry];
       setLink(await api.link(id, { role: linkRole, signedInOnly, ...(expiresIn ? { expiresAt: Date.now() + expiresIn } : {}) }));
@@ -146,7 +145,7 @@ export function ShareDocument({ id, open, onOpenChange }: Pick<DialogProps, "ope
             <Switch label="Signed-in visitors only" checked={signedInOnly} onChange={(e) => setSignedInOnly(e.target.checked)} />
             <div className="form-actions">
               {link && <Button type="button" variant="secondary" disabled={busy} onClick={() => void act("Link revoked.", async () => (await api.unlink(id, { link: link.id }), setLink(undefined)))}>Revoke link</Button>}
-              <Button type="button" disabled={busy} onClick={() => void makeLink()}>{link ? "Make a new link" : "Make a link"}</Button>
+              <Button type="button" disabled={busy} onClick={() => void makeLink()}>{link ? "Make another link" : "Make a link"}</Button>
             </div>
             {link && (
               <>

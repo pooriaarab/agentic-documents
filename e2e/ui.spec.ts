@@ -41,7 +41,7 @@ test("the share dialog lists, changes, and removes roles, invites, and makes a l
   await expect(dialog.getByRole("status").filter({ hasText: "Invite made" })).toBeVisible();
   await dialog.getByLabel("Invite by email or @handle").fill("@Helper"); // the handle is lower-cased, as the server needs
   await dialog.getByRole("button", { name: "Invite" }).click();
-  await expect(dialog.getByRole("status").filter({ hasText: "Invite made for @Helper" })).toBeVisible();
+  await expect(dialog.getByRole("status").filter({ hasText: "Invite made for @helper" })).toBeVisible();
   expect((await sdk.invites(id)).map((i) => `${i.for}:${i.handle ?? ""}`).sort()).toEqual(["email:", "handle:helper"]);
 
   await dialog.getByRole("button", { name: "Make a link" }).click();
