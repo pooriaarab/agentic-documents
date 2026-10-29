@@ -29,7 +29,7 @@ export interface Me {
 /** The server's error as a DocError. The code must be one this package knows. */
 async function refusal(response: Response, fallback: string): Promise<DocError> {
   const { error } = (await response.json().catch(() => ({}))) as { error?: { code?: unknown; message?: unknown } };
-  const code = DOC_ERROR_CODES.find((known) => known === error?.code) ?? "INVALID_INPUT";
+  const code = DOC_ERROR_CODES.find((known) => known === error?.code) ?? (response.status >= 500 ? "MISCONFIGURED" : "INVALID_INPUT");
   return new DocError(code, typeof error?.message === "string" ? error.message : `${fallback} (${response.status})`);
 }
 

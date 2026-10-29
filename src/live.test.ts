@@ -5,7 +5,7 @@ import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { SyncClient } from "agentic-realtime/client";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import * as Y from "yjs";
 import { AgenticDoc, DocError } from "./doc.js";
 import { LiveDoc } from "./live.js";
@@ -281,10 +281,40 @@ describe("persistence through the Store and Blobs ports", () => {
     later.getText("default").insert(0, "a");
     const mark = Y.encodeStateVector(later);
     later.getText("default").insert(1, "b");
-    for (const body of [new Uint8Array([0, 0]), Y.encodeStateAsUpdate(alien), Y.encodeStateAsUpdate(later, mark)]) {
-      expect((await post("shape", body)).status).toBe(400);
+    const cases: [Uint8Array, string][] = [
+      [new Uint8Array([0, 0]), "empty or lacks"],
+      [Y.encodeStateAsUpdate(alien), 'part this package does not use: "evil"'],
+      [Y.encodeStateAsUpdate(later, mark), "empty or lacks"],
+    ];
+    for (const [body, why] of cases) {
+      const res = await post("shape", body);
+      expect([res.status, ((await res.json()) as any).error.message]).toEqual([400, expect.stringContaining(why)]);
     }
     expect((await http("/shape/read", ADA)).status).toBe(404);
+  });
+
+  test("an update with the wrong kind of content at a known root is refused and the document stays readable", async () => {
+    await http("", ADA, { id: "typed", markdown: "# Typed\n\nStays." });
+    const wrong = (build: (d: Y.Doc) => void) => {
+      const d = new Y.Doc();
+      build(d);
+      return Y.encodeStateAsUpdate(d);
+    };
+    const bodies = [
+      wrong((d) => d.getText("default").insert(0, "zz")),
+      wrong((d) => d.getText("edits").insert(0, "zz")),
+    ];
+    const probe = async (id: string, body: Uint8Array) => {
+      const res = await fetch(`${SERVER()}/api/v1/docs/${id}/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${BOT}` }, body: new Uint8Array(body) });
+      return [res.status, ((await res.json().catch(() => ({}))) as any).error?.message ?? ""] as const;
+    };
+    for (const body of bodies) {
+      // Onto an existing document, then as a new one.
+      expect(await probe("typed", body)).toEqual([400, expect.stringContaining("unreadable")]);
+      expect(await probe("typed-new", body)).toEqual([400, expect.stringContaining("unreadable")]);
+    }
+    expect(await (await http("/typed/read", ADA)).text()).toContain("Stays.");
+    expect((await http("/typed-new/read", ADA)).status).toBe(404);
   });
 
   test("checkpoints from many clients at once all land", async () => {
@@ -312,7 +342,10 @@ describe("persistence through the Store and Blobs ports", () => {
   test("a stored document too big for a room fails the join with a clear error and leaves no client behind", async () => {
     await http("", ADA, { id: "huge", markdown: "# Huge" });
     expect((await http("/huge/append", ADA, { content: "x".repeat(1_200_000) })).status).toBe(200);
+    const disconnect = vi.spyOn(SyncClient.prototype, "disconnect");
     await expect(join_("huge", ADA, { reconnect: { initialMs: 50, maxMs: 100 } })).rejects.toMatchObject({ code: "INVALID_INPUT", message: expect.stringContaining("most a live room takes") });
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    disconnect.mockRestore();
     const saved = await fetch(`${SERVER()}/api/v1/docs/huge/checkpoint`, { method: "POST", headers: { authorization: `Bearer ${ADA}` }, body: new Uint8Array(await (await fetch(`${SERVER()}/api/v1/docs/huge/state`, { headers: { authorization: `Bearer ${ADA}` } })).arrayBuffer()) });
     expect(saved.status).toBe(400);
   });

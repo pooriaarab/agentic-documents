@@ -1,6 +1,7 @@
 import * as Y from "yjs";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, Store } from "agentic-identity";
+import { Suggestions, Threads } from "./review.js";
 
 const ATTEMPTS = 64;
 const ID = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -76,7 +77,8 @@ export class DocsService {
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
       const found = await this.blobs.get(key);
       if (!found) {
-        const fresh = AgenticDoc.fromUpdate(update, this.options).encode();
+        const created = AgenticDoc.fromUpdate(update, this.options);
+        const fresh = this.checked(id, created);
         this.fits(id, fresh);
         if (!(await this.blobs.put(key, fresh, { ifNoneMatch: "*" }))) continue;
         await this.catalog(id, author);
@@ -84,11 +86,28 @@ export class DocsService {
       }
       const doc = AgenticDoc.fromUpdate(found.data, this.options);
       doc.applyUpdate(update);
-      const merged = doc.encode();
+      const merged = this.checked(id, doc);
       this.fits(id, merged);
       if (await this.blobs.put(key, merged, { ifMatch: found.version })) return;
     }
     throw new DocError("CONFLICT", `document "${id}" kept changing; try again`);
+  }
+
+  /**
+   * The encoded document, once it reads back. Yjs does not check the type at a root, so an update can put text
+   * where the editor expects blocks, and then no command can read the document again.
+   */
+  private checked(id: string, doc: AgenticDoc): Uint8Array {
+    try {
+      doc.toMarkdown();
+      const log = doc.edits() as unknown[];
+      if (!log.every((e) => typeof e === "object" && e !== null && PRINCIPAL_KINDS.includes((e as { author?: { kind?: never } }).author?.kind as never))) throw new Error("edit log");
+      new Suggestions(doc).list();
+      new Threads(doc).list();
+    } catch {
+      throw new DocError("INVALID_INPUT", `the update would leave document "${id}" unreadable: a part holds the wrong kind of content`);
+    }
+    return doc.encode();
   }
 
   private fits(id: string, state: Uint8Array): void {

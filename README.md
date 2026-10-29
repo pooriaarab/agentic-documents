@@ -162,6 +162,11 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 - `--as` and `AGENTIC_DOCS_AS` are self-declared labels. The CLI does not prove who runs it, so
   `--as human:Ada` labels work as human on any machine that can run the command. Only the HTTP API
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
+- A live client (`LiveDoc` from `agentic-documents/live`) starts a room from the stored document
+  (`GET /api/v1/docs/:id/state`) and saves it with `save()` (`POST /api/v1/docs/:id/checkpoint`). A save
+  merges, so two saves at once both land. A document over 1,000,000 bytes cannot open in a room or be
+  saved from one, and the client says so. HTTP edits reach an open room only when a client joins and
+  seeds it. A save refuses an update that would leave the document unreadable.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
 - Export covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are planned.
