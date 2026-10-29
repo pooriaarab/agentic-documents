@@ -2,6 +2,8 @@
 // gitmarkdown slash command menu (MIT, see THIRD_PARTY_NOTICES.md). The text keeps the focus. The menu is a list box that
 // the text controls: arrow keys move the active item, Enter or Tab picks it, Escape closes it.
 import type { Editor } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
+import { ySyncPluginKey } from "@tiptap/y-tiptap";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { glyph, icons } from "./icons.js";
 
@@ -63,9 +65,9 @@ function find(editor: Editor): Omit<Open, "top" | "left" | "rows"> | undefined {
 export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[] }) {
   const [open, setOpen] = useState<Open>();
   const [active, setActive] = useState(0);
-  // Escape closes the menu for the slash at the caret. It stays closed until the caret is no longer after a slash, so
-  // typing on, or a peer writing before it, does not open it again. A position would not do: a peer's change can move it.
-  const dismissed = useRef(false);
+  // The slash that Escape closed. Typing on, or a peer writing before it, does not open the menu again; a new slash
+  // does. Local changes move the position exactly. A peer's change replaces the line, so it is read again then.
+  const dismissed = useRef<number | undefined>(undefined);
   const id = useId();
   const shown = open ? items.filter((item) => matches(item, open.query)) : [];
   const state = useRef({ open, shown, active });
@@ -74,8 +76,8 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
   useEffect(() => {
     const update = () => {
       const hit = editor.isFocused ? find(editor) : undefined;
-      if (!hit && editor.isFocused) dismissed.current = false; // that slash is gone, so a new one opens the menu
-      if (!hit || dismissed.current) return setOpen(undefined);
+      if (editor.isFocused && hit?.from !== dismissed.current) dismissed.current = undefined; // gone, or another slash
+      if (!hit || dismissed.current !== undefined) return setOpen(undefined);
       const at = editor.view.coordsAtPos(hit.from);
       setOpen((old) => {
         if (old?.query !== hit.query) setActive(0);
@@ -90,11 +92,18 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
         const width = Math.min(18 * rem, window.innerWidth - rem);
         const rows = Math.max(3, Math.min(count, Math.floor((room - frame - row / 2) / row)));
         const height = Math.min(count, rows) * row + frame + (rows < count ? row / 2 : 0);
-        const top = height <= below || below >= above ? at.bottom + 4 : at.top - 4 - height;
+        const want = height <= below || below >= above ? at.bottom + 4 : at.top - 4 - height;
+        const top = Math.max(8, Math.min(want, window.innerHeight - height - 8)); // a very short window: keep it in view
         return { ...hit, rows, top, left: Math.max(8, Math.min(at.left, window.innerWidth - width - 8)) };
       });
     };
     const blur = () => setOpen(undefined);
+    const moved = ({ transaction }: { transaction: Transaction }) => {
+      if (dismissed.current === undefined || !transaction.docChanged) return;
+      const peer = (transaction.getMeta(ySyncPluginKey) as { isChangeOrigin?: boolean } | undefined)?.isChangeOrigin;
+      dismissed.current = peer ? (find(editor)?.from ?? dismissed.current) : transaction.mapping.map(dismissed.current);
+    };
+    editor.on("transaction", moved);
     editor.on("update", update);
     editor.on("selectionUpdate", update);
     editor.on("blur", blur);
@@ -106,6 +115,7 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
       editor.off("update", update);
       editor.off("selectionUpdate", update);
       editor.off("blur", blur);
+      editor.off("transaction", moved);
     };
   }, [editor, items]);
 
@@ -142,7 +152,7 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        dismissed.current = true;
+        dismissed.current = at.from;
         setOpen(undefined);
       }
     };

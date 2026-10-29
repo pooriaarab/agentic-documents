@@ -76,6 +76,11 @@ test("the slash menu filters, moves with the arrow keys, and puts in the block",
   await page.keyboard.type("/");
   await expect(list).toBeVisible();
   await expect(text).toHaveAttribute("aria-keyshortcuts", "Alt+F10");
+
+  // After a closed slash, a new slash later on the same line opens the menu.
+  await page.keyboard.press("Escape");
+  await page.keyboard.type("t and /");
+  await expect(list).toBeVisible();
   await page.context().close();
 });
 
