@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { FileBlobs } from "./blobs.js";
+import { createFileBlobs } from "./adapters/file-blobs.js";
+import { createFileStore } from "./adapters/file-store.js";
 import { commands } from "./commands.js";
 import { DocError, parseAuthor } from "./doc.js";
 import type { ExportResult } from "./export.js";
@@ -70,7 +72,8 @@ export async function main(argv: string[], env = process.env): Promise<number> {
     return 0;
   }
 
-  const service = new DocsService(new FileBlobs(values.dir ?? env.AGENTIC_DOCS_DIR ?? ".agentic-documents"));
+  const dir = values.dir ?? env.AGENTIC_DOCS_DIR ?? ".agentic-documents";
+  const service = new DocsService({ blobs: createFileBlobs(join(dir, "blobs")), store: createFileStore(join(dir, "store")) });
   const scopes = (values.scopes ?? env.AGENTIC_DOCS_SCOPES)?.split(",").map((s) => s.trim()).filter(Boolean);
   const named = parseAuthor(values.as ?? env.AGENTIC_DOCS_AS);
   const author = named && scopes?.length ? { ...named, scopes } : named;

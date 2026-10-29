@@ -89,6 +89,11 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
   valid token, 403 `FORBIDDEN` (for example an agent without `docs:accept` that accepts), 404 not
   found, 409 a conflict (ambiguous match, stale anchor, already decided), 503 `LOCKED`.
 - `GET /health` needs no token. It reveals nothing else.
+- Create an R2 bucket with `wrangler r2 bucket create agentic-documents-data --jurisdiction eu` and a D1
+  database with `wrangler d1 create agentic-documents --location weur`. Put the database id in
+  `wrangler.jsonc`. Set `AGENTIC_DOCS_REGION` to `eu` or `us`. It is a claim that you make: it has no
+  default, and the Worker answers 500 `MISCONFIGURED` without it. Local D1 reports no region, so use
+  `--var AGENTIC_DOCS_REGION:unknown` only under `wrangler dev`.
 - Run it locally with `npx wrangler dev`. Set `WRANGLER_SEND_METRICS=false` to turn off wrangler telemetry.
 
 ## Features
@@ -135,10 +140,9 @@ curl "$URL/api/v1/docs/plan/export?format=html" -H "authorization: Bearer $TOKEN
 ## Limits
 
 - No web UI yet.
-- The Worker keeps documents in memory, one store for each isolate. Cloudflare runs several isolates, so a
-  document made in one can be missing in the next, and two isolates can hold different versions. A restart
-  loses them. A durable
-  adapter (R2 or Durable Objects) comes with `agentic-identity` and `agentic-sync`.
+- The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
+  shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
+  overwrite each other. The CLI and MCP server keep the same data in local files.
 - Token auth is a stopgap until the `Auth` port exists. There is no per-document sharing or role yet.
 - A save is a compare-and-set. The file store takes a lock file, checks the version, and renames a
   uniquely named temp file into place. A writer that loses loads the document again and runs

@@ -1,11 +1,21 @@
 import { Hono, type Context } from "hono";
-import { MemoryBlobs } from "./memory-blobs.js";
+import { parseRegion } from "agentic-identity";
+import { D1_SCHEMA, createD1Store, createR2Blobs, type D1Like, type R2Like } from "agentic-identity/cloudflare";
 import { commands, type Command } from "./commands.js";
 import { DocError, parseAuthor, PRINCIPAL_KINDS, type DocErrorCode, type Principal } from "./doc.js";
 import type { ExportResult } from "./export.js";
 import { DocsService } from "./service.js";
 
 export interface WorkerEnv {
+  /**
+   * Where the data lives: "eu" or "us". It is a claim you make at deploy time, with no default.
+   * "unknown" skips the region check. Local D1 reports no region, so use it only under `wrangler dev`.
+   */
+  AGENTIC_DOCS_REGION?: string;
+  /** D1 database: the catalog of documents. Create it with `wrangler d1 create agentic-documents --location weur`. */
+  DB?: D1Like;
+  /** R2 bucket: each document as a Yjs update. Create it with `--jurisdiction eu`. */
+  DOCS?: R2Like;
   /**
    * JSON object: bearer token (32 bytes or more) to `kind:name`, or to `{ "as": "kind:name", "scopes": ["docs:accept"] }`.
    * Set it as a secret. A short token or a bad entry refuses the whole config.
@@ -26,6 +36,7 @@ const STATUS: Partial<Record<DocErrorCode, number>> = {
   CONFLICT: 409,
   FORBIDDEN: 403,
   LOCKED: 503,
+  MISCONFIGURED: 500,
 };
 
 function same(a: string, b: string): boolean {
@@ -88,7 +99,10 @@ function principalFor(tokens: string | undefined, bearer: string): Principal | u
 const fail = (code: string, message: string, status: number, matches: unknown[] = []) =>
   Response.json({ error: { code, message, matches } }, { status });
 
-export function createApp(service: DocsService): Hono<{ Bindings: WorkerEnv; Variables: { author: Principal } }> {
+/** A service, or a function that makes one from the Worker bindings. */
+export type ServiceSource = DocsService | ((env: WorkerEnv) => Promise<DocsService>);
+
+export function createApp(source: ServiceSource): Hono<{ Bindings: WorkerEnv; Variables: { author: Principal } }> {
   const app = new Hono<{ Bindings: WorkerEnv; Variables: { author: Principal } }>();
 
   app.use("*", async (c, next) => {
@@ -106,7 +120,7 @@ export function createApp(service: DocsService): Hono<{ Bindings: WorkerEnv; Var
 
   async function run(c: Context<{ Bindings: WorkerEnv; Variables: { author: Principal } }>, command: Command, input: Record<string, unknown>) {
     try {
-      const result = await command.run(service, input, c.get("author"));
+      const result = await command.run(await (typeof source === "function" ? source(c.env ?? {}) : source), input, c.get("author"));
       if (command.name === "export") {
         const { data, contentType, encoding, format } = result as ExportResult;
         const images = input.remoteImages === true || input.remoteImages === "true" ? "data: https:" : "data:";
@@ -141,11 +155,40 @@ export function createApp(service: DocsService): Hono<{ Bindings: WorkerEnv; Var
   app.notFound(() => fail("NOT_FOUND", "no such route", 404));
   app.onError((error) => {
     if (error instanceof DocError) return fail(error.code, error.message, STATUS[error.code] ?? 400, error.matches);
-    console.error(error instanceof Error ? error.name : "error");
+    console.error(error instanceof Error ? `${error.name}: ${error.message}` : "error");
     return fail("INTERNAL", "the server could not finish the request", 500);
   });
   return app;
 }
 
-// One isolate keeps one in-memory store. Data is lost when the isolate restarts.
-export default createApp(new DocsService(new MemoryBlobs()));
+const schemas = new WeakMap<object, Promise<unknown>>();
+// The adapter needs a signing secret. This package never makes signed URLs, so a secret that lives and dies with the isolate is enough.
+let urlSecret: string | undefined; // made on first use: a Worker may not make random values at load
+
+/** The service over D1 and R2. The R2 bucket is declared with the "eu" jurisdiction in wrangler.jsonc. */
+async function serviceFor(env: WorkerEnv): Promise<DocsService> {
+  if (!env.DB || !env.DOCS) throw new DocError("MISCONFIGURED", "bind a D1 database as DB and an R2 bucket as DOCS");
+  let region;
+  try {
+    region = parseRegion(env.AGENTIC_DOCS_REGION);
+  } catch {
+    throw new DocError("MISCONFIGURED", 'set AGENTIC_DOCS_REGION to "eu" or "us" ("unknown" only for local development)');
+  }
+  const db = env.DB;
+  let ready = schemas.get(db);
+  if (!ready) {
+    ready = db.prepare(D1_SCHEMA).run().catch((error: unknown) => {
+      schemas.delete(db);
+      throw error;
+    });
+    schemas.set(db, ready);
+  }
+  await ready;
+  return new DocsService({
+    store: createD1Store(db, { region }),
+    blobs: createR2Blobs(env.DOCS, { region: "eu", urlBase: "https://invalid.example/unused", urlSecret: (urlSecret ??= `${crypto.randomUUID()}${crypto.randomUUID()}`) }),
+  });
+}
+
+const app = createApp(serviceFor);
+export default { fetch: (request: Request, env: WorkerEnv, ctx: unknown) => app.fetch(request, env, ctx as never) };

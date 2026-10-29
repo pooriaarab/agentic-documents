@@ -2,7 +2,7 @@
 // document can be lost or applied twice when two writers meet.
 import { describe, expect, test } from "vitest";
 import { Suggestions } from "./review.js";
-import { MemoryBlobs } from "./memory-blobs.js";
+import { createMemoryBlobs, createMemoryStore } from "agentic-identity";
 import { DocsService } from "./service.js";
 
 const bot = { kind: "agent_of_human", name: "scribe" } as const;
@@ -10,9 +10,26 @@ const ada = { kind: "human", name: "Ada" } as const;
 const bob = { kind: "human", name: "Bob" } as const;
 
 function pair() {
-  const blobs = new MemoryBlobs();
-  return { a: new DocsService(blobs), b: new DocsService(blobs), blobs };
+  const shared = crypto.randomUUID();
+  const make = () => new DocsService({ blobs: createMemoryBlobs({ shared }), store: createMemoryStore({ shared }) });
+  return { a: make(), b: make() };
 }
+
+describe("catalog", () => {
+  test("keeps the creator kind, so a machine-made document stays labeled", async () => {
+    const { a, b } = pair();
+    await a.create("doc", "# Hi", bot);
+    expect(await b.info("doc")).toMatchObject({ createdBy: { kind: "agent_of_human", name: "scribe" } });
+    expect(await b.info("other")).toBeNull();
+  });
+
+  test("a lost create race leaves the winner's catalog entry", async () => {
+    const { a, b } = pair();
+    await a.create("doc", "# Hi", bot);
+    await expect(b.create("doc", "# Late", ada)).rejects.toMatchObject({ code: "DOCUMENT_EXISTS" });
+    expect((await a.info("doc"))?.createdBy.kind).toBe("agent_of_human");
+  });
+});
 
 describe("concurrent writers", () => {
   test("ten creators of one id across two services: one wins, nine get DOCUMENT_EXISTS", async () => {
