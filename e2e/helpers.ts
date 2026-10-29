@@ -19,8 +19,8 @@ export async function newPage(context: BrowserContext, token: string): Promise<P
 
 /** WCAG 2.2 AA, with every rule tagged at that level or below. */
 export async function expectAccessible(page: Page) {
-  // A dialog fades in. Axe blends its colors with the page while it fades, and reports a contrast it will not have.
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  // A dialog fades in. Axe blends its colors with the page while it fades, and reports a contrast it will not have. A spinner never ends, so it is skipped.
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
   const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
   expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
 }
