@@ -29,9 +29,9 @@ Tools are named `doc_<command>`: `doc_read`, `doc_outline`, `doc_replace`, `doc_
 
 ## Use the library exports
 
-- `commands` is the command table that the CLI, MCP, and HTTP API read. `new DocsService({ blobs, store })` runs it over `createFileBlobs(dir)` and `createFileStore(dir)`.
+- `commands` is the command table that the CLI, MCP, and HTTP API read. Each command runs over a `new DocsService({ blobs, store })`, built from `createFileBlobs(dir)` and `createFileStore(dir)`.
 - `exportDoc(doc, "md" | "html" | "odt")` returns `{ encoding, data, warnings }`. `exportOdt(blocks)` returns the bytes of an `.odt` file.
-- `Threads` holds comments. `Suggestions` holds suggested edits. An agent never accepts its own suggestion.
+- `Threads` holds comments. `Suggestions` holds suggested edits. Nobody accepts their own suggestion.
 - The README section "Library API" lists every root export with an example.
 
 ## Rules

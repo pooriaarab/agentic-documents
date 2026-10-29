@@ -273,13 +273,14 @@ new Suggestions(doc).accept(change, person);
 ```
 
 - `Threads` has `add`, `reply`, `resolve`, `reopen`, and `list`. `Suggestions` has `add`, `accept`, `reject`, and `list`.
-- A person accepts a suggestion. An agent accepts one only when it holds the `docs:accept` scope, and never its own. Otherwise the call throws `FORBIDDEN`.
+- A person (`human` or `user_token`) accepts a suggestion that someone else made. An agent accepts one only when it holds the `docs:accept` scope. Nobody accepts their own suggestion. Otherwise the call throws `FORBIDDEN`.
 
 ### Commands
 
 ```ts
-import { commands, DocsService } from "agentic-documents";
+import { commands } from "agentic-documents";
 
+// `service` is a DocsService, as in "Stores". `author` is a Principal.
 commands.map((command) => command.name); // "new", "list", "read", "replace", "export", ...
 const read = commands.find((command) => command.name === "read")!;
 await read.run(service, { id: "plan" }, author); // the same call the CLI, MCP, and HTTP make
@@ -294,6 +295,7 @@ await read.run(service, { id: "plan" }, author); // the same call the CLI, MCP, 
 import { exportDoc, exportOdt, markdownToBlocks } from "agentic-documents";
 import { writeFile } from "node:fs/promises";
 
+// `doc` is an AgenticDoc, as in "Document and author".
 const md = exportDoc(doc, "md"); // { format, contentType, encoding: "utf8", data: "# Plan...", warnings: [] }
 const odt = exportDoc(doc, "odt"); // encoding "base64": data is the .odt file in base64
 await writeFile("plan.odt", exportOdt(markdownToBlocks("# Plan\n\nShip on Friday.")));
@@ -316,7 +318,7 @@ const service = new DocsService({
 ```
 
 - `createFileStore(dir, options?)` keeps the catalog in `<dir>/store.json`. Two stores on the same path share data across processes. A write that loses a race runs again, up to 64 times, then throws `StoreConflictError`.
-- `createFileBlobs(dir, options?)` keeps each document as a file under `<dir>/blobs/`. A write that loses a race throws `LOCKED` when its lock wait runs out.
+- `createFileBlobs(dir, options?)` keeps each document as a file under `<dir>/blobs/`. A conditional write that loses returns `null`. A lock wait that runs out (10 seconds) throws `LOCKED`.
 - Both take `region`. `now` sets the clock, for tests. `createFileBlobs` also takes `urlBase` and `urlSecret` (32 bytes or more). With both set, `signedUrl` returns a signed HTTP URL.
 - Release 0.9 kept blobs in `<dir>/<hash>`. The new layout moves each old blob the first time that key is read, written, or deleted.
 - The CLI uses `<dir>/blobs` and `<dir>/store`, as in the example above.
@@ -332,8 +334,10 @@ await service.read("plan", (doc) => doc.toMarkdown()); // "# Plan\n\nShip on Mon
 await service.list(); // [{ id: "plan", title: "plan", createdBy, createdAt, updatedAt, updatedBy }]
 ```
 
-- `DocsService` takes `{ blobs, store }`, which are the `DocsPorts`. `DocInfo` is the shape of `list` results.
-- `create` and `write` save only when the document version still matches what was read. `read` gives the document to a callback and returns the callback's result.
+- `DocsService` takes `{ blobs, store }` (the `DocsPorts`) and optional `DocOptions`.
+- `DocInfo` is the catalog entry that `service.info(id)` returns: `createdBy` and `createdAt`. A `list` row adds `id`, `title`, `updatedAt`, and `updatedBy`.
+- `create` throws `DOCUMENT_EXISTS` when the id is taken. `write` saves only when nobody saved in between. If someone did, it loads the document and runs your callback again, up to 64 times, then throws `CONFLICT`.
+- `read` gives the document to a callback and returns the callback's result.
 - `service.sharing` is a `StoreSharing`. See the next group.
 
 ### Sharing helpers
@@ -351,7 +355,7 @@ await service.sharing.grant(contextOf(ada), "plan", parseSubject("human:grace"),
 await service.sharing.grants(contextOf(ada), "plan");
 ```
 
-- `contextOf(author)` gives the sign-in context for a call that has no HTTP sign-in: the CLI, the MCP server, and the development token table. A person holds `docs:admin`. An agent holds only the scopes it has.
+- `contextOf(author)` gives the sign-in context for a call that has no HTTP sign-in: the CLI, the MCP server, and the development token table. A `human` holds `docs:admin`. Any other kind holds only the docs scopes it has.
 - Each sharing call needs an owner of the document. The creator of a document is its owner, unless the author cannot own one.
 - `StoreSharing` implements `DocSharing`. It takes the store and a lookup for documents. `DocsService` builds it for you. `GrantInput`, `InviteInput`, and `LinkInput` are the input types.
 
