@@ -190,7 +190,9 @@ function Surface({ live, editable }: { live: LiveSession; editable: boolean }) {
 
   const entries: PresenceEntry[] = [{ id: "me", name: me.name, kind: isMachine(me.kind) ? "agent" : "person" }, ...peers.map(entryOf)];
   const pressed = (name: string, attrs?: object) => editor?.isActive(name, attrs) ?? false;
-  const chain = () => editor!.chain().focus();
+  // Focus the view first, in this frame. The focus command moves focus in a later frame, so a key typed right after a
+  // toolbar click would go to the button and be lost.
+  const chain = () => (editor!.view.focus(), editor!.chain().focus());
   const glyph = (text: string, style?: "b" | "i") => <span aria-hidden="true" className={`glyph glyph--${style ?? "plain"}`}>{text}</span>;
   // An icon with no text, so the accessible name of its button has nothing visible to match.
   const listIcon = (numbered: boolean) => (
