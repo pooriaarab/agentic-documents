@@ -320,8 +320,8 @@ const service = new DocsService({
 - `createFileStore(dir, options?)` keeps the catalog in `<dir>/store.json`. Two stores on the same path share data across processes. A write that loses a race runs again, up to 64 times, then throws `StoreConflictError`.
 - `createFileBlobs(dir, options?)` keeps each document as a file under `<dir>/blobs/`. A conditional write that loses returns `null`. A lock wait that runs out (10 seconds) throws `LOCKED`.
 - Both take `region`. `now` sets the clock, for tests. `createFileBlobs` also takes `urlBase` and `urlSecret` (32 bytes or more). With both set, `signedUrl` returns a signed HTTP URL.
-- Release 0.9 kept blobs in `<dir>/<hash>`. The new layout moves each old blob the first time that key is read, written, or deleted.
-- The CLI uses `<dir>/blobs` and `<dir>/store`, as in the example above.
+- Release 0.9 and earlier kept blobs in `<dir>/<hash>`. The first read or write of a key moves its old blob to the new layout. A delete removes it.
+- The CLI uses `<dir>/blobs` and `<dir>/store`, as in the example above. So the CLI's blob files sit in `<dir>/blobs/blobs/`.
 
 ### Service
 
@@ -335,7 +335,7 @@ await service.list(); // [{ id: "plan", title: "plan", createdBy, createdAt, upd
 ```
 
 - `DocsService` takes `{ blobs, store }` (the `DocsPorts`) and optional `DocOptions`.
-- `DocInfo` is the catalog entry that `service.info(id)` returns: `createdBy` and `createdAt`. A `list` row adds `id`, `title`, `updatedAt`, and `updatedBy`.
+- `service.info(id)` returns a `DocInfo` with `createdBy` and `createdAt`, or `null` when the document has no catalog entry. A `list` row adds `id`, `title`, `updatedAt`, and `updatedBy`.
 - `create` throws `DOCUMENT_EXISTS` when the id is taken. `write` saves only when nobody saved in between. If someone did, it loads the document and runs your callback again, up to 64 times, then throws `CONFLICT`.
 - `read` gives the document to a callback and returns the callback's result.
 - `service.sharing` is a `StoreSharing`. See the next group.
@@ -355,7 +355,7 @@ await service.sharing.grant(contextOf(ada), "plan", parseSubject("human:grace"),
 await service.sharing.grants(contextOf(ada), "plan");
 ```
 
-- `contextOf(author)` gives the sign-in context for a call that has no HTTP sign-in: the CLI, the MCP server, and the development token table. A `human` holds `docs:admin`. Any other kind holds only the docs scopes it has.
+- `contextOf(author)` gives the sign-in context for a call that has no HTTP sign-in: the CLI, the MCP server, and the development token table. A `human` holds `docs:admin`. Any other kind keeps only its `read`, `comment`, `write`, and `admin` scopes.
 - Each sharing call needs an owner of the document. The creator of a document is its owner, unless the author cannot own one.
 - `StoreSharing` implements `DocSharing`. It takes the store and a lookup for documents. `DocsService` builds it for you. `GrantInput`, `InviteInput`, and `LinkInput` are the input types.
 
