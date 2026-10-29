@@ -11,16 +11,28 @@ const index = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// The names of the root export, from `export { ... } from "./x.js"` lines. `type` names are included.
-const rootNames = [...index.matchAll(/export\s*\{([^}]*)\}\s*from/g)]
+// The root export blocks, from `export { ... } from "./x.js"` and `export type { ... } from`.
+const rootBlocks = [...index.matchAll(/export\s+(?:type\s+)?\{([^}]*)\}\s*from/g)];
+const rootNames = rootBlocks
   .flatMap((match) => match[1].split(","))
   .map((name) => name.trim().replace(/^type\s+/, ""))
   .filter((name) => name !== "");
+const exportLines = index.match(/^export\b/gm) ?? [];
+
+// The names are checked in the Library API section only, so a word in another section does not count.
+const libraryStart = readme.indexOf("\n## Library API\n");
+const libraryEnd = readme.indexOf("\n## ", libraryStart + 1);
+const libraryApi = readme.slice(libraryStart, libraryEnd);
 
 describe("README covers every export", () => {
   it("reads the export lists", () => {
     expect(Object.keys(pkg.exports).length).toBeGreaterThan(5);
     expect(rootNames.length).toBeGreaterThan(20);
+    expect(libraryStart).toBeGreaterThan(0);
+  });
+
+  it("parses every export line in src/index.ts", () => {
+    expect(exportLines.length).toBe(rootBlocks.length);
   });
 
   for (const key of Object.keys(pkg.exports)) {
@@ -35,7 +47,7 @@ describe("README covers every export", () => {
 
   for (const name of rootNames) {
     it(`documents the root export ${name}`, () => {
-      expect(readme, `README names \`${name}\``).toContain(`\`${name}\``);
+      expect(libraryApi, `README Library API names \`${name}\``).toContain(`\`${name}\``);
     });
   }
 });
