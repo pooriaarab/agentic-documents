@@ -6,6 +6,9 @@
 
 - The ODT export uses `agentic-formats`. The local ODT writer and the `fflate` dependency are gone. `exportOdt` and
   `ODT_MIME` stay as thin wrappers. The ODT file now comes from the neutral text model, so its XML differs from before.
+- The ODT export holds less than before, because the agentic-formats text model has no block for a quote, a rule, or a
+  code block, no list start number, one paragraph for each list item, and no WebP image. The text stays.
+  `ExportResult` has a `warnings` field that names each loss. It is empty for `md` and `html`.
 
 ## 0.5.0
 

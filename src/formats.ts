@@ -2,7 +2,7 @@
 // so this package holds no zip or XML code for them. Markdown and HTML use this package's own mapping.
 import { DEFAULT_LIMITS, FormatError, readDocx, readOdt, writeDocx, writeOdt, type Block, type Inline, type Limits, type Mark, type TextDoc } from "agentic-formats";
 import { AgenticDoc, checkAuthor, DocError, type DocOptions, type Principal } from "./doc.js";
-import { exportDoc, type ExportOptions } from "./export.js";
+import { exportText, type ExportOptions } from "./render.js";
 import type { PmNode } from "./markdown.js";
 import { DATA_IMAGE, fromBase64, toBase64 } from "./package.js";
 import { safeHref } from "./xml.js";
@@ -268,12 +268,18 @@ export function importFile(input: string | Uint8Array, format: ImportFormat, aut
 export const ODT_MIME = CONTENT_TYPES.odt;
 
 /** Write blocks as an OpenDocument text file (.odt). */
-export const exportOdt = (blocks: PmNode[]): Uint8Array => writeOdt(toTextDoc(blocks).model).bytes;
+export function exportOdt(blocks: PmNode[]): Uint8Array {
+  try {
+    return writeOdt(toTextDoc(blocks).model).bytes;
+  } catch (error) {
+    return formatFailure(error);
+  }
+}
 
 /** Write a document as a file. `title` goes into the ODT and DOCX metadata. */
 export function exportFile(doc: AgenticDoc, format: FileFormat, options: ExportOptions & { title?: string } = {}): FileResult {
   if (!FILE_FORMATS.includes(format)) throw new DocError("INVALID_INPUT", `export format must be one of ${FILE_FORMATS.join(", ")}`);
-  if (format === "md" || format === "html") return { format, contentType: CONTENT_TYPES[format], data: exportDoc(doc, format, options).data, warnings: [] };
+  if (format === "md" || format === "html") return { format, contentType: CONTENT_TYPES[format], data: exportText(doc, format, options), warnings: [] };
   const { model, warnings } = toTextDoc(doc.toJSON().content ?? [], options.title);
   let written: { bytes: Uint8Array; warnings: string[] };
   try {
