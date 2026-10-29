@@ -74,15 +74,15 @@ Select text to get a bubble menu with bold, italic, strikethrough, inline code, 
 into it, and Escape gives the focus back to the text. An empty document says how to start.
 
 In a table, the Table tool opens the table changes: add a row above or below, add a column before or after, delete a
-row or a column, and delete the table. Markdown tables always have a header row, so when the selection covers the header
-row there is no Add row above and no Delete row. When the selection covers every column, Delete table removes them. In a code block, a Code language tool sets the
-language of the fence. Twelve languages have syntax colors (Shell, CSS, Go, HTML, JavaScript, JSON, Markdown, Python,
-Rust, SQL, TypeScript, YAML). Any other language shows as plain text: it is never guessed. The colors are
-decorations, so the stored text has none. The document menu has Download
-Markdown, which saves the text as a `.md` file, and Import Markdown, which replaces the text for everyone in the room
-with a `.md` file of 2 MB or less. Both use the same conversion as `doc_read` and `doc_new`, so an import refuses what
-`doc_new` refuses (a footnote, for example). An image that a paste would not keep is dropped. Undo takes an import
-back.
+row or a column, and delete the table. Markdown tables always have a header row, so when the selection covers the
+header row there is no Add row above and no Delete row. When the selection covers every column, Delete table removes
+them. In a code block, a Code language tool sets the language of the fence. Twelve languages have syntax colors
+(Shell, CSS, Go, HTML, JavaScript, JSON, Markdown, Python, Rust, SQL, TypeScript, YAML). Any other language shows as
+plain text: it is never guessed. The colors are decorations, so the stored text has none. The document menu has
+Download Markdown, which saves the text as a `.md` file named after the title, and Import Markdown, which replaces the
+text for everyone in the room with a `.md` file of 512 KB or less, so the document stays under the room limit. Both
+use the same conversion as `doc_read` and `doc_new`, so an import refuses what `doc_new` refuses (a footnote, for
+example). An image that a paste would not keep is dropped. Undo takes an import back.
 
 Run it on your machine:
 

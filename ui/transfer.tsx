@@ -6,8 +6,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "../src/markdown.js";
 import { allowedSource } from "./image.js";
 
-/** The largest Markdown file an import reads. */
-const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
+/**
+ * The largest Markdown file an import reads. An import is one Yjs update, and a room closes a message over 1 MiB and
+ * a document over MAX_LIVE_BYTES cannot be saved, so this stays well under both.
+ */
+const MAX_MARKDOWN_BYTES = 512 * 1024;
 
 /** The text of the editor as Markdown. */
 export const editorMarkdown = (editor: Editor): string => blocksToMarkdown((editor.getJSON().content ?? []) as PmNode[]);
@@ -31,7 +34,7 @@ export function downloadMarkdown(editor: Editor, title: string): void {
   const url = URL.createObjectURL(new Blob([editorMarkdown(editor)], { type: "text/markdown;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim() || "document"}.md`;
+  link.download = `${title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim() || "document"}.md`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -49,7 +52,7 @@ export function ImportDialog({ editor, open, onOpenChange, remote }: { editor: E
     if (!editor) return;
     if (!editor.isEditable) return setError("This document is read only now, so the file cannot replace its text.");
     if (!file) return setError("Choose a Markdown file.");
-    if (file.size > MAX_MARKDOWN_BYTES) return setError("Use a file of 2 MB or less.");
+    if (file.size > MAX_MARKDOWN_BYTES) return setError("Use a file of 512 KB or less.");
     let markdown: string;
     try {
       markdown = await file.text();
