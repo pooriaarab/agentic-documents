@@ -1,6 +1,6 @@
 {
   "name": "agentic-documents",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Write documents with people and agents in real time.",
   "keywords": [
     "documents",
@@ -15,6 +15,10 @@
   ],
   "license": "MIT",
   "author": "Pooria Arab",
+  "homepage": "https://github.com/pooriaarab/agentic-documents#readme",
+  "bugs": {
+    "url": "https://github.com/pooriaarab/agentic-documents/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pooriaarab/agentic-documents.git"
@@ -22,10 +26,13 @@
   "type": "module",
   "private": false,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "files": [
-    "dist"
+    "dist",
+    "SECURITY.md",
+    "SKILL.md",
+    "llms.txt"
   ],
   "publishConfig": {
     "access": "public"
