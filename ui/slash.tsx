@@ -76,8 +76,10 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
   useEffect(() => {
     const update = () => {
       const hit = editor.isFocused ? find(editor) : undefined;
-      if (editor.isFocused && hit?.from !== dismissed.current) dismissed.current = undefined; // gone, or another slash
-      if (!hit || dismissed.current !== undefined) return setOpen(undefined);
+      // A closed slash stays closed while it is there, even when the caret leaves it and comes back. Another slash opens.
+      const closed = dismissed.current;
+      if (closed !== undefined && (editor.state.doc.textBetween(closed, Math.min(closed + 1, editor.state.doc.content.size)) !== "/" || (hit && hit.from !== closed))) dismissed.current = undefined;
+      if (!hit || hit.from === dismissed.current) return setOpen(undefined);
       const at = editor.view.coordsAtPos(hit.from);
       setOpen((old) => {
         if (old?.query !== hit.query) setActive(0);
@@ -90,8 +92,8 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
         const row = 2.5 * rem; // .agd-menu__item
         const frame = 0.5 * rem + 2; // the padding and the border of .agd-menu
         const width = Math.min(18 * rem, window.innerWidth - rem);
-        const rows = Math.max(3, Math.min(count, Math.floor((room - frame - row / 2) / row)));
-        const height = Math.min(count, rows) * row + frame + (rows < count ? row / 2 : 0);
+        const rows = Math.max(3, Math.min(count, Math.floor((room - frame - 1.5 * rem) / row)));
+        const height = Math.min(count, rows) * row + frame + (rows < count ? 1.5 * rem : 0); // the "more" line
         const want = height <= below || below >= above ? at.bottom + 4 : at.top - 4 - height;
         const top = Math.max(8, Math.min(want, window.innerHeight - height - 8)); // a very short window: keep it in view
         return { ...hit, rows, top, left: Math.max(8, Math.min(at.left, window.innerWidth - width - 8)) };
