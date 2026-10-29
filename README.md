@@ -7,7 +7,7 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.2.0. The document model, the text operations, the CLI, the MCP server,
+> Status: early, version 0.3.0. The document model, the text operations, the CLI, the MCP server,
 > the Worker API, and live editing in a room work. The web UI is not built yet.
 
 ## Install
@@ -195,6 +195,11 @@ Limits of live editing:
 ## Limits
 
 - No web UI yet.
+- A document holds no roles of its own. The token table gives `editor` or `viewer`. To share a document
+  by person, use `createSharing` from `agentic-identity` 0.4. A grant names its subject by kind
+  (`human` or `agent`) and id, so a person and an agent with the same id hold separate roles. When you
+  delete a document, call `deleteResource` on its resource so its grants do not outlive it. This package
+  has no delete command yet.
 - The Worker keeps each document in R2 and a catalog (who made it, and when) in D1. Both come from the
   shared `agentic-identity` ports. A save is conditional on the version it read, so two writers cannot
   overwrite each other. The CLI and MCP server keep the same data in local files.
