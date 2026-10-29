@@ -136,9 +136,19 @@ export class AgenticDoc {
   }
 
   static fromMarkdown(markdown: string, author: Principal, options?: DocOptions): AgenticDoc {
+    checkAuthor(author);
+    return AgenticDoc.fromBlocks(markdownToBlocks(markdown), author, options);
+  }
+
+  /** Make a document from blocks in ProseMirror JSON form. Blocks that the schema does not allow fail with INVALID_INPUT. */
+  static fromBlocks(content: PmNode[], author: Principal, options?: DocOptions): AgenticDoc {
     const who = checkAuthor(author);
+    try {
+      if (content.length > 0) schema.nodeFromJSON({ type: "doc", content }).check(); // an empty document is allowed
+    } catch (error) {
+      throw new DocError("INVALID_INPUT", `the blocks do not fit the document schema: ${error instanceof Error ? error.message : String(error)}`);
+    }
     const doc = new AgenticDoc(new Y.Doc(), options);
-    const content = markdownToBlocks(markdown);
     doc.change("create", who, () => {
       doc.fragment.insert(0, toYBlocks(content));
       return { inserted: content.length, deleted: 0 };

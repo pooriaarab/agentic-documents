@@ -21,6 +21,9 @@
 - The saved update may hold the marker root that the Tiptap editor writes when it opens a document.
 - `POST /checkpoint?create=false` (client option `create: false`) fails with `NO_DOCUMENT` instead of making a missing document. The UI saves this way, so a removed document stays removed.
 - Each edit log entry holds `client`, the Yjs client id of its writer, so a UI can mark agent text.
+- `agentic-documents/formats`: `importFile` (md, odt, docx) and `exportFile` (md, html, odt, docx), with the
+  `toTextDoc` and `fromTextDoc` mapping to the agentic-formats text model. Each result names lost content in `warnings`.
+- `AgenticDoc.fromBlocks(blocks, author)` makes a document from ProseMirror JSON blocks and checks them against the schema.
 
 ### Changed
 
