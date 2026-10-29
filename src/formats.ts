@@ -265,6 +265,11 @@ export function importFile(input: string | Uint8Array, format: ImportFormat, aut
   };
 }
 
+export const ODT_MIME = CONTENT_TYPES.odt;
+
+/** Write blocks as an OpenDocument text file (.odt). */
+export const exportOdt = (blocks: PmNode[]): Uint8Array => writeOdt(toTextDoc(blocks).model).bytes;
+
 /** Write a document as a file. `title` goes into the ODT and DOCX metadata. */
 export function exportFile(doc: AgenticDoc, format: FileFormat, options: ExportOptions & { title?: string } = {}): FileResult {
   if (!FILE_FORMATS.includes(format)) throw new DocError("INVALID_INPUT", `export format must be one of ${FILE_FORMATS.join(", ")}`);
