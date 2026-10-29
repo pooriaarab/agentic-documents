@@ -7,11 +7,11 @@
 - Sharing, built on the grant, invite, and link primitives of `agentic-identity`. New commands: `grants`, `grant`,
   `revoke`, `invites`, `invite`, `link`, and `unlink`. They are in the CLI, the MCP server (`doc_grants` and so on), and
   the HTTP API (`GET /api/v1/docs/:id/grants`, `POST /api/v1/docs/:id/grant`, and so on). Only an owner may use them.
-  Over the HTTP API, a caller also needs the `docs:admin` scope. The person who creates a document owns it, and an agent
+  Over the HTTP API every caller needs `docs:admin`. In the CLI and the MCP server, an agent needs it too. The person who creates a document owns it, and an agent
   that creates one for a person makes that person the owner. A link token shows once. An invite list shows no email
   address. Removing a document erases its sharing data. Roles are stored and audited. Reads and writes do not check
   them yet. A document with no owner record is claimed by its creator, when the caller is that creator and has a write
-  scope. A document with no creator in the catalog, or one made by an agent that acts for a person, cannot be claimed.
+  scope. A document with no creator in the catalog, one whose author name is not a valid grant name, or one made by an agent that acts for a person, cannot be claimed.
 - `DocsService.sharing` and the `DocSharing` type.
 - The SDK client has `grants`, `grant`, `revoke`, `invites`, `invite`, `link`, and `unlink`. The CLI and the MCP
   server run the same commands in live mode, through the server.

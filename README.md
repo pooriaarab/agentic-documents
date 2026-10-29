@@ -316,9 +316,10 @@ npx agentic-documents unlink plan --link <link id>
 The same commands are MCP tools (`doc_grant` and so on), HTTP routes (`POST /api/v1/docs/:id/grant`), and SDK methods
 (`docs.grant("plan", { to: "human:kit", role: "editor" })`). An invite list shows no email address. A document can have
 no owner record. It happens to a document made before sharing, to one whose author had no `docs:write` scope when it
-was made, and to one whose author name is not a valid grant name (1 to 128 letters, digits, `-`, and `_`). On the first
-share call, its creator becomes the owner when the caller is that creator, acting for itself, with a write scope. A
-document with no creator in the catalog, or one made by an agent that acts for a person, cannot be claimed.
+was made, and to one whose author name is not a valid grant name. On the first share call, its creator becomes the owner when the
+caller is that creator, acting for itself, with a write scope. A document with no creator in the catalog, one whose
+author name is not a valid grant name (1 to 128 letters, digits, `-`, and `_`), or one made by an agent that acts for a
+person, cannot be claimed.
 
 ## Features
 
