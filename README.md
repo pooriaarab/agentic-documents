@@ -264,9 +264,15 @@ const editor = mountEditor(element, {
 
 - Use the same `yjs` copy as the editor. A document from another copy is refused with a `TypeError`.
 - With `presence`, the editor shows the peers and their carets. It reads the name and the Agent tag from `peers`, so
-  give peers whose `machine` flag the server sets.
+  give peers whose `machine` flag the server sets. `peers` must always give the current list, as the getter of a
+  `SyncClient` does. A list that `onPeers` updates but `peers` does not leaves the carets undrawn.
 - The editor binds again only when `doc` or `presence` changes. A new `host` object with the same two keeps it as is.
+  So keep the same `presence` object between renders: a new one rebuilds the editor, and the caret and the selection go.
   It reads `onStatus` once each time it binds.
+- With `host`, `id` only names the editor: nothing loads by it. A new `id` in `update` still builds a new editor.
+- `onEditor` is read when the editor is made. That callback gets `null` when the editor goes, after the editor is
+  destroyed, so do not read from it then. A new `onEditor` in
+  `update` is used for the next editor.
 - When an agent principal types, the editor writes one `live` entry to the `edits` array of the document, as above.
 
 ## Mount the whole app

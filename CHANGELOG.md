@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- `agentic-documents/ui`: a `host` option for `mountEditor` and `DocumentEditor`. The app gives its own `Y.Doc`, and
+  optionally the presence and the status of its room. The editor binds to that document and does not load, save, or
+  join a room. `client` is optional with `host`. `onEditor` gives the app the Tiptap editor. The editor no longer
+  injects an inline style. `ui.css` has its base rules.
+
 ### Fixed
 
 - zod moves to 4.6.7 to fix GHSA-mrhx-c7xc-m3w5, a high advisory (memory exhaustion when validating oversized constrained collections). The direct dependency moves from `^3.25.0` to `^4.6.7`. An npm `overrides` entry moves `agentic-design` and `agentic-formats` to zod 4.6.7 in this repo's install and build. npm ignores `overrides` in a published package, so an install of this package still gets zod 3 under those two packages until they accept zod 4. The `@modelcontextprotocol/sdk` floor moves from `^1.12.0` to `^1.23.0`, because earlier SDK releases depend on zod 3.
@@ -18,10 +25,6 @@
 
 ### Added
 
-- `agentic-documents/ui`: a `host` option for `mountEditor` and `DocumentEditor`. The app gives its own `Y.Doc`, and
-  optionally the presence and the status of its room. The editor binds to that document and does not load, save, or
-  join a room. `client` is optional with `host`. `onEditor` gives the app the Tiptap editor. The editor no longer
-  injects an inline style. `ui.css` has its base rules.
 - Sharing, built on the grant, invite, and link primitives of `agentic-identity`. New commands: `grants`, `grant`,
   `revoke`, `invites`, `invite`, `link`, and `unlink`. They are in the CLI, the MCP server (`doc_grants` and so on), and
   the HTTP API (`GET /api/v1/docs/:id/grants`, `POST /api/v1/docs/:id/grant`, and so on). Only an owner may use them.

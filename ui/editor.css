@@ -37,10 +37,10 @@
 .adoc .caret--agent .caret__tag { background: var(--ad-color-surface); color: var(--ad-color-agent-text); border: 1px solid var(--ad-color-agent); border-radius: 0; }
 
 /* The base rules of the editor. The editor does not add them in an inline style, so a page whose content security policy
-   forbids inline styles can show it. */
+   forbids inline styles can show it. Long words wrap by the `overflow-wrap: anywhere` of `.prose` above, so a long word
+   in a table cell does not widen the page. */
 .adoc .ProseMirror {
   position: relative;
-  word-wrap: break-word;
   white-space: pre-wrap;
   white-space: break-spaces;
   font-variant-ligatures: none;

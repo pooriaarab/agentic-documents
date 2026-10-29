@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 import { AgenticDoc } from "../src/doc.js";
-import { SAVE_AFTER_MS } from "./editor.js";
 import { mountEditor, type EditorClient, type HostDocument, type MountedEditor } from "./embed.js";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -123,7 +122,6 @@ describe("mountEditor with a host document", () => {
     let status: Status = "connected";
     const box = await mount({ id: "plan", principal: ada, host: { doc, status: () => status, onStatus: (l) => (listeners.add(l), () => void listeners.delete(l)) } });
     await typeAtEnd(box, " world");
-    await new Promise((r) => setTimeout(r, SAVE_AFTER_MS + 200)); // past the save delay of a stored document
     const line = element.querySelector('[role="status"].muted')!;
     expect(line.textContent).not.toMatch(/Sav(ed|ing)/);
     expect(line.textContent).not.toContain("Offline");
@@ -184,6 +182,46 @@ describe("mountEditor with a host document", () => {
     await act(async () => mounted!.unmount());
     mounted = undefined;
     expect(onEditor).toHaveBeenLastCalledWith(null);
+  });
+
+  it("an agent that only reads still gets its label for content it inserts from onEditor", async () => {
+    const doc = hostDoc("Hello");
+    const box = await mount({ id: "plan", principal: { kind: "agent", name: "Scribe", role: "viewer" }, host: { doc }, onEditor: (e) => void e?.commands.insertContentAt(e.state.doc.content.size - 1, " note") });
+    await vi.waitFor(() => expect(box.querySelector(".agent-text")?.textContent).toBe(" note"));
+    expect(doc.getArray("edits").toArray().at(-1)).toMatchObject({ op: "live", author: { kind: "agent" } });
+  });
+
+  it("an onEditor that throws leaves no listener on the host's document", async () => {
+    const doc = hostDoc("Hello");
+    // Track the update listeners that are added and not removed. The editor must add one, and leave none.
+    const live = new Set<unknown>();
+    const [on, off] = [doc.on.bind(doc), doc.off.bind(doc)];
+    const added = vi.spyOn(doc, "on").mockImplementation(((name: string, f: never) => (name === "update" && live.add(f), on(name as never, f))) as never);
+    vi.spyOn(doc, "off").mockImplementation(((name: string, f: never) => (name === "update" && live.delete(f), off(name as never, f))) as never);
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {}); // React reports the error it caught
+    element = document.body.appendChild(document.createElement("div"));
+    await act(async () => void (mounted = mountEditor(element, { id: "plan", principal: ada, host: { doc }, onEditor: (e) => { if (e) throw new Error("host bug"); } })));
+    await vi.waitFor(() => expect(element.textContent).toContain("The editor stopped"));
+    quiet.mockRestore();
+    expect(added).toHaveBeenCalledWith("update", expect.any(Function));
+    expect(live.size).toBe(0);
+  });
+
+  it("each onEditor hears null only for the editor it got", async () => {
+    const doc = hostDoc("Hello");
+    const first = vi.fn();
+    const second = vi.fn();
+    await mount({ id: "plan", principal: ada, host: { doc }, onEditor: first });
+    await act(async () => mounted!.update({ id: "plan", principal: ada, host: { doc }, onEditor: second }));
+    await act(async () => mounted!.unmount());
+    mounted = undefined;
+    expect(first.mock.calls.map(([e]) => e === null)).toEqual([false, true]);
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  it("adds no inline style, so a page that forbids inline styles shows it", async () => {
+    await mount({ id: "plan", principal: ada, host: { doc: hostDoc("Hello") } });
+    expect(document.querySelector("style[data-tiptap-style]")).toBeNull();
   });
 
   it("update moves the editor to another host document", async () => {

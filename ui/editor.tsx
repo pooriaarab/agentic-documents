@@ -18,7 +18,7 @@ export interface EditorPrincipal {
   name: string;
 }
 
-export const SAVE_AFTER_MS = 1500;
+const SAVE_AFTER_MS = 1500;
 
 const entryOf = (peer: Peer): PresenceEntry => ({ id: String(peer.clientId), name: usableName(peer.name) ?? "Unnamed", kind: peer.machine ? "agent" : "person" });
 
@@ -120,34 +120,41 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
     };
     let labeled = false;
     const changed = (_update: Uint8Array, origin: unknown) => {
-      if (editable && !gone && origin === ySyncPluginKey) { // only changes made in this editor are saved from this tab
-        if (!labeled && isMachine(me.kind)) {
-          // Text carries the Yjs client id of its writer. This entry ties this client to an agent, so its text is marked.
-          labeled = true;
-          live.doc.getArray("edits").push([{ op: "live", at: new Date().toISOString(), author: { kind: me.kind, name: me.name }, client: live.doc.clientID, inserted: 0, deleted: 0 }]);
-        }
-        if (live.hosted) return; // the app keeps the document, so there is nothing to save
-        live.touch();
-        setSaved("saving");
-        clearTimeout(timer);
-        timer = setTimeout(save, SAVE_AFTER_MS);
+      if (origin !== ySyncPluginKey) return; // only changes made in this editor are labeled and saved from this tab
+      // An app can change the text through the editor even when it is read only, so the label does not wait for editable.
+      if (!labeled && isMachine(me.kind)) {
+        // Text carries the Yjs client id of its writer. This entry ties this client to an agent, so its text is marked.
+        labeled = true;
+        live.doc.getArray("edits").push([{ op: "live", at: new Date().toISOString(), author: { kind: me.kind, name: me.name }, client: live.doc.clientID, inserted: 0, deleted: 0 }]);
       }
+      if (!editable || gone || live.hosted) return; // a host keeps its document itself, so there is nothing to save
+      live.touch();
+      setSaved("saving");
+      clearTimeout(timer);
+      timer = setTimeout(save, SAVE_AFTER_MS);
     };
     live.doc.on("update", changed);
     setConnection(live.status());
     const offStatus = live.onStatus(setConnection);
-    // Last, so content the app inserts from onEditor is labeled and saved like typed text.
-    tell.current?.(editor);
     return () => {
       stopped = true;
       live.doc.off("update", changed);
       offStatus();
       if (timer) clearTimeout(timer);
       offPeers?.();
-      tell.current?.(null);
       editor.destroy();
     };
   }, [live, editable, me.name, me.kind]);
+
+  // In its own effect, after the one above has its listeners and its cleanup, so content the app inserts here is labeled
+  // and saved like typed text, and a callback that throws leaves nothing on the document. Each callback hears null for
+  // the editor it got.
+  useEffect(() => {
+    if (!editor) return;
+    const told = tell.current;
+    told?.(editor);
+    return () => told?.(null);
+  }, [editor]);
 
   const entries: PresenceEntry[] = [{ id: "me", name: me.name, kind: isMachine(me.kind) ? "agent" : "person" }, ...peers.map(entryOf)];
   const pressed = (name: string, attrs?: object) => editor?.isActive(name, attrs) ?? false;
