@@ -76,7 +76,12 @@ describe("mountEditor", () => {
       expect(editor.schema.nodes[name].isInline, name).toBe(type.isInline);
     }
     for (const name of Object.keys(engineSchema.marks)) expect(editor.schema.marks[name], name).toBeDefined();
-    const rich = AgenticDoc.fromMarkdown("# T\n\nA ![i](https://example.com/i.png) **b** [l](https://example.com)\n\n- [x] a\n  - [ ] b\n\n| h |\n| - |\n| c |\n\n> q\n\n```\ncode\n```", { kind: "human", name: "Seed" });
+    const rich = AgenticDoc.fromMarkdown("# T\n\nA ![i](https://example.com/i.png) **b** [l](https://example.com)\n\n- [x] a\n  - [ ] b\n\n| h |\n| - |\n| c |\n\n> q\n\n```\ncode\n```\n\n1. one\n2. two\n\n- plain\n\n---\n\nline one\\\nline two\n\n```js\nlet x\n```", { kind: "human", name: "Seed" });
+    const used = new Set<string>();
+    const walk = (node: { type: string; content?: unknown[] }) => (used.add(node.type), node.content?.forEach((child) => walk(child as typeof node)));
+    walk(rich.toJSON() as never);
+    // The sample holds every node of the engine, so a content rule that drifts in any of them fails the check below.
+    expect([...used].sort()).toEqual(Object.keys(engineSchema.nodes).sort());
     expect(() => editor.schema.nodeFromJSON(rich.toJSON()).check()).not.toThrow();
   });
 
