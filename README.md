@@ -323,8 +323,8 @@ CLOUDFLARE_API_TOKEN=<token> npm run deploy:demo
 The tokens live in a Worker secret, never in the repo or in CI. Set them with
 `WRANGLER_SEND_METRICS=false npx wrangler secret put AGENTIC_DOCS_TOKENS --config wrangler.demo.jsonc`. To make your own demo, copy
 `wrangler.demo.jsonc`, change the name, and put your own database id and bucket name in it. Make the database with
-`wrangler d1 create <name> --jurisdiction eu`, because the jurisdiction is fixed when you create it. Make the bucket with
-`wrangler r2 bucket create <name> --jurisdiction eu`.
+`WRANGLER_SEND_METRICS=false npx wrangler d1 create <name> --jurisdiction eu`, because the jurisdiction is fixed when you create it. Make the bucket with
+`WRANGLER_SEND_METRICS=false npx wrangler r2 bucket create <name> --jurisdiction eu`.
 
 ## Live editing
 
