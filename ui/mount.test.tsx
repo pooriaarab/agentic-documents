@@ -104,12 +104,35 @@ describe("mount", () => {
 
   it("refuses options with no callback, a base URL that is not a full http or https address, or an empty document id", () => {
     host = document.createElement("div");
-    for (const baseUrl of ["", "docs.example.com", "/docs", "javascript:alert(1)", "ftp://docs.test"]) {
+    for (const baseUrl of ["", "docs.example.com", "/docs", "javascript:alert(1)", "ftp://docs.test", "https://docs.test/?a=1", "https://docs.test/#x", "https://u:p@docs.test"]) {
       expect(() => mount(host, { baseUrl, getToken: () => "x" })).toThrow(TypeError);
     }
+    expect(() => mount(host, { baseUrl: new URL("https://docs.test") as never, getToken: () => "x" })).toThrow(TypeError);
     expect(() => mount(host, { baseUrl: "https://docs.test" } as never)).toThrow(TypeError);
     expect(() => mount(host, { baseUrl: "https://docs.test", getToken: () => "x", documentId: "" })).toThrow(TypeError);
     expect(host.innerHTML).toBe("");
+  });
+
+  it("a getToken that throws shows a host message, not a server message", async () => {
+    const { calls } = fakeServer();
+    await open({ baseUrl: "https://docs.test", getToken: () => { throw new Error("session ended"); } });
+    await vi.waitFor(() => expect(host.querySelector('[role="alert"]')).not.toBeNull());
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain("The host app could not give a token: session ended");
+    expect(calls).toEqual([]);
+  });
+
+  it("a link in the text with a bad escape or another route is left to the browser", async () => {
+    fakeServer();
+    await open({ baseUrl: "https://docs.test", getToken: () => "good-token" });
+    await vi.waitFor(() => expect(host.textContent).toContain("Alpha"));
+    for (const href of ["#/d/%E0", "#/other", "#/d/a/b"]) {
+      const link = host.appendChild(document.createElement("a"));
+      link.href = href;
+      const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      await act(async () => void link.dispatchEvent(click));
+      expect(click.defaultPrevented).toBe(false);
+    }
+    expect(host.querySelector(".page-head h1")?.textContent).toBe("Documents");
   });
 
   it("a throw from onError does not escape", async () => {

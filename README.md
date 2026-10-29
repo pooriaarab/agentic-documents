@@ -267,10 +267,13 @@ const app = mount(document.getElementById("app")!, {
 // Later: app.update({ ...options, documentId: "other" }), or app.unmount().
 ```
 
-- `getToken` runs when the app opens, and again when the person picks Try again after an error. The server sets the
-  author and the role from the token. The app shows no Sign out button.
+- `getToken` runs when the app opens, and again when the person picks Try again on the sign-in error. The app does not
+  ask again when a token expires later: call `app.update({ ...options, getToken: newFunction })` to sign in with a new
+  token. `onError` is called when sign in fails. The server sets the author and the role from the token. The app shows
+  no Sign out button.
 - A link in the app moves inside the app. It does not change the address of your page.
-- `baseUrl` must be a full `http` or `https` address. It may have a path, such as `https://example.com/docs`.
+- `baseUrl` must be a full `http` or `https` address with no query, fragment, or credentials. It may have a path, such as
+  `https://example.com/docs`.
 - The theme picker uses the agentic-design theme. It sets `data-theme` on the page and saves the choice in local
   storage, so it changes the whole host page.
 - `unmount` removes the app. An open document saves its changes and leaves its room.
