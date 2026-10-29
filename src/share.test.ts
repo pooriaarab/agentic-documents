@@ -20,8 +20,9 @@ beforeAll(async () => {
   await principal("scribe", "agent_of_human", ["docs:write"], "ada"); // acts for Ada, with no admin scope
   await principal("keeper", "agent_of_human", ["docs:admin"], "ada"); // acts for Ada, with admin scope
   await principal("viewer", "human", ["docs:read"]);
+  await principal("mal", "human", ["docs:write"]); // may write, may not administer
   await principal("robot", "agent", ["docs:admin"]); // an agent with its own identity
-  for (const id of ["ada", "bea", "scribe", "keeper", "viewer", "robot"]) keys[id] = await issueCredential(store, { principalId: id, kind: "api_key" });
+  for (const id of ["ada", "bea", "scribe", "keeper", "viewer", "robot", "mal"]) keys[id] = await issueCredential(store, { principalId: id, kind: "api_key" });
   expect((await ask("", keys.ada, { id: "plan", markdown: "# Plan\n\nShip." })).status).toBe(200);
 });
 
@@ -128,5 +129,63 @@ describe("a document made before sharing", () => {
     expect((await ask("/plan/remove", keys.ada, {})).status).toBe(200);
     expect((await ask("", keys.bea, { id: "plan", markdown: "# Again" })).status).toBe(200);
     expect((await json(await ask("/plan/grants", keys.bea))).map((g: { subjectId: string }) => g.subjectId)).toEqual(["bea"]);
+  });
+});
+
+describe("a removed document leaves no sharing data for the next one with its id", () => {
+  test("a person with only docs:write who removes a document does not keep its id", async () => {
+    expect((await ask("", keys.mal, { id: "board", markdown: "# Mal" })).status).toBe(200);
+    expect((await ask("/board/remove", keys.mal, {})).status).toBe(200);
+    expect((await ask("", keys.ada, { id: "board", markdown: "# Ada, private" })).status).toBe(200);
+    expect((await json(await ask("/board/grants", keys.ada))).map((g: { subjectId: string }) => g.subjectId)).toEqual(["ada"]);
+    expect((await ask("/board/grants", keys.mal)).status).toBe(403);
+  });
+
+  test("an editor who is not an owner removes it, and the old owner, grants, and links go too", async () => {
+    await ask("", keys.ada, { id: "deck", markdown: "# Deck" });
+    await ask("/deck/grant", keys.ada, { to: "human:bea", role: "editor" });
+    const link = await json(await ask("/deck/link", keys.ada, { role: "viewer" }));
+    expect((await ask("/deck/remove", keys.bea, {})).status).toBe(200);
+    expect((await ask("", keys.bea, { id: "deck", markdown: "# Mine" })).status).toBe(200);
+    expect((await json(await ask("/deck/grants", keys.bea))).map((g: { subjectId: string }) => g.subjectId)).toEqual(["bea"]);
+    expect((await ask("/deck/grants", keys.ada)).status).toBe(403);
+    expect(await store.get("links", link.id)).toBeNull();
+  });
+});
+
+describe("a document made by a live checkpoint", () => {
+  test("is owned by the person the agent acts for", async () => {
+    const update = (await service.state("notes")).slice();
+    const res = await app.request("/api/v1/docs/fromroom/checkpoint", { method: "POST", headers: { authorization: `Bearer ${keys.scribe}` }, body: update });
+    expect(res.status).toBe(200);
+    expect((await json(await ask("/fromroom/grants", keys.ada))).map((g: { subjectId: string }) => g.subjectId)).toEqual(["ada"]);
+  });
+});
+
+describe("the static token table", () => {
+  const OWNER = `owner-${"o".repeat(40)}`;
+  const VIEW = `view-${"w".repeat(40)}`;
+  const ROBOT = `robot-${"r".repeat(40)}`;
+  const NOADMIN = `noadmin-${"n".repeat(40)}`;
+  const env = { AGENTIC_DOCS_UNSAFE_TOKENS: "1", AGENTIC_DOCS_TOKENS: JSON.stringify({ [OWNER]: "human:Owen", [VIEW]: { as: "human:Owen", role: "viewer" }, [ROBOT]: { as: "agent:robot", scopes: ["docs:admin"] }, [NOADMIN]: { as: "agent:helper", scopes: ["docs:write"] } }) };
+  const dev = createApp(new DocsService({ blobs: createMemoryBlobs(), store: createMemoryStore() }));
+  const call = (path: string, token: string, body?: unknown) =>
+    dev.request(`/api/v1/docs${path}`, { method: body === undefined ? "GET" : "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) }, env);
+
+  test("a person owns what they make, and a viewer token with the same name owns and shares nothing", async () => {
+    expect((await call("", OWNER, { id: "dev", markdown: "# D" })).status).toBe(200);
+    expect((await call("/dev/grant", OWNER, { to: "agent:robot", role: "viewer" })).status).toBe(200);
+    expect((await call("/dev/grants", VIEW)).status).toBe(403);
+    expect((await call("/dev/grant", VIEW, { to: "human:Owen", role: "owner" })).status).toBe(403);
+  });
+
+  test("an agent needs docs:admin and ownership, and it cannot give itself a role", async () => {
+    expect((await call("/dev/grants", ROBOT)).status).toBe(403); // robot holds the scope, but only a viewer role
+    expect((await call("/dev/grant", ROBOT, { to: "agent:robot", role: "owner" })).status).toBe(403);
+    expect((await call("/dev/grant", NOADMIN, { to: "agent:helper", role: "owner" })).status).toBe(403);
+    expect((await call("", NOADMIN, { id: "helper-doc", markdown: "# H" })).status).toBe(200);
+    expect((await call("/helper-doc/grants", NOADMIN)).status).toBe(403); // it owns the document and holds no admin scope
+    expect((await call("", ROBOT, { id: "robot-doc", markdown: "# R" })).status).toBe(200);
+    expect((await call("/robot-doc/grants", ROBOT)).status).toBe(200);
   });
 });

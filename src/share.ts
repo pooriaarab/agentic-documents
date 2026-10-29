@@ -6,6 +6,7 @@ export const RESOURCE_TYPE = "docs";
 /** Sharing needs this scope. A person holds it in a local run. An agent holds it only when it is granted. */
 export const SHARE_SCOPE = "docs:admin";
 const MAX_PAGES = 20;
+const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 export const ROLES = ["viewer", "commenter", "editor", "owner"] as const;
 export const INVITE_ROLES = ["viewer", "commenter", "editor"] as const;
@@ -53,6 +54,8 @@ export function parseSubject(text: string): GrantInput {
  */
 export function contextOf(author: Principal | undefined): PrincipalContext {
   if (!author || !PRINCIPAL_KINDS.includes(author.kind)) throw new DocError("INVALID_AUTHOR", "sharing needs an author: pass --as kind:name");
+  // agentic-identity stores a grant under this name and refuses a name it cannot read back, so such an owner could never be changed.
+  if (!SAFE_ID.test(author.name)) throw new DocError("INVALID_AUTHOR", "sharing needs an author name of 1 to 128 letters, digits, - and _");
   const scopes = author.kind === "human" ? [SHARE_SCOPE] : (author.scopes ?? []).filter((s) => /^[a-z*]+:(read|comment|write|admin)$/.test(s));
   return { principalId: author.name, kind: author.kind, chain: [{ kind: author.kind, id: author.name }], scopes: scopes as PrincipalContext["scopes"] };
 }
@@ -80,22 +83,38 @@ export class StoreSharing implements DocSharing {
     this.sharing = createSharing(store);
   }
 
-  /** The author of a new document owns it. Best effort: a document that has no owner yet is claimed by its creator on the first share call. */
-  async register(ctx: PrincipalContext, id: string): Promise<void> {
+  /**
+   * The author of a new document owns it. A resource that exists for a document that was just made is left over from an
+   * older document with the same id, so it is erased first: the new document must never inherit its owners. Registering
+   * is best effort. An author with no root person or agent, or with no `docs:write` scope, owns nothing, and the
+   * creator claims the document on the first share call.
+   */
+  async register(ctx: PrincipalContext | undefined, id: string): Promise<void> {
     try {
+      await this.erase(id);
+      if (!ctx) return;
       await this.sharing.createResource(ctx, { id, type: RESOURCE_TYPE });
     } catch {
-      /* no root person or agent, no scope, or the resource exists */
+      /* no root person or agent, no scope, or leftovers that no owner can erase: nobody owns it, which fails closed */
     }
   }
 
-  /** Erase the sharing data with the document. Only an owner may. When another person removes it, the data stays and the next owner call sees it. */
-  async erase(ctx: PrincipalContext, id: string): Promise<void> {
-    try {
-      await this.sharing.deleteResource(ctx, id);
-    } catch {
-      /* not an owner, or no resource */
+  /**
+   * Erase the sharing data of a document that is removed or made again. The caller has already passed the remove check,
+   * so this does not ask for an owner: it acts as one owner that the store names. Nothing of the old document stays,
+   * whoever removes it.
+   */
+  async erase(id: string): Promise<void> {
+    if ((await this.store.get("resources", id)) === null) return;
+    const [owner] = (await this.store.query("grants", { where: { resourceId: id, role: "owner" }, limit: 1 })).items;
+    const data = owner?.data as { subjectKind?: unknown; subjectId?: unknown } | undefined;
+    if (data && (data.subjectKind === "human" || data.subjectKind === "agent") && typeof data.subjectId === "string") {
+      const ctx: PrincipalContext = { principalId: data.subjectId, kind: data.subjectKind, chain: [{ kind: data.subjectKind, id: data.subjectId }], scopes: [SHARE_SCOPE] };
+      await guard(() => this.sharing.deleteResource(ctx, id));
+      return;
     }
+    // A resource with no readable owner cannot be erased through agentic-identity. Fail closed: the document is not made or removed.
+    throw new DocError("CONFLICT", `the sharing data of "${id}" has no owner and cannot be erased; ask an operator`);
   }
 
   /** A document made before sharing has no resource. Its creator becomes the owner. Anyone else is refused. */
@@ -122,9 +141,9 @@ export class StoreSharing implements DocSharing {
       for (let page = 0; page < MAX_PAGES; page++) {
         const { grants, nextCursor } = await this.sharing.listGrants(ctx, id, { limit: 200, cursor });
         found.push(...grants);
-        if ((cursor = nextCursor) === undefined) break;
+        if ((cursor = nextCursor) === undefined) return found;
       }
-      return found;
+      throw new DocError("CONFLICT", `the document has more than ${MAX_PAGES * 200} grants; a partial list would mislead`);
     });
   }
 
@@ -143,9 +162,9 @@ export class StoreSharing implements DocSharing {
       for (let page = 0; page < MAX_PAGES; page++) {
         const { invites, nextCursor } = await this.sharing.listInvites(ctx, id, { limit: 200, cursor });
         found.push(...invites);
-        if ((cursor = nextCursor) === undefined) break;
+        if ((cursor = nextCursor) === undefined) return found;
       }
-      return found;
+      throw new DocError("CONFLICT", `the document has more than ${MAX_PAGES * 200} invites; a partial list would mislead`);
     });
   }
 

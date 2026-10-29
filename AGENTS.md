@@ -47,7 +47,8 @@ change it in a call.
 | `doc_export` | Export as `md`, `html`, or `odt` (base64 file). |
 
 Only an owner shares a document, and an agent needs the `docs:admin` scope too. A refusal is `FORBIDDEN`. Never try to
-grant yourself a role.
+grant yourself a role. Roles are stored, but reads and writes do not check them yet, nothing opens a link token, and
+nothing accepts an invite. A `revoke` does not stop a token that has its own `editor` role.
 
 An error returns `isError` with `{ error: { code, message, matches } }`.
 

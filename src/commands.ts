@@ -88,8 +88,8 @@ export const commands: Command[] = [
     await s.rename(i.id, i.title, a);
     return ok();
   }),
-  command("remove", "Delete a whole document. A person may. An agent needs the docs:remove scope.", false, { id }, async (s, i, a, c) => {
-    await s.remove(i.id, a, c);
+  command("remove", "Delete a whole document. A person may. An agent needs the docs:remove scope.", false, { id }, async (s, i, a) => {
+    await s.remove(i.id, a);
     return ok();
   }),
   command("read", "Read a document, or one section, as Markdown.", true, { id, section: where.section }, (s, i) =>
