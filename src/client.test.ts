@@ -122,6 +122,7 @@ describe("client against the real Worker", () => {
     const link = await ada.link("shared-doc", { role: "viewer", signedInOnly: true });
     expect(link.token.length).toBeGreaterThanOrEqual(32);
     await ada.unlink("shared-doc", { link: link.id });
+    await ada.unlink("shared-doc", { link: link.id }); // an owner may repeat it on a revoked link
 
     for (const who of [bea, vic, robot]) {
       expect((await fails(who.grants("shared-doc"))).status).toBe(403);

@@ -59,6 +59,7 @@ describe("sharing from the CLI and the MCP server in live mode", { timeout: 30_0
   });
 
   test("the MCP server in live mode shares as the token's author", async () => {
+    expect((await cli(["new", "mcp-foreign", "--markdown", "# F"], ADA)).code).toBe(0); // a document that robot does not own
     const client = new Client({ name: "probe", version: "0.0.0" });
     await client.connect(new StdioClientTransport({ command: process.execPath, args: [BIN, "mcp", "--live", server.url], env: { ...process.env, AGENTIC_DOCS_TOKEN: ROBOT } as Record<string, string> }));
     try {
@@ -66,7 +67,7 @@ describe("sharing from the CLI and the MCP server in live mode", { timeout: 30_0
       expect(made.isError).toBeFalsy();
       const grant = (await client.callTool({ name: "doc_grant", arguments: { id: "robot-doc", to: "human:kit", role: "editor" } })) as { isError?: boolean };
       expect(grant.isError).toBeFalsy();
-      const refused = (await client.callTool({ name: "doc_grants", arguments: { id: "share-live" } })) as { isError?: boolean; content: { text: string }[] };
+      const refused = (await client.callTool({ name: "doc_grants", arguments: { id: "mcp-foreign" } })) as { isError?: boolean; content: { text: string }[] };
       expect(refused.isError).toBe(true);
       expect(JSON.parse(refused.content[0].text).error.code).toBe("FORBIDDEN");
     } finally {

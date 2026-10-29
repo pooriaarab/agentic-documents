@@ -131,6 +131,7 @@ export function createClient(options: ClientOptions) {
 
   const doc = (id: string) => `/api/v1/docs/${enc(id)}`;
   const isOk = (v: unknown) => isObject(v) && v.ok === true;
+  const isRole = (v: unknown) => v === "viewer" || v === "commenter" || v === "editor" || v === "owner";
   const isList = (v: unknown) => Array.isArray(v) && v.every(isObject);
   const get = async <T>(path: string, query: Record<string, unknown>, check: (v: unknown) => boolean, what: string, call?: CallOptions) =>
     (await json(await send(path, { method: "GET", query }, call), check, what)) as T;
@@ -186,13 +187,15 @@ export function createClient(options: ClientOptions) {
       (id: string, input: { format: ExportFormat; remoteImages?: boolean }, call?: CallOptions): Promise<string | Uint8Array>;
     },
     /** `GET /grants`: who holds a role on a document. Only an owner may. Sharing calls fail with `FORBIDDEN` for anyone else. */
-    grants: (id: string, call?: CallOptions) => list<Grant>(`${doc(id)}/grants`, {}, call),
+    grants: (id: string, call?: CallOptions) =>
+      get<Grant[]>(`${doc(id)}/grants`, {}, (v) => Array.isArray(v) && v.every((g) => isObject(g) && (g.subjectKind === "human" || g.subjectKind === "agent") && typeof g.subjectId === "string" && isRole(g.role)), "a grant list", call),
     /** `POST /grant`: give a person or an agent a role. It replaces the role they hold. */
     grant: (id: string, input: { to: Subject; role: ShareRole }, call?: CallOptions) => ok(`${doc(id)}/grant`, input, call),
     /** `POST /revoke`: take a role away. */
     revoke: (id: string, input: { to: Subject }, call?: CallOptions) => ok(`${doc(id)}/revoke`, input, call),
     /** `GET /invites`. */
-    invites: (id: string, call?: CallOptions) => list<InviteSummary>(`${doc(id)}/invites`, {}, call),
+    invites: (id: string, call?: CallOptions) =>
+      get<InviteSummary[]>(`${doc(id)}/invites`, {}, (v) => Array.isArray(v) && v.every((i) => isObject(i) && typeof i.id === "string" && isRole(i.role) && (i.for === "email" || i.for === "handle")), "an invite list", call),
     /** `POST /invite`: invite a person by `email`, or an agent by `handle`. An invite never makes an owner. */
     invite: (id: string, input: { role: Exclude<ShareRole, "owner">; email?: string; handle?: string; expiresInMs?: number }, call?: CallOptions) => withKey<{ id: string }>(`${doc(id)}/invite`, input, "id", call),
     /** `POST /link`: make a share link. The `token` shows once. */
