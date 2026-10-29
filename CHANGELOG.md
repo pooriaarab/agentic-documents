@@ -4,9 +4,9 @@
 
 ### Changed
 
-- The Worker uses the `agentic-identity` 0.6 auth helpers for Bearer auth and the WebSocket token. The local Bearer
-  and subprotocol parsers are gone. A token in `AGENTIC_DOCS_TOKENS` now holds only `A-Z a-z 0-9 _ -` (32 to 512
-  bytes), and a bad one refuses the whole config. An author name there follows the identity id rule (`A-Z a-z 0-9 . _ -`,
+- The Worker uses the `agentic-identity` 0.6 auth helpers for Bearer auth and the WebSocket token. The Worker's own
+  WebSocket subprotocol parser is gone, and the Bearer header format check comes from `agentic-identity`. A token in
+  `AGENTIC_DOCS_TOKENS` now holds only `A-Z a-z 0-9 _ -` (32 to 512 bytes), and a bad one refuses the whole config. An author name there follows the identity id rule (`A-Z a-z 0-9 . _ -`,
   up to 128 characters, not starting with `.`). A browser must offer both `agentic-docs` and
   `agentic-docs.bearer.<token in base64url>` as subprotocols.
 - `PRINCIPAL_KINDS` and `PrincipalKind` come from `agentic-identity`. The exports of `agentic-documents` do not change.
