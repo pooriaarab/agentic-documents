@@ -270,14 +270,21 @@ for (const theme of themes) {
     const page = await newPage(await browser.newContext({ colorScheme: theme, viewport: { width: 1100, height: 760 } }), ADA);
     await page.goto(`${url()}/#/d/${id}`);
     const text = textbox(page);
-    await expect(text).toContainText("Ship the editor");
-    await text.click();
-    await page.keyboard.press("Control+End");
+    const sentence = "Ship the editor on Friday, then write the release notes.";
+    await text.locator("p", { hasText: sentence }).click();
+    await expect(text).toBeFocused();
+    await page.keyboard.press("End");
+    await expect.poll(() => page.evaluate(() => {
+      const selection = window.getSelection();
+      return selection?.isCollapsed && selection.anchorNode?.textContent === "Ship the editor on Friday, then write the release notes." && selection.anchorOffset === selection.anchorNode.textContent.length;
+    })).toBe(true);
+    // Let the native selection change reach the editor before splitting the paragraph.
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await page.keyboard.press("Enter");
+    await expect(text.locator("p").last()).toBeEmpty();
     await page.keyboard.type("/");
     await expect(page.getByRole("listbox", { name: "Insert a block" })).toBeVisible();
     await expect(text.locator("p").last()).toHaveText("/");
-    const sentence = "Ship the editor on Friday, then write the release notes.";
     await expect(text.locator("p", { hasText: sentence })).toHaveText(sentence);
     await expectAccessible(page);
     await shoot(page, "slash-menu", theme);
