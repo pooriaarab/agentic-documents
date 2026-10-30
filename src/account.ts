@@ -43,12 +43,19 @@ const plain = (value: unknown): Json => JSON.parse(JSON.stringify(value)) as Jso
 async function plan(subject: DocumentsAccountSubject, deps: DocumentsAccountDeps) {
   if (!subject || typeof subject.id !== "string" || !subject.id.trim() || subject.id === ERASED || !PRINCIPAL_KINDS.includes(subject.kind)) throw new Error("subject needs an id and a known kind");
   if (!deps?.store || !deps.blobs) throw new Error("documentsAccount needs store and blobs");
-  const catalog = await rows(deps.store, "documents");
-  const resources = await rows(deps.store, "resources");
+  let catalog = await rows(deps.store, "documents");
+  let resources = await rows(deps.store, "resources");
+  const extra = await deps.documentIds?.() ?? [];
+  if (deps.saveRoom) {
+    const ids = new Set([...catalog.map(r => r.id), ...resources.filter(r => r.data.type === "docs").map(r => r.id), ...extra]);
+    for (const id of ids) { if (!ID.test(id)) bad(); await deps.saveRoom(id); }
+    catalog = await rows(deps.store, "documents");
+    resources = await rows(deps.store, "resources");
+  }
   const grants = await rows(deps.store, "grants");
   const invites = await rows(deps.store, "invites");
   const byResource = new Map(resources.map(r => [r.id, r.data]));
-  const ids = new Set([...catalog.map(r => r.id), ...resources.filter(r => r.data.type === "docs").map(r => r.id), ...await deps.documentIds?.() ?? []]);
+  const ids = new Set([...catalog.map(r => r.id), ...resources.filter(r => r.data.type === "docs").map(r => r.id), ...extra]);
   const mine = (v: unknown): boolean => {
     const p = checkAuthor(v as never);
     return p.kind === subject.kind && p.name === subject.id;
@@ -114,7 +121,6 @@ async function plan(subject: DocumentsAccountSubject, deps: DocumentsAccountDeps
       if (!resource && mine(info.createdBy)) { owned = true; sole = true; }
     }
     if (sole && resources.some(r => r.data.parentId === id)) bad();
-    await deps.saveRoom?.(id);
     const blob = await deps.blobs.get(`${id}.ydoc`);
     const before = authored.length;
     const cleanedInfo = info ? scrub(info, id, !owned) as Doc : undefined;
@@ -176,14 +182,14 @@ export const documentsAccount: DocumentsAccount = {
       if (e.sole) {
         await deps.eraseRoom?.(e.id);
         if (e.blob) { await deps.blobs.delete(`${e.id}.ydoc`); counts.blobs++; }
-        // Keep ownership and catalog until the blob goes, so a retry can find it.
+        // Keep the owner record until the blob and catalog go, so a retry finds it.
+        await deps.store.delete("documents", e.id);
         if (e.resource) {
           let removed = 1;
           for (const collection of ["grants", "invites", "links"]) removed += (await rows(deps.store, collection)).filter(r => r.data.resourceId === e.id).length;
           await createSharing(deps.store).deleteResource(ctx, e.id);
           counts.sharing += removed;
         }
-        await deps.store.delete("documents", e.id);
         counts.documents++; counts.grants += e.held.length;
       } else {
         if (e.changed) {

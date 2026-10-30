@@ -129,3 +129,19 @@ test("scrubs resolvers and acceptance records while preserving other authors", a
   });
   expect(new TextDecoder().decode((await deps.blobs.get("shared.ydoc"))!.data)).not.toContain("account-subject-ada");
 });
+
+test("a failed catalog delete keeps ownership for retry even with another creator", async () => {
+  const { deps } = await setup();
+  await deps.store.put("documents", "mine", { ...(await deps.store.get("documents", "mine"))!, createdBy: bob });
+  const original = deps.store.delete.bind(deps.store);
+  let fail = true;
+  deps.store.delete = async (collection, id) => {
+    if (collection === "documents" && id === "mine" && fail) { fail = false; throw new Error("catalog interrupted"); }
+    await original(collection, id);
+  };
+  await expect(documentsAccount.eraseAccount(subject, deps)).rejects.toThrow("catalog interrupted");
+  expect(await deps.store.get("resources", "mine")).not.toBeNull();
+  await documentsAccount.eraseAccount(subject, deps);
+  expect(await deps.store.get("documents", "mine")).toBeNull();
+  expect(await deps.store.get("resources", "mine")).toBeNull();
+});
