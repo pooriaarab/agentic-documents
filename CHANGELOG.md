@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.1
+
+### Changed
+
+- `agentic-design` moves from `^0.6.0` to `^0.9.0`, so apps can share one copy at 0.9.0. This package does not use the new props or components.
+- Escape releases the slash menu keys before the next render, so the next arrow key reaches the text.
+
 ## 0.13.0
 
 ### Added

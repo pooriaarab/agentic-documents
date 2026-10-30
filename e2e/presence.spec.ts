@@ -23,6 +23,7 @@ test("two people see each other: the count, the caret with the name, the selecti
   await textbox(bob).getByText("Ship the editor on Friday.").click();
   await bob.keyboard.press("End");
   await bob.keyboard.press("Control+Shift+ArrowLeft");
+  await expect(textbox(ada).locator(".agd-peer-selection")).toHaveText(".");
   await bob.keyboard.press("Control+Shift+ArrowLeft"); // the dot, then the word
   await expect(ada.locator(".agd-caret__tag")).toHaveText("Bob");
   await expect(textbox(ada).locator(".agd-peer-selection")).toHaveText("Friday.");

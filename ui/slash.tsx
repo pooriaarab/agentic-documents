@@ -165,6 +165,8 @@ export function SlashMenu({ editor, items }: { editor: Editor; items: SlashItem[
         event.preventDefault();
         event.stopPropagation();
         dismissed.current = pin(editor, at.from);
+        // Release the keys now: another key can arrive before React renders the closed menu.
+        state.current.open = undefined;
         setOpen(undefined);
       }
     };

@@ -87,6 +87,33 @@ test("the slash menu filters, moves with the arrow keys, and puts in the block",
   await page.context().close();
 });
 
+test("Escape releases the slash menu keys before the next render", async ({ browser }) => {
+  const { page } = await open(browser, "Intro");
+  const text = textbox(page);
+  await text.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/");
+  await expect(page.getByRole("listbox", { name: "Insert a block" })).toBeVisible();
+
+  // Deliver both keys in one browser task, before React can render the closed menu.
+  const intercepted = await text.evaluate((element) => {
+    element.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    const up = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true });
+    element.dispatchEvent(up);
+    return up.defaultPrevented;
+  });
+  expect(intercepted).toBe(false);
+  await expect(page.getByRole("listbox", { name: "Insert a block" })).toHaveCount(0);
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Shift+End");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Intro");
+  await expect(page.getByRole("toolbar", { name: "Selection" })).toBeVisible();
+  await page.context().close();
+});
+
 test("on a short window the slash menu shows a part of the list, and the arrow keys reach the rest", async ({ browser }) => {
   const { page } = await open(browser, "");
   await page.setViewportSize({ width: 800, height: 420 });
@@ -139,8 +166,9 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   const box = (await page.locator(".agd-bubble").boundingBox())!;
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(500);
-  // A selection scrolled fully out of view has no menu.
+  // Replace the full selection with one character at the end of the document.
   await page.keyboard.press("Control+End");
+  await expect(bubble).toHaveCount(0);
   await page.keyboard.press("Shift+ArrowLeft");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(".");
   // The old menu can still be visible while selectionUpdate queues its next
@@ -158,6 +186,12 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   await expect(textbox(page)).toBeFocused();
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  // Prove the selected character is outside the viewport before checking the menu.
+  await expect.poll(() => page.evaluate(() => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || selection.toString() !== ".") return false;
+    return selection.getRangeAt(0).getBoundingClientRect().top > window.innerHeight;
+  })).toBe(true);
   await expect(bubble).toHaveCount(0);
 
   // The slash menu hides too when its slash goes under the bar, still inside the window.
@@ -236,22 +270,30 @@ for (const theme of themes) {
     const page = await newPage(await browser.newContext({ colorScheme: theme, viewport: { width: 1100, height: 760 } }), ADA);
     await page.goto(`${url()}/#/d/${id}`);
     const text = textbox(page);
-    await expect(text).toContainText("Ship the editor");
-    await text.click();
-    await page.keyboard.press("Control+End");
+    const sentence = "Ship the editor on Friday, then write the release notes.";
+    await text.locator("p", { hasText: sentence }).click();
+    await expect(text).toBeFocused();
+    await page.keyboard.press("End");
+    await expect.poll(() => page.evaluate(() => {
+      const selection = window.getSelection();
+      return selection?.isCollapsed && selection.anchorNode?.textContent === "Ship the editor on Friday, then write the release notes." && selection.anchorOffset === selection.anchorNode.textContent.length;
+    })).toBe(true);
+    // Let the native selection change reach the editor before splitting the paragraph.
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await page.keyboard.press("Enter");
+    await expect(text.locator("p").last()).toBeEmpty();
     await page.keyboard.type("/");
     await expect(page.getByRole("listbox", { name: "Insert a block" })).toBeVisible();
+    await expect(text.locator("p").last()).toHaveText("/");
+    await expect(text.locator("p", { hasText: sentence })).toHaveText(sentence);
     await expectAccessible(page);
     await shoot(page, "slash-menu", theme);
-    // Axe can move focus. Restore the editor and caret before the next keyboard action.
+    // Axe can move focus. Restore the editor before the next keyboard action.
     await text.focus();
-    await page.keyboard.press("Control+End");
     await page.keyboard.press("Escape");
-    await page.keyboard.press("Backspace");
-    // Target the known line: ArrowUp from an empty paragraph depends on the
-    // browser's remembered caret column and can leave the selection empty.
-    const sentence = "Ship the editor on Friday, then write the release notes.";
+    await expect(page.getByRole("listbox", { name: "Insert a block" })).toHaveCount(0);
+    // Keep the slash paragraph: deleting after Axe can act on a changed caret.
+    // Target the known sentence directly for the bubble accessibility check.
     await text.locator("p", { hasText: sentence }).click();
     await expect(text).toBeFocused();
     await page.keyboard.press("Home");
