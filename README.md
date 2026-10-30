@@ -436,7 +436,10 @@ const editor = mountEditor(document.getElementById("editor")!, {
     An extension that adds or changes a node, a mark, or an attribute stops the editor with a message that names it,
     since the stored document keeps only the nodes, marks, and attributes of `schema`.
   - `editorMarkdown(editor)` and `setEditorMarkdown(editor, markdown)` read and replace the text as Markdown,
-    with the same conversion as the server. `setEditorMarkdown` throws on a read-only editor.
+    with the same Markdown conversion as the server. Import drops images that a paste would refuse.
+    `setEditorMarkdown` throws if the editor is read only, has no sync document, or the projected Yjs state,
+    including text kept for Undo, exceeds the room budget.
+  - Invalid host options throw a `TypeError` before the editor opens or updates.
   - The types `SlashItem`, `BubbleAction`, and `EditorExtras` are exported.
 - The carets and the selections of the other people and agents in the room show in the text, each with the name that
   the server stamped for that peer. A person's selection is a tint. An agent's caret and selection are dashed, so its

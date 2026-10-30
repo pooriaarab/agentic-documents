@@ -53,6 +53,22 @@ function checkPrincipal(principal: EmbedPrincipal): void {
 /** The editor needs a client, or a host document and no room of its own. */
 function checkOptions(options: DocumentEditorOptions): void {
   checkPrincipal(options.principal);
+  for (const key of ["slashItems", "bubbleActions", "extensions"] as const) {
+    const entries: unknown = options[key];
+    if (entries === undefined) continue;
+    if (!Array.isArray(entries)) throw new TypeError(`${key} must be an array`);
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") throw new TypeError(`${key} needs objects`);
+      const value = entry as Record<string, unknown>;
+      if (key === "extensions") {
+        if (typeof value.type !== "string" || !["extension", "node", "mark"].includes(value.type) || typeof value.name !== "string" || !value.name.trim() || typeof value.configure !== "function" || !value.config || typeof value.config !== "object") throw new TypeError("extensions needs Tiptap extensions");
+      } else {
+        const label = key === "slashItems" ? value.title : value.label;
+        if (typeof label !== "string" || !label.trim() || typeof value.run !== "function") throw new TypeError(`${key} needs a nonempty name and a run function`);
+        if (key === "slashItems" && (typeof value.description !== "string" || (value.keywords !== undefined && (!Array.isArray(value.keywords) || !value.keywords.every((word) => typeof word === "string"))))) throw new TypeError("slashItems needs a description and string keywords");
+      }
+    }
+  }
   if (options.host !== undefined) {
     checkHost(options.host);
     if (options.room !== undefined) throw new TypeError("the editor takes a room or a host document, not both");
@@ -134,7 +150,8 @@ function HostedEditor({ host, principal, onEditor, extras }: { host: HostDocumen
 export function DocumentEditor(options: DocumentEditorOptions) {
   checkOptions(options);
   const extras: EditorExtras = { slashItems: options.slashItems, bubbleActions: options.bubbleActions, extensions: options.extensions };
-  return options.host ? <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} extras={extras} /> : <StoredEditor {...options} client={options.client!} />;
+  if (options.host) return <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} extras={extras} />;
+  return <Boundary key={options.id}><StoredEditor {...options} client={options.client!} /></Boundary>;
 }
 
 /** The editor on a document that it loads and saves with the client. */
@@ -158,11 +175,7 @@ function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor,
       </div>
     );
   }
-  return (
-    <Boundary>
-      <Surface live={load.live} editable={editable} principal={principal} onEditor={onEditor} extras={{ slashItems, bubbleActions, extensions }} />
-    </Boundary>
-  );
+  return <Surface live={load.live} editable={editable} principal={principal} onEditor={onEditor} extras={{ slashItems, bubbleActions, extensions }} />;
 }
 
 export interface MountedEditor {
