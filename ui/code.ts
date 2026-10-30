@@ -32,10 +32,10 @@ export const LANGUAGES: [id: string, name: string][] = [
   ["yaml", "YAML"],
 ];
 
-const ALIASES: Record<string, string> = { sh: "bash", shell: "bash", js: "javascript", ts: "typescript", py: "python", yml: "yaml", xml: "html" };
+const ALIASES: Record<string, string> = { sh: "bash", shell: "bash", zsh: "bash", js: "javascript", jsx: "javascript", ts: "typescript", tsx: "typescript", py: "python", yml: "yaml", xml: "html", md: "markdown", golang: "go", rs: "rust" };
 
 const lowlight = createLowlight({ bash, css, go, javascript, json, markdown, plaintext, python, rust, sql, typescript, xml, yaml });
-lowlight.registerAlias({ xml: ["html"], bash: ["sh", "shell"], javascript: ["js"], typescript: ["ts"], python: ["py"], yaml: ["yml"] });
+lowlight.registerAlias({ xml: ["html"], bash: ["sh", "shell", "zsh"], javascript: ["js", "jsx"], typescript: ["ts", "tsx"], python: ["py"], yaml: ["yml"], markdown: ["md"], go: ["golang"], rust: ["rs"] });
 
 /** The menu id of a fence language: `ts` is `typescript`. */
 export const languageId = (id: string | null | undefined): string => (id ? (ALIASES[id] ?? id) : "");
