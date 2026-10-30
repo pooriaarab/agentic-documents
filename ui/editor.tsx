@@ -1,4 +1,4 @@
-import { Editor, Extension } from "@tiptap/core";
+import { Editor, Extension, getSchema, type AnyExtension } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
@@ -13,11 +13,11 @@ import * as Y from "yjs";
 import { isMachine } from "../src/kinds.js";
 import { MAX_LIVE_BYTES } from "../src/limits.js";
 import type { LiveSession } from "./live.js";
-import { BubbleMenu } from "./bubble.js";
+import { BubbleMenu, type BubbleAction } from "./bubble.js";
 import { CodeBlock } from "./code.js";
 import { DocImage, ImageDialog } from "./image.js";
 import { AgentText } from "./marks.js";
-import { defaultSlashItems, SlashMenu } from "./slash.js";
+import { defaultSlashItems, SlashMenu, type SlashItem } from "./slash.js";
 import { FormatBar } from "./toolbar.js";
 
 /** Who uses the editor. The name shows in presence. The kind says if it is a person or an agent. */
@@ -27,6 +27,19 @@ export interface EditorPrincipal {
 }
 
 const SAVE_AFTER_MS = 1500;
+
+/** What an app adds to the editor: the extension points for comments, an assistant, and the like. */
+export interface EditorExtras {
+  /** More slash menu items, after the built-in ones. */
+  slashItems?: SlashItem[];
+  /** More bubble menu tools, after the built-in ones, for a person who can edit. */
+  bubbleActions?: BubbleAction[];
+  /**
+   * More Tiptap extensions, read when a document opens: plugins, decorations, and keyboard shortcuts. One that adds or
+   * changes a node, a mark, or an attribute is refused, since the stored document keeps only its own schema.
+   */
+  extensions?: AnyExtension[];
+}
 
 const entryOf = (peer: Peer): PresenceEntry => ({ id: String(peer.clientId), name: usableName(peer.name) ?? "Unnamed", kind: peer.machine ? "agent" : "person" });
 
@@ -53,25 +66,32 @@ function carets(sync: NonNullable<LiveSession["sync"]>) {
           caret.append(tag);
           return caret;
         },
-        selectionBuilder: () => ({}),
+        // The text another person or agent has selected: a tint, from the same stamped peer as the caret.
+        selectionBuilder: (_user, clientId) => {
+          const peer = sync.peers.find((p) => p.clientId === clientId);
+          return peer ? { class: `agd-peer-selection${peer.machine ? " agd-peer-selection--agent" : ""}` } : {};
+        },
       }),
     ],
   });
 }
 
-export class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
+/** A host extension that changes what the stored document keeps. The editor shows its message. */
+export class ExtensionError extends TypeError {}
+
+export class Boundary extends Component<{ children: ReactNode }, { failed: boolean; message?: string }> {
+  state: { failed: boolean; message?: string } = { failed: false };
+  static getDerivedStateFromError(error: unknown) {
+    return { failed: true, message: error instanceof ExtensionError ? error.message : undefined };
   }
   render() {
     return this.state.failed ? (
-      <div role="alert" className="agd-doc agd-notice"><EmptyState title="The editor stopped" description="The document has content this page cannot show. Reload to try again." /></div>
+      <div role="alert" className="agd-doc agd-notice"><EmptyState title="The editor stopped" description={this.state.message ? `The app gave the editor an extension it cannot use: ${this.state.message}.` : "The document has content this page cannot show. Reload to try again."} /></div>
     ) : this.props.children;
   }
 }
 
-export function Surface({ live, editable, principal: me, onEditor }: { live: LiveSession; editable: boolean; principal: EditorPrincipal; onEditor?: (editor: Editor | null) => void }) {
+export function Surface({ live, editable, principal: me, onEditor, extras }: { live: LiveSession; editable: boolean; principal: EditorPrincipal; onEditor?: (editor: Editor | null) => void; extras?: EditorExtras }) {
   const host = useRef<HTMLDivElement>(null);
   const [editor, setEditor] = useState<Editor>();
   const [, refresh] = useReducer((n: number) => n + 1, 0);
@@ -87,6 +107,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
   const refocus = useRef(false);
   const tell = useRef(onEditor);
   tell.current = onEditor;
+  const added = useRef(extras?.extensions);
+  added.current = extras?.extensions;
 
   useEffect(() => {
     const fits = (slice: Slice): boolean => {
@@ -97,20 +119,37 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
       setRefused(!ok);
       return ok;
     };
+    const base = [
+      StarterKit.configure({ undoRedo: false, underline: false, codeBlock: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
+      // The same rules as the engine schema (src/schema.ts): an image sits in a line, and a task item can hold a list.
+      CodeBlock, DocImage, TaskList, TaskItem.configure({ nested: true }), Table, TableRow, TableCell, TableHeader,
+      Collaboration.configure({ document: live.doc, field: "default" }),
+      ...(live.sync ? [carets(live.sync)] : []),
+      AgentText,
+      ...(editable ? [Placeholder.configure({ placeholder: "Write, or type / to add a block" })] : []),
+    ];
+    // A host extension may add plugins, decorations, and shortcuts. One that adds or changes a node, a mark, or an
+    // attribute is refused: the stored document keeps only its own schema, so that content would be lost or block saves.
+    const extra = added.current ?? [];
+    if (extra.length > 0) {
+      const plain = getSchema(base);
+      const full = getSchema([...base, ...extra]);
+      // The parts of a spec that decide what the stored document can hold: the content, the group, inline, and the
+      // attributes with their defaults, and mark exclusion and boundary rules.
+      const keys = (spec: { attrs?: Record<string, { default?: unknown }> | null; content?: string; group?: string; inline?: boolean; marks?: string; excludes?: string; inclusive?: boolean } | undefined) =>
+        JSON.stringify([spec?.content, spec?.group, spec?.inline, spec?.marks, spec?.excludes, spec?.inclusive, Object.entries(spec?.attrs ?? {}).map(([k, v]) => [k, v?.default]).sort()]);
+      const changed = [
+        ...Object.keys(full.nodes).filter((n) => !plain.nodes[n] || keys(full.nodes[n]!.spec) !== keys(plain.nodes[n]!.spec)),
+        ...Object.keys(full.marks).filter((m) => !plain.marks[m] || keys(full.marks[m]!.spec) !== keys(plain.marks[m]!.spec)),
+      ];
+      if (changed.length > 0) throw new ExtensionError(`it adds or changes ${changed.join(", ")}, which the stored document cannot keep`);
+    }
     const editor = new Editor({
       element: host.current!,
       editable,
       // editor.css has the base rules, so a page that forbids inline styles still shows the editor right.
       injectCSS: false,
-      extensions: [
-        StarterKit.configure({ undoRedo: false, underline: false, codeBlock: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
-        // The same rules as the engine schema (src/schema.ts): an image sits in a line, and a task item can hold a list.
-        CodeBlock, DocImage, TaskList, TaskItem.configure({ nested: true }), Table, TableRow, TableCell, TableHeader,
-        Collaboration.configure({ document: live.doc, field: "default" }),
-        ...(live.sync ? [carets(live.sync)] : []),
-        AgentText,
-        ...(editable ? [Placeholder.configure({ placeholder: "Write, or type / to add a block" })] : []),
-      ],
+      extensions: [...base, ...extra],
       editorProps: {
         // Alt+F10 moves the focus into the bubble menu of a selection.
         attributes: { role: "textbox", "aria-multiline": "true", "aria-label": "Document text", class: "agd-prose", ...(editable ? { "aria-keyshortcuts": "Alt+F10" } : {}) },
@@ -201,7 +240,8 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
   // Focus the view first, in this frame. The focus command moves focus in a later frame.
   const chain = () => (editor!.view.focus(), editor!.chain().focus());
 
-  const slashItems = useMemo(() => defaultSlashItems({ image: () => setImaging(true) }), []);
+  const builtIn = useMemo(() => defaultSlashItems({ image: () => setImaging(true) }), []);
+  const slashItems = useMemo(() => [...builtIn, ...(extras?.slashItems ?? [])], [builtIn, extras?.slashItems]);
 
   function openLink() {
     setHref((editor?.getAttributes("link").href as string | undefined) ?? "");
@@ -265,7 +305,7 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
         </form>
       </Dialog>
       {editor && editable && <SlashMenu editor={editor} items={slashItems} />}
-      {editor && <BubbleMenu editor={editor} editable={editable} onLink={openLink} />}
+      {editor && <BubbleMenu editor={editor} editable={editable} onLink={openLink} actions={extras?.bubbleActions} />}
       <ImageDialog editor={editor} doc={live.doc} open={imaging} onOpenChange={setImaging} />
     </section>
   );

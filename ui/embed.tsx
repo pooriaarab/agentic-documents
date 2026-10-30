@@ -7,9 +7,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { PRINCIPAL_KINDS, type PrincipalKind } from "agentic-identity";
 import { checkHost, hostSession, openSession, type EditorClient, type EditorRoom, type HostDocument, type LiveSession, type RoomPresence } from "./live.js";
-import { Boundary, Surface, isRemoved } from "./editor.js";
+import { Boundary, Surface, isRemoved, type EditorExtras } from "./editor.js";
 
-export type { Editor, EditorClient, EditorRoom, HostDocument, LiveSession, RoomPresence };
+export type { Editor, EditorClient, EditorExtras, EditorRoom, HostDocument, LiveSession, RoomPresence };
+export type { BubbleAction } from "./bubble.js";
+export type { SlashItem } from "./slash.js";
+export { editorMarkdown, setEditorMarkdown } from "./transfer.js";
 
 /** Who uses the editor. The server still checks every write against its own token. */
 export interface EmbedPrincipal {
@@ -19,7 +22,7 @@ export interface EmbedPrincipal {
   role?: "editor" | "viewer";
 }
 
-export interface DocumentEditorOptions {
+export interface DocumentEditorOptions extends EditorExtras {
   /** The document id. */
   id: string;
   /** Loads and saves the document. A client from `createClient` in `agentic-documents/client` works. Not needed with `host`. */
@@ -50,6 +53,22 @@ function checkPrincipal(principal: EmbedPrincipal): void {
 /** The editor needs a client, or a host document and no room of its own. */
 function checkOptions(options: DocumentEditorOptions): void {
   checkPrincipal(options.principal);
+  for (const key of ["slashItems", "bubbleActions", "extensions"] as const) {
+    const entries: unknown = options[key];
+    if (entries === undefined) continue;
+    if (!Array.isArray(entries)) throw new TypeError(`${key} must be an array`);
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") throw new TypeError(`${key} needs objects`);
+      const value = entry as Record<string, unknown>;
+      if (key === "extensions") {
+        if (typeof value.type !== "string" || !["extension", "node", "mark"].includes(value.type) || typeof value.name !== "string" || !value.name.trim() || typeof value.configure !== "function" || !value.config || typeof value.config !== "object") throw new TypeError("extensions needs Tiptap extensions");
+      } else {
+        const label = key === "slashItems" ? value.title : value.label;
+        if (typeof label !== "string" || !label.trim() || typeof value.run !== "function") throw new TypeError(`${key} needs a nonempty name and a run function`);
+        if (key === "slashItems" && (typeof value.description !== "string" || (value.keywords !== undefined && (!Array.isArray(value.keywords) || !value.keywords.every((word) => typeof word === "string"))))) throw new TypeError("slashItems needs a description and string keywords");
+      }
+    }
+  }
   if (options.host !== undefined) {
     checkHost(options.host);
     if (options.room !== undefined) throw new TypeError("the editor takes a room or a host document, not both");
@@ -112,7 +131,7 @@ const describe = (error: unknown): string => {
 };
 
 /** The editor on a document the app keeps. */
-function HostedEditor({ host, principal, onEditor }: { host: HostDocument; principal: EmbedPrincipal; onEditor?: (editor: Editor | null) => void }) {
+function HostedEditor({ host, principal, onEditor, extras }: { host: HostDocument; principal: EmbedPrincipal; onEditor?: (editor: Editor | null) => void; extras: EditorExtras }) {
   // The app may make the host object on each render. Only the document and the presence decide when to bind again.
   const latest = useRef(host);
   latest.current = host;
@@ -122,7 +141,7 @@ function HostedEditor({ host, principal, onEditor }: { host: HostDocument; princ
   );
   return (
     <Boundary>
-      <Surface live={live} editable={principal.role === "editor"} principal={principal} onEditor={onEditor} />
+      <Surface live={live} editable={principal.role === "editor"} principal={principal} onEditor={onEditor} extras={extras} />
     </Boundary>
   );
 }
@@ -130,11 +149,13 @@ function HostedEditor({ host, principal, onEditor }: { host: HostDocument; princ
 /** The editor for one document, with its toolbar, presence, and save state. */
 export function DocumentEditor(options: DocumentEditorOptions) {
   checkOptions(options);
-  return options.host ? <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} /> : <StoredEditor {...options} client={options.client!} />;
+  const extras: EditorExtras = { slashItems: options.slashItems, bubbleActions: options.bubbleActions, extensions: options.extensions };
+  if (options.host) return <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} extras={extras} />;
+  return <Boundary key={options.id}><StoredEditor {...options} client={options.client!} /></Boundary>;
 }
 
 /** The editor on a document that it loads and saves with the client. */
-function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor }: DocumentEditorOptions & { client: EditorClient }) {
+function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor, slashItems, bubbleActions, extensions }: DocumentEditorOptions & { client: EditorClient }) {
   const editable = principal.role === "editor";
   const [attempt, setAttempt] = useState(0);
   const load = useEditorSession(client, id, principal.name, editable, room, attempt, onLeave);
@@ -154,11 +175,7 @@ function StoredEditor({ id, client, principal, room, onError, onLeave, onEditor 
       </div>
     );
   }
-  return (
-    <Boundary>
-      <Surface live={load.live} editable={editable} principal={principal} onEditor={onEditor} />
-    </Boundary>
-  );
+  return <Surface live={load.live} editable={editable} principal={principal} onEditor={onEditor} extras={{ slashItems, bubbleActions, extensions }} />;
 }
 
 export interface MountedEditor {

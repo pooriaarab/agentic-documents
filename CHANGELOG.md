@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.12.2
+## 0.13.1
+
+### Changed
+
+- `agentic-design` moves from `^0.6.0` to `^0.9.0`, so apps can share one copy at 0.9.0. This package does not use the new props or components.
+- Escape releases the slash menu keys before the next render, so the next arrow key reaches the text.
+
+## 0.13.0
+
+### Added
+
+- Add the `./account` contributor for account export and repeatable erase.
+- Export full document state and history. Preserve co-owners and machine labels.
 
 ### Changed
 
@@ -18,6 +30,12 @@
   and Download Markdown and Import Markdown in the document menu. New dependencies: `@tiptap/extension-code-block`,
   `@tiptap/extension-code-block-lowlight`, `lowlight` (MIT), and `highlight.js` (BSD-3-Clause, `~11.11`, the line
   that `lowlight` uses).
+- `agentic-documents/ui`: the options `slashItems`, `bubbleActions`, and `extensions`, the functions `editorMarkdown`
+  and `setEditorMarkdown`, and the types `SlashItem`, `BubbleAction`, and `EditorExtras`. An extension that adds or
+  changes a node, a mark, or an attribute stops the editor with a message that names it. `setEditorMarkdown` throws
+  on a read-only editor.
+- The selection of another person in the room shows as a tint, and an agent's as a dashed outline, next to the caret
+  with the name.
 - The editor classes use the `agd-` prefix. Update any style that targets the old names: `.agd-doc` (was `.adoc`),
   `.agd-app` (was `.adoc-app`), `.agd-prose` (was `.prose`), `.agd-agent-text` (was `.agent-text`), `.agd-caret`,
   `.agd-caret--agent`, and `.agd-caret__tag` (were `.caret`, `.caret--agent`, and `.caret__tag`), and `.agd-muted`,
@@ -27,7 +45,6 @@
   dialogs (were `.adoc.form` and `.form-actions`). The form rules now apply page-wide, not under `.agd-doc`, since
   the dialogs render in a portal. `.editor-bar` and `.editor-host` are gone: the bar is `.agd-doc__bar` and the text sits in
   `.agd-paper`.
-- `agentic-design` moves from `^0.6.0` to `^0.9.0`, so apps can share one copy at 0.9.0. This package does not use the new props or components.
 
 ## 0.12.1
 

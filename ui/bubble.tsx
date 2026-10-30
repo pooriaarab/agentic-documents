@@ -6,6 +6,17 @@ import { Toolbar, ToolbarButton } from "agentic-design/react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { glyph, icons } from "./icons.js";
 
+/**
+ * A tool that an app adds to the bubble menu, such as Rewrite. It shows with the built-in tools: for a person who can
+ * edit, over a text selection that is not in code, an image, or a cell selection.
+ */
+export interface BubbleAction {
+  label: string;
+  icon: ReactNode;
+  /** Runs with the selection still in place. */
+  run: (editor: Editor) => void;
+}
+
 const GAP = 8;
 
 /** A selection of text that the tools can format: not empty, not a picture or a cell, not code. */
@@ -14,7 +25,7 @@ const formattable = (editor: Editor) => {
   return !selection.empty && !(selection instanceof NodeSelection) && !("$anchorCell" in selection) && !editor.isActive("codeBlock");
 };
 
-export function BubbleMenu({ editor, editable, onLink }: { editor: Editor; editable: boolean; onLink: () => void }) {
+export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor: Editor; editable: boolean; onLink: () => void; actions?: BubbleAction[] }) {
   const [at, setAt] = useState<{ top: number; left: number }>();
   const box = useRef<HTMLDivElement>(null);
   const placed = useRef<() => void>(() => {});
@@ -72,8 +83,13 @@ export function BubbleMenu({ editor, editable, onLink }: { editor: Editor; edita
     if (shown) placed.current();
   }, [shown]);
 
-  if (!at || !editable) return null;
-  const back = () => editor.view.focus();
+  // `editable` is the role. The editor also turns read only when the document is removed.
+  if (!at || !editable || !editor.isEditable) return null;
+  const back = () => {
+    editor.view.focus();
+    // Focus can return while a scroll is already at its end, so no new scroll event places the menu.
+    requestAnimationFrame(() => { if (!editor.isDestroyed) placed.current(); });
+  };
   const tool = (label: string, icon: ReactNode, run: () => void, active?: boolean) => (
     <ToolbarButton label={label} icon={icon} pressed={active} onClick={() => (back(), run())} />
   );
@@ -93,6 +109,7 @@ export function BubbleMenu({ editor, editable, onLink }: { editor: Editor; edita
         {tool("Strikethrough", glyph("S", "s"), () => chain().toggleStrike().run(), editor.isActive("strike"))}
         {tool("Inline code", glyph("</>", "mono"), () => chain().toggleCode().run(), editor.isActive("code"))}
         {tool("Link", icons.link, onLink, editor.isActive("link"))}
+        {actions.map((a, i) => <ToolbarButton key={`${i}-${a.label}`} label={a.label} icon={a.icon} onClick={() => (back(), a.run(editor))} />)}
       </Toolbar>
     </div>
   );
