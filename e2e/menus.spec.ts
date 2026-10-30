@@ -212,6 +212,7 @@ test("the bubble menu formats a selection, and Alt+F10 reaches it from the keybo
 
   // A caret with no selection hides it.
   await page.keyboard.press("End");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(true);
   await expect(bubble).toHaveCount(0);
   await page.context().close();
 });
