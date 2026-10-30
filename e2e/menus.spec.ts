@@ -276,16 +276,17 @@ for (const theme of themes) {
     await page.keyboard.press("Enter");
     await page.keyboard.type("/");
     await expect(page.getByRole("listbox", { name: "Insert a block" })).toBeVisible();
+    await expect(text.locator("p").last()).toHaveText("/");
+    const sentence = "Ship the editor on Friday, then write the release notes.";
+    await expect(text.locator("p", { hasText: sentence })).toHaveText(sentence);
     await expectAccessible(page);
     await shoot(page, "slash-menu", theme);
-    // Axe can move focus. Restore the editor and caret before the next keyboard action.
+    // Axe can move focus. Restore the editor before the next keyboard action.
     await text.focus();
-    await page.keyboard.press("Control+End");
     await page.keyboard.press("Escape");
-    await page.keyboard.press("Backspace");
-    // Target the known line: ArrowUp from an empty paragraph depends on the
-    // browser's remembered caret column and can leave the selection empty.
-    const sentence = "Ship the editor on Friday, then write the release notes.";
+    await expect(page.getByRole("listbox", { name: "Insert a block" })).toHaveCount(0);
+    // Keep the slash paragraph: deleting after Axe can act on a changed caret.
+    // Target the known sentence directly for the bubble accessibility check.
     await text.locator("p", { hasText: sentence }).click();
     await expect(text).toBeFocused();
     await page.keyboard.press("Home");
