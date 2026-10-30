@@ -19,6 +19,10 @@ const seen: { comment?: string; shortcut?: boolean } = {};
 const slashItems: SlashItem[] = [{ title: "Signature", description: "Sign the text", run: (e) => e.chain().focus().insertContent("Signed, the host").run() }];
 const bubbleActions: BubbleAction[] = [{ label: "Comment", icon: "C", run: (e) => void (seen.comment = e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)) }];
 const extensions = [
+  ...(params.has("badmark") ? [Mark.create({ name: "code", code: true,
+    excludes: params.get("badmark") === "excludes" ? "" : "_",
+    inclusive: params.get("badmark") !== "inclusive",
+  })] : []),
   Extension.create({ name: "hostKeys", addKeyboardShortcuts: () => ({ "Mod-Shift-y": () => ((seen.shortcut = true), true) }) }),
   ...(params.has("badext")
     ? [

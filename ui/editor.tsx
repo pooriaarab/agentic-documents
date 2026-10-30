@@ -135,9 +135,9 @@ export function Surface({ live, editable, principal: me, onEditor, extras }: { l
       const plain = getSchema(base);
       const full = getSchema([...base, ...extra]);
       // The parts of a spec that decide what the stored document can hold: the content, the group, inline, and the
-      // attributes with their defaults.
-      const keys = (spec: { attrs?: Record<string, { default?: unknown }> | null; content?: string; group?: string; inline?: boolean; marks?: string } | undefined) =>
-        JSON.stringify([spec?.content, spec?.group, spec?.inline, spec?.marks, Object.entries(spec?.attrs ?? {}).map(([k, v]) => [k, v?.default]).sort()]);
+      // attributes with their defaults, and mark exclusion and boundary rules.
+      const keys = (spec: { attrs?: Record<string, { default?: unknown }> | null; content?: string; group?: string; inline?: boolean; marks?: string; excludes?: string; inclusive?: boolean } | undefined) =>
+        JSON.stringify([spec?.content, spec?.group, spec?.inline, spec?.marks, spec?.excludes, spec?.inclusive, Object.entries(spec?.attrs ?? {}).map(([k, v]) => [k, v?.default]).sort()]);
       const changed = [
         ...Object.keys(full.nodes).filter((n) => !plain.nodes[n] || keys(full.nodes[n]!.spec) !== keys(plain.nodes[n]!.spec)),
         ...Object.keys(full.marks).filter((m) => !plain.marks[m] || keys(full.marks[m]!.spec) !== keys(plain.marks[m]!.spec)),

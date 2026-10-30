@@ -162,3 +162,15 @@ test("a host adds a slash item, a bubble tool, and a Tiptap extension, and one t
   await vic.context().close();
   await bad.context().close();
 });
+
+for (const property of ["excludes", "inclusive"]) {
+  test(`a host cannot change an inline-code mark's ${property} rule`, async ({ browser }) => {
+    const id = `embed-mark-${property}-${Date.now()}`;
+    await sdk(ADA).create({ id, markdown: "Shared plan." });
+    const page = await (await browser.newContext()).newPage();
+    await page.goto(`${url()}/embed/#token=${encodeURIComponent(ADA)}&id=${id}&extras&badmark=${property}`);
+    await expect(page.getByRole("alert")).toContainText("it adds or changes code");
+    await expect(page.getByRole("textbox")).toHaveCount(0);
+    await page.context().close();
+  });
+}

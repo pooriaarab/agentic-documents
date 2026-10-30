@@ -430,7 +430,9 @@ const editor = mountEditor(document.getElementById("editor")!, {
   - `bubbleActions`: more tools in the bubble menu over a selection, after the built-in ones. Each is
     `{ label, icon, run(editor) }`. `run` gets the editor with the selection in place. They show where the built-in
     tools show: for a person who can edit, over text that is not code, an image, or a cell selection.
-  - `extensions`: more Tiptap extensions, read when a document opens: plugins, decorations, and keyboard shortcuts.
+  - `extensions`: more Tiptap extensions: plugins, decorations, and keyboard shortcuts. Keep this array stable.
+    The editor reads it when it is built, including after a role or room change. Updating the array alone does not
+    rebuild the editor. To apply new extensions at once, unmount the editor and mount it again.
     An extension that adds or changes a node, a mark, or an attribute stops the editor with a message that names it,
     since the stored document keeps only the nodes, marks, and attributes of `schema`.
   - `editorMarkdown(editor)` and `setEditorMarkdown(editor, markdown)` read and replace the text as Markdown,
