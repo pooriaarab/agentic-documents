@@ -245,6 +245,7 @@ Worker use. Each group below has a short example. The other subpaths have their 
 
 | Export | Use it for |
 | --- | --- |
+| `createAssistantSuggestions`, `AssistantProposal`, `AssistantSuggestions` | Propose edits from a machine author. See [Review and assistant proposals](#review-and-assistant-proposals). |
 | `AgenticDoc`, `DocOptions`, `Section`, `Target`, `TextTarget`, `SectionTarget`, `Anchor`, `AnchorTarget`, `EditEntry` | The document. See [Quick start](#quick-start). |
 | `DocError`, `DocErrorCode` | The error that a failed call throws. It has a `code`. |
 | `parseAuthor`, `PRINCIPAL_KINDS`, `Principal`, `PrincipalKind` | Read a `kind:name` string. List the kinds. |
@@ -382,6 +383,46 @@ await service.sharing.grants(contextOf(ada), "plan");
 - `contextOf(author)` gives the sign-in context for a call that has no HTTP sign-in: the CLI, the MCP server, and the development token table. A `human` holds `docs:admin`. Any other kind keeps only its `read`, `comment`, `write`, and `admin` scopes.
 - Each sharing call needs an owner of the document. The creator of a document is its owner, unless the author cannot own one.
 - `StoreSharing` implements `DocSharing`. It takes the store and a lookup for documents. `DocsService` builds it for you. `GrantInput`, `InviteInput`, and `LinkInput` are the input types.
+
+## Review and assistant proposals
+
+`ReviewPanel` and `CommentAnchor` are public React components from `agentic-documents/ui`.
+`./ui` also exports `AgenticDoc`, `Anchor`, `Principal`, `createAssistantSuggestions`,
+`AssistantProposal`, and `AssistantSuggestions` for browser hosts without Node adapters.
+Use the same `AgenticDoc` as the editor's `host.doc` (`doc.ydoc`). The host saves and syncs it.
+The panel observes document updates. It has review and suggest modes, exact-text proposals,
+comment anchors, and keyboard controls. Ambiguous text reports an error; use the engine's
+occurrence or anchor targets for repeated text. Agent proposals show a Machine-made label.
+
+```tsx
+import { AgenticDoc, createAssistantSuggestions, type AssistantProposal, type AssistantSuggestions,
+  ReviewPanel, CommentAnchor, type ReviewPanelOptions } from "agentic-documents/ui";
+
+const doc = AgenticDoc.fromMarkdown("old text", { kind: "human", name: "Ada" });
+
+const assistant: AssistantSuggestions = createAssistantSuggestions(doc, { kind: "agent", name: "Scribe" });
+const proposal: AssistantProposal = { target: { text: "old text" }, replacement: "new text" };
+assistant.propose(proposal); // Stores a pending suggestion. Keeps the text as it is.
+const options: ReviewPanelOptions = {
+  doc, principal: { kind: "human", name: "Ada" }, writable: true,
+  onAnchor: (anchor) => revealInEditor(doc.resolve({ anchor })),
+};
+// Render beside DocumentEditor. The mode does not intercept the editor's direct edits.
+<ReviewPanel {...options} mode="suggest" />;
+<CommentAnchor doc={doc} anchor={doc.anchor("old text")} onAnchor={options.onAnchor} />;
+```
+
+`AssistantSuggestions` is the extension point for a host's assistant adapter. It exposes only
+`propose`, bound to a machine author. It makes no provider calls. Targets support `at` for
+insertions and an empty replacement for deletion. Invalid or stale targets throw.
+
+The panel defaults to read only. Set `writable` from the host's permissions. Decision buttons
+require a different principal from the author. Agents also need `docs:accept`. The engine
+always refuses agent self-decisions, including through the SDK, CLI, MCP, and HTTP API.
+The engine permits a person to withdraw their own suggestion; the panel uses different-principal
+review for both decisions. A stale proposal cannot be accepted. It can be rejected.
+These local controls do not replace server authorization. Only render trusted documents and
+principals. `onAnchor` lets the host select or scroll to a range; stale anchors show as unavailable.
 
 ## Embed the editor
 

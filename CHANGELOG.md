@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.13.0
+
+### Added
+
+- Public `ReviewPanel` and `CommentAnchor` components in `agentic-documents/ui`.
+  Review and suggest modes show machine authors, anchored comments, and keyboard controls.
+  Decisions need a different principal. Agents also need `docs:accept`.
+- Root `createAssistantSuggestions`, `AssistantProposal`, and `AssistantSuggestions` exports
+  give assistant adapters a typed proposal port. Hosts own persistence and provider calls.
+
 ### Changed
 
 - The web UI opens a document full screen: a top bar with the way back, the title, Share, and a menu with Rename,
