@@ -953,7 +953,8 @@ review.close();
 ```
 
 `anchorOf(editor, ydoc)` pins a selection or returns `{ problem }`. It refuses
-selections across blocks and over inline images or hard breaks.
+selections across blocks, and any selection in a block that contains an inline
+image or hard break.
 `resolveAnchor(ydoc, anchor)` returns `{ text, from, to }` or `null`. A resolved
 range can contain changed text. Accept checks the original quote and refuses
 stale suggestions against the local document state. If different, overlapping

@@ -113,6 +113,8 @@ test("selection anchors refuse empty, cross-block, inline breaks and mismatched 
   editor.commands.setTextSelection({ from: 7, to: 12 });
   expect(anchorOf(editor, fresh("different"))).toHaveProperty("problem");
   editor.commands.insertContentAt(8, { type: "hardBreak" });
+  editor.commands.setTextSelection({ from: 1, to: 4 });
+  expect(anchorOf(editor, doc)).toEqual({ problem: "Select text in one block that has no image or line break." });
   editor.commands.setTextSelection({ from: 7, to: 10 });
   expect(anchorOf(editor, doc)).toHaveProperty("problem");
   editor.destroy();

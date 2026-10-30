@@ -52,7 +52,7 @@ export function anchorOf(editor: Editor, doc: Y.Doc): { anchor: TextAnchor; quot
   let plain = true;
   parent.forEach(n => { plain &&= n.isText; });
   if (parent !== $to.parent || !parent.isTextblock || !plain) {
-    return { problem: "Select text inside one line of text, with no image or line break." };
+    return { problem: "Select text in one block that has no image or line break." };
   }
   const binding = ySyncPluginKey.getState(editor.state)?.binding;
   const block = binding?.doc === doc ? [...binding.mapping].find(([type, node]) => type instanceof Y.XmlElement && node === parent)?.[0] : null;
