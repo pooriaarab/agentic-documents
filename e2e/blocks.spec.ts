@@ -121,7 +121,7 @@ test("Download Markdown saves the text, and Import Markdown replaces it for ever
   await expect(dialog.getByRole("alert")).toContainText("cannot be imported");
   await expect(page.locator(".agd-prose")).toContainText("First draft."); // a refused file changes nothing (the dialog hides the text from the accessibility tree)
 
-  await dialog.getByLabel("Markdown file").setInputFiles(write("plan.md", "# Plan\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nlet x;\n```\n\n![far](https://example.com/far.png)\n"));
+  await dialog.getByLabel("Markdown file").setInputFiles(write("plan.md", "# Plan\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nlet x;\n```\n\n![bad](javascript:alert)\n"));
   await expectAccessible(page);
   await dialog.getByRole("button", { name: "Replace the text" }).click();
   await expect(dialog).toHaveCount(0);
@@ -129,7 +129,7 @@ test("Download Markdown saves the text, and Import Markdown replaces it for ever
   await expect(textbox(page)).not.toContainText("First draft.");
   await expect(textbox(other).locator("table")).toBeVisible(); // the other tab gets it live
   await expect.poll(() => stored(id)).toContain("# Plan\n\n| A | B |\n| - | - |\n| 1 | 2 |\n\n```js\nlet x;\n```\n");
-  expect(await stored(id)).not.toContain("example.com"); // the page's policy blocks other hosts, so the import drops that image
+  expect(await stored(id)).not.toContain("javascript"); // an image a paste would not keep is dropped from an import too
 
   // Undo takes the import back.
   await textbox(page).click();

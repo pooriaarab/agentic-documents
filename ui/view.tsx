@@ -90,7 +90,7 @@ export function EditorView({ id, go }: { id: string; go: (hash: string) => void 
       <Boundary><Surface live={load.live} editable={me.role === "editor"} principal={me} onEditor={setEditor} /></Boundary>
       <RenameDocument id={id} current={title.title} open={dialog === "rename"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => void readTitle()} />
       <DeleteDocument id={id} name={title.title} open={dialog === "delete"} onOpenChange={(o) => !o && setDialog(undefined)} onDone={() => go("#/")} />
-      <ImportDialog editor={editor ?? undefined} remote={false} open={dialog === "import"} onOpenChange={(o) => !o && setDialog(undefined)} />
+      <ImportDialog editor={editor ?? undefined} open={dialog === "import"} onOpenChange={(o) => !o && setDialog(undefined)} />
       <ShareDocument id={id} open={dialog === "share"} onOpenChange={(o) => !o && setDialog(undefined)} />
     </Page>
   );

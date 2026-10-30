@@ -7,6 +7,7 @@
 .agd-doc.agd-notice, .agd-doc .agd-notice { max-width: var(--agd-size-content); }
 .agd-doc { display: flex; flex-direction: column; min-height: 0; }
 .agd-form { display: grid; gap: var(--agd-space-4); }
+.agd-form-error { color: var(--agd-color-danger-text); margin: 0; font-size: var(--agd-font-size-sm); }
 .agd-form-actions { display: flex; gap: var(--agd-space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
 
 /* The bar: the tools at the start, who is here and the save state at the end. It stays in view while the text scrolls.

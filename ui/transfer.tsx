@@ -19,16 +19,16 @@ const MAX_MARKDOWN_BYTES = 512 * 1024;
 export const editorMarkdown = (editor: Editor): string => blocksToMarkdown((editor.getJSON().content ?? []) as PmNode[]);
 
 /** The blocks without an image that a paste would not keep either: see `allowedSource`. */
-const keepImages = (nodes: PmNode[], remote: boolean): PmNode[] =>
-  nodes.flatMap((node) => (node.type === "image" && !allowedSource(String(node.attrs?.src ?? ""), remote) ? [] : [node.content ? { ...node, content: keepImages(node.content, remote) } : node]));
+const keepImages = (nodes: PmNode[]): PmNode[] =>
+  nodes.flatMap((node) => (node.type === "image" && !allowedSource(String(node.attrs?.src ?? "")) ? [] : [node.content ? { ...node, content: keepImages(node.content) } : node]));
 
 /**
- * Replace the text of the editor with Markdown. An image is dropped when the editor would not keep it from a paste:
- * with `remote`, an `https://` address is kept. It throws an error with a message when the Markdown has a part the
+ * Replace the text of the editor with Markdown. An image is dropped when the editor would not keep it from a paste. It
+ * throws an error with a message when the Markdown has a part the
  * document cannot keep, or when the document would pass the room limit.
  */
-export function setEditorMarkdown(editor: Editor, markdown: string, remote = true): void {
-  const content = keepImages(markdownToBlocks(markdown), remote);
+export function setEditorMarkdown(editor: Editor, markdown: string): void {
+  const content = keepImages(markdownToBlocks(markdown));
   const doc = { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
   // Many small blocks make a Yjs document much larger than its Markdown, so measure the document itself. It must stay
   // under the room limit, with room to spare for what is deleted and for later typing.
@@ -48,7 +48,7 @@ export function downloadMarkdown(editor: Editor, title: string): void {
 }
 
 /** Read a Markdown file and put it in place of the text, for everyone in the room. */
-export function ImportDialog({ editor, open, onOpenChange, remote }: { editor: Editor | undefined; open: boolean; onOpenChange: (open: boolean) => void; remote: boolean }) {
+export function ImportDialog({ editor, open, onOpenChange }: { editor: Editor | undefined; open: boolean; onOpenChange: (open: boolean) => void }) {
   const [file, setFile] = useState<File>();
   const [error, setError] = useState<string>();
   useEffect(() => {
@@ -68,7 +68,7 @@ export function ImportDialog({ editor, open, onOpenChange, remote }: { editor: E
       return setError("The file could not be read. Choose it again.");
     }
     try {
-      setEditorMarkdown(editor, markdown, remote);
+      setEditorMarkdown(editor, markdown);
     } catch (e) {
       return setError(`This file cannot be imported. ${e instanceof Error ? e.message : ""}`.trim());
     }
