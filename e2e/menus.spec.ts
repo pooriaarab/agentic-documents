@@ -152,12 +152,9 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
   await page.keyboard.press("Escape"); // back to the text
   await expect(textbox(page)).toBeFocused();
-  // A scroll that ends at the top places the menu again. Send the scroll event too, since a page already at the top
-  // sends none.
-  await expect(async () => {
-    await page.evaluate(() => (window.scrollTo(0, 0), window.dispatchEvent(new Event("scroll"))));
-    await expect(bubble).toHaveCount(0, { timeout: 1000 });
-  }).toPass({ timeout: 10_000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(bubble).toHaveCount(0);
 
   // The slash menu hides too when its slash goes under the bar, still inside the window.
   await page.keyboard.press("Control+Home");

@@ -85,7 +85,11 @@ export function BubbleMenu({ editor, editable, onLink, actions = [] }: { editor:
 
   // `editable` is the role. The editor also turns read only when the document is removed.
   if (!at || !editable || !editor.isEditable) return null;
-  const back = () => editor.view.focus();
+  const back = () => {
+    editor.view.focus();
+    // Focus can return while a scroll is already at its end, so no new scroll event places the menu.
+    requestAnimationFrame(() => { if (!editor.isDestroyed) placed.current(); });
+  };
   const tool = (label: string, icon: ReactNode, run: () => void, active?: boolean) => (
     <ToolbarButton label={label} icon={icon} pressed={active} onClick={() => (back(), run())} />
   );
