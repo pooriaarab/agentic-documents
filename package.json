@@ -31,6 +31,7 @@
   "files": [
     "dist",
     "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md",
     "SKILL.md",
     "CHANGELOG.md",
     "llms.txt"

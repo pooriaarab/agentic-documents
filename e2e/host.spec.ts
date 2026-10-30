@@ -34,7 +34,7 @@ test("two host apps co-edit their own room's document through the editor, see ea
   await typeAtEnd(bob, " Bob wrote this.");
   await expect(textbox(ada)).toContainText("Bob wrote this.");
   await expect(ada.getByText("2 people")).toBeVisible();
-  await expect(ada.locator(".caret__tag")).toHaveText("Bob");
+  await expect(ada.locator(".agd-caret__tag")).toHaveText("Bob");
   // The host keeps the document, so the editor shows no save state of its own.
   await expect(ada.getByText(/Saved|Saving/)).toHaveCount(0);
   await expectAccessible(ada);
@@ -57,8 +57,8 @@ test("on a host document an agent shows as an agent, its text is marked, and a v
   const bot = await host(browser, BOT, id, { kind: "agent_of_human", name: "Scribe" });
   await expect(ada.locator(".agd-stack__summary")).toContainText("1 agent");
   await typeAtEnd(bot, " Agent line.");
-  await expect(textbox(ada).locator(".agent-text", { hasText: "Agent line." })).toHaveCount(1);
-  await expect(textbox(ada).locator(".agent-text", { hasText: "Shared" })).toHaveCount(0);
+  await expect(textbox(ada).locator(".agd-agent-text", { hasText: "Agent line." })).toHaveCount(1);
+  await expect(textbox(ada).locator(".agd-agent-text", { hasText: "Shared" })).toHaveCount(0);
   const vic = await host(browser, VIC, id, { kind: "human", name: "Vic", role: "viewer" });
   await expect(textbox(vic)).toHaveAttribute("contenteditable", "false");
   await expect(vic.getByText(/Read only\./)).toBeVisible();
