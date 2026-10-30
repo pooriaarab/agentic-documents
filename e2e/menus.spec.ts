@@ -166,10 +166,12 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   const box = (await page.locator(".agd-bubble").boundingBox())!;
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(500);
-  // A selection scrolled fully out of view has no menu.
+  // Replace the full selection with one character at the end of the document.
   await page.keyboard.press("Shift+ArrowLeft"); // a selection at the end only
   await page.keyboard.press("Control+End");
+  await expect(bubble).toHaveCount(0);
   await page.keyboard.press("Shift+ArrowLeft");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(".");
   await expect(bubble).toBeVisible();
   // With the focus in it, it stays, so the focus is not lost.
   await page.keyboard.press("Alt+F10");
@@ -181,6 +183,12 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   await expect(textbox(page)).toBeFocused();
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  // Prove the selected character is outside the viewport before checking the menu.
+  await expect.poll(() => page.evaluate(() => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || selection.toString() !== ".") return false;
+    return selection.getRangeAt(0).getBoundingClientRect().top > window.innerHeight;
+  })).toBe(true);
   await expect(bubble).toHaveCount(0);
 
   // The slash menu hides too when its slash goes under the bar, still inside the window.
