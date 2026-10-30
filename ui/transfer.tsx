@@ -3,15 +3,14 @@
 import type { Editor } from "@tiptap/core";
 import { Button, Dialog, DialogClose, Input } from "agentic-design/react";
 import { useEffect, useState, type FormEvent } from "react";
-import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
+import { prosemirrorJSONToYDoc, ySyncPluginKey } from "@tiptap/y-tiptap";
 import * as Y from "yjs";
-import { MAX_LIVE_BYTES } from "../src/limits.js";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "../src/markdown.js";
-import { allowedSource } from "./image.js";
+import { allowedSource, DOCUMENT_LIMIT } from "./image.js";
 
 /**
  * The largest Markdown file an import reads. An import is one Yjs update, and a room closes a message over 1 MiB and
- * a document over MAX_LIVE_BYTES cannot be saved, so this stays well under both.
+ * a document over the room limit cannot be saved, so this stays well under both.
  */
 const MAX_MARKDOWN_BYTES = 512 * 1024;
 
@@ -24,16 +23,19 @@ const keepImages = (nodes: PmNode[]): PmNode[] =>
 
 /**
  * Replace the text of the editor with Markdown. An image is dropped when the editor would not keep it from a paste. It
- * throws an error with a message when the Markdown has a part the
- * document cannot keep, or when the document would pass the room limit.
+ * throws an error with a message when the Markdown has a part the document cannot keep, or when the old and the new
+ * text together would pass the room limit.
  */
 export function setEditorMarkdown(editor: Editor, markdown: string): void {
   const content = keepImages(markdownToBlocks(markdown));
   const doc = { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
-  // Many small blocks make a Yjs document much larger than its Markdown, so measure the document itself. It must stay
-  // under the room limit, with room to spare for what is deleted and for later typing.
+  // Many small blocks make a Yjs document much larger than its Markdown, so measure the document itself. The import
+  // deletes the old text and adds the new to the live document, and undo keeps what is deleted, so both count. Together
+  // they must stay within the room the image dialog allows, as a paste must.
   const size = Y.encodeStateAsUpdate(prosemirrorJSONToYDoc(editor.schema, doc, "default")).byteLength;
-  if (size > MAX_LIVE_BYTES * 0.9) throw new Error(`As a document it is about ${Math.ceil(size / 1024)} KB, more than the ${Math.floor((MAX_LIVE_BYTES * 0.9) / 1024)} KB a live room keeps.`);
+  const room = ySyncPluginKey.getState(editor.state) as { doc?: Y.Doc } | undefined;
+  const now = room?.doc ? Y.encodeStateAsUpdate(room.doc).byteLength : 0;
+  if (size + now > DOCUMENT_LIMIT) throw new Error(`As a document it is about ${Math.ceil(size / 1024)} KB. With the ${Math.ceil(now / 1024)} KB this document has now, that is more than the ${Math.floor(DOCUMENT_LIMIT / 1024)} KB a live room keeps.`);
   editor.chain().focus().setContent(doc.content).run();
 }
 

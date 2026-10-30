@@ -152,6 +152,20 @@ test("once the document is removed and the editor is read only, Import Markdown 
   await page.context().close();
 });
 
+test("an import that fits alone, but not with what the document holds now, is refused", async ({ browser }, info) => {
+  // About 490 KB as a Yjs document. Undo keeps the old text after an import, so the old and the new both count.
+  const { page } = await open(browser, "- [ ] y\n".repeat(6000));
+  await expect(textbox(page).locator("li").first()).toBeVisible();
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Import Markdown" }).click();
+  const dialog = page.getByRole("dialog", { name: "Import Markdown" });
+  writeFileSync(info.outputPath("half.md"), "- [ ] x\n".repeat(6000));
+  await dialog.getByLabel("Markdown file").setInputFiles(info.outputPath("half.md"));
+  await dialog.getByRole("button", { name: "Replace the text" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("this document has now");
+  await page.context().close();
+});
+
 test("a viewer can download but not import", async ({ browser }) => {
   const { page } = await open(browser, "Read me.", VIC);
   await page.getByRole("button", { name: "More actions" }).click();
