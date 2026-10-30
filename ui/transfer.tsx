@@ -46,7 +46,7 @@ export function downloadMarkdown(editor: Editor, title: string): void {
   link.href = url;
   // Characters a file name cannot hold become spaces. A trailing dot and the names Windows reserves get a prefix or go.
   const name = title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").replace(/[. ]+$/, "").trim() || "document";
-  link.download = `${/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(name) ? `document ${name}` : name}.md`;
+  link.download = `${/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(name) ? `document ${name}` : name}.md`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

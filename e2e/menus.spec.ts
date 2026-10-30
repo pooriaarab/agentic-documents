@@ -237,11 +237,14 @@ for (const theme of themes) {
     await expect(page.getByRole("listbox", { name: "Insert a block" })).toBeVisible();
     await expectAccessible(page);
     await shoot(page, "slash-menu", theme);
+    // Axe can move focus. Restore the editor and caret before the next keyboard action.
+    await text.focus();
+    await page.keyboard.press("Control+End");
     await page.keyboard.press("Escape");
     await page.keyboard.press("Backspace");
-    await page.keyboard.press("ArrowUp");
-    await page.keyboard.press("End");
-    await page.keyboard.press("Shift+Home");
+    await text.locator("p").filter({ hasText: "Ship the editor" }).click();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+End");
     await expect(page.getByRole("toolbar", { name: "Selection" })).toBeVisible();
     await expectAccessible(page);
     await shoot(page, "bubble-menu", theme);

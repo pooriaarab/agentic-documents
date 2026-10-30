@@ -22,6 +22,11 @@ test("in a table, the Table tool adds and removes rows and columns, and deletes 
   const text = textbox(page);
   await text.getByText("Plan").click();
   const changes = bar(page).getByRole("button", { name: "Table changes" });
+  const close = async () => {
+    await page.keyboard.press("Escape");
+    await expect(changes).toBeFocused();
+    await expect(page.getByRole("menu", { includeHidden: true })).toHaveCount(0);
+  };
   const change = async (label: string) => (await changes.click(), await page.getByRole("menuitem", { name: label }).click());
 
   await change("Add row below");
@@ -40,25 +45,31 @@ test("in a table, the Table tool adds and removes rows and columns, and deletes 
   await expect(page.getByRole("menuitem", { name: "Add row below" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Add row above" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Delete row" })).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await close();
   // A cell selection from the header row down counts as the header row too. This one covers every column as well.
   await text.getByText("Owner").click();
   await text.locator("tr").nth(1).locator("td").last().click({ modifiers: ["Shift"] });
   await changes.click();
+  await expect(page.getByRole("menuitem", { name: "Delete table" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Delete row" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Add row above" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Delete column" })).toHaveCount(0); // it covers every column
-  await page.keyboard.press("Escape");
+  await close();
   // With one column left, Delete column is gone: Delete table removes the table.
   await text.locator("tr").nth(1).locator("td").last().click();
   await change("Delete column");
   await expect(text.locator("tr").first().locator("th")).toHaveCount(1);
   await changes.click();
+  await expect(page.getByRole("menuitem", { name: "Delete table" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Delete column" })).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await close();
   await changes.click();
+  await expect(page.getByRole("menuitem", { name: "Delete table" })).toBeVisible();
   await expectAccessible(page);
-  await page.getByRole("menuitem", { name: "Delete table" }).click();
+  // The accessibility scan can change focus. Start the next action from the table again.
+  await close();
+  await text.locator("td").last().click();
+  await change("Delete table");
   await expect(text.locator("table")).toHaveCount(0);
   await expect(bar(page).getByRole("button", { name: "Table", exact: true })).toBeVisible(); // out of a table, it puts one in
   await page.context().close();
@@ -100,6 +111,12 @@ test("Download Markdown saves the text, and Import Markdown replaces it for ever
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("menuitem", { name: "Download Markdown" }).click()]);
   expect(download.suggestedFilename()).toBe("Q3 plan notes.md");
   expect(readFileSync((await download.path())!, "utf8")).toBe(await stored(id));
+
+  // Device names stay reserved on Windows even when the title has its own extension.
+  await createClient({ baseUrl: url(), token: ADA }).rename(id, { title: "CON.notes." });
+  await more.click();
+  const [reserved] = await Promise.all([page.waitForEvent("download"), page.getByRole("menuitem", { name: "Download Markdown" }).click()]);
+  expect(reserved.suggestedFilename()).toBe("document CON.notes.md");
 
   const other = await newPage(await browser.newContext(), ADA);
   await other.goto(`${url()}/#/d/${id}`);
