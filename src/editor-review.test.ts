@@ -117,3 +117,30 @@ test("selection anchors refuse empty, cross-block, inline breaks and mismatched 
   expect(anchorOf(editor, doc)).toHaveProperty("problem");
   editor.destroy();
 });
+
+test("body text includes text after hard breaks and inline images", () => {
+  const doc = fresh("one  \ntwo\n\nthree");
+  expect(bodyText(doc)).toBe("one\ntwo\nthree");
+  const paragraph = new Y.XmlElement("paragraph");
+  doc.getXmlFragment("default").push([paragraph]);
+  const before = new Y.XmlText(), after = new Y.XmlText();
+  before.insert(0, "before"); after.insert(0, "after");
+  paragraph.push([before, new Y.XmlElement("image"), after]);
+  expect(bodyText(doc)).toBe("one\ntwo\nthree\nbeforeafter");
+});
+
+test("oversized replacements are refused before a suggestion is stored", () => {
+  const doc = fresh(), review = createReview(doc, person);
+  expect(() => review.suggest(anchorForQuote(doc, "world")!, "x".repeat(13_000), bot)).toThrow(/too long/);
+  expect(review.suggestions).toEqual([]);
+  expect(bodyText(doc)).toBe("Hello world");
+  review.close();
+});
+
+test.each(["**world**", "[world](https://example.com)"])("accept preserves the first replaced character's marks: %s", marked => {
+  const doc = fresh(`Hello ${marked} end`), review = createReview(doc, person);
+  const s = review.suggest(anchorForQuote(doc, "world")!, "moon", bot);
+  review.decide(s.id, true);
+  expect(AgenticDoc.fromUpdate(Y.encodeStateAsUpdate(doc)).toMarkdown().trim()).toBe(`Hello ${marked.replace("world", "moon")} end`);
+  review.close();
+});

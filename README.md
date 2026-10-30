@@ -923,13 +923,7 @@ Invites with the subject's creator id are exported and deleted. Invite recipient
 cannot be matched to an account. Links have no creator record and leave with
 the document.
 
-## License
-
-MIT. The editor is a port of [gitmarkdown](https://github.com/pooriaarab/gitmarkdown) (MIT), and its page layout
-follows [tinylittleoffice](https://github.com/aboard-io/tinylittleoffice) (MIT). See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-### Review in a host editor
+## Review in a host editor
 
 Import `agentic-documents/review` to bind `agentic-comments` to the editor's
 Yjs document. The editor must use the `default` collaboration field. This entry
@@ -962,7 +956,8 @@ selections across blocks and over inline images or hard breaks.
 `resolveAnchor(ydoc, anchor)` returns `{ text, from, to }` or `null`. A resolved
 range can contain changed text. Accept checks the original quote and refuses
 stale suggestions. Quotes must occur once in one block. `bodyText` joins
-paragraphs, headings and code blocks with newlines, including empty blocks.
+paragraphs, headings and code blocks with newlines, including empty blocks. Hard breaks also add newlines. Accepted replacements keep
+the marks of the first replaced character.
 
 The controller also has `reply`, `setResolved`, and `problems`. Call `close` to
 remove its Yjs listener. An agent needs `comments:accept` to decide another
@@ -970,3 +965,9 @@ principal's suggestion. An agent author cannot accept or reject its own proposal
 even if the decision uses another kind with the same name. Hosts must bind names
 and scopes to authenticated identities. `explainReview` gives a safe error message;
 `labelOf` preserves machine labels for a host's known machine names.
+
+## License
+
+MIT. The editor is a port of [gitmarkdown](https://github.com/pooriaarab/gitmarkdown) (MIT), and its page layout
+follows [tinylittleoffice](https://github.com/aboard-io/tinylittleoffice) (MIT). See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

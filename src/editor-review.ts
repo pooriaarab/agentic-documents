@@ -8,12 +8,12 @@ export type { Author, Suggestion, TextAnchor, Thread } from "agentic-comments";
 
 const TEXTBLOCKS = new Set(["paragraph", "heading", "codeBlock"]);
 /** Tiptap's default collaboration field. Review data uses the agentic-comments maps. */
-function blocks(doc: Y.Doc): (Y.XmlText | null)[] {
-  const out: (Y.XmlText | null)[] = [];
+function textBlocks(doc: Y.Doc): Y.XmlElement[] {
+  const out: Y.XmlElement[] = [];
   const walk = (parent: Y.XmlFragment | Y.XmlElement) => {
     for (const child of parent.toArray()) {
       if (!(child instanceof Y.XmlElement)) continue;
-      if (TEXTBLOCKS.has(child.nodeName)) out.push(child.toArray().find((c): c is Y.XmlText => c instanceof Y.XmlText) ?? null);
+      if (TEXTBLOCKS.has(child.nodeName)) out.push(child);
       else walk(child);
     }
   };
@@ -21,8 +21,13 @@ function blocks(doc: Y.Doc): (Y.XmlText | null)[] {
   return out;
 }
 
+const blocks = (doc: Y.Doc): (Y.XmlText | null)[] => textBlocks(doc).map(block =>
+  block.toArray().find((c): c is Y.XmlText => c instanceof Y.XmlText) ?? null);
+
 /** Plain text for search indexing: one line per paragraph, heading or code block. */
-export const bodyText = (doc: Y.Doc): string => blocks(doc).map(t => t ? textOf(t) : "").join("\n");
+export const bodyText = (doc: Y.Doc): string => textBlocks(doc).map(block => block.toArray().map(child =>
+  child instanceof Y.XmlText ? textOf(child) : child instanceof Y.XmlElement && child.nodeName === "hardBreak" ? "\n" : ""
+).join("")).join("\n");
 
 /** Pin a quote found exactly once within a text block. Missing or ambiguous quotes return null. */
 export function anchorForQuote(doc: Y.Doc, quote: string): TextAnchor | null {
@@ -77,6 +82,7 @@ const host: SuggestionHost = {
   parse(change, { anchor }) {
     const replacement = (change as { replacement?: unknown } | null)?.replacement;
     if (anchor.type !== "text" || typeof replacement !== "string") throw new CommentsError("APPLY_FAILED", "A text suggestion needs a replacement string.");
+    if (JSON.stringify(replacement).length > 12_000) throw new CommentsError("APPLY_FAILED", "The replacement is too long.");
     return { replacement };
   },
   apply(change, { anchor, ydoc }): Receipt {
@@ -87,8 +93,14 @@ const host: SuggestionHost = {
     }
     // Check receipt size before editing: Yjs transactions do not roll back on failure.
     if (JSON.stringify(replacement).length > 12_000) throw new CommentsError("APPLY_FAILED", "The replacement is too long.");
+    let offset = 0;
+    let attributes: Record<string, unknown> = {};
+    for (const part of at.text.toDelta() as { insert: unknown; attributes?: Record<string, unknown> }[]) {
+      offset += typeof part.insert === "string" ? part.insert.length : 1;
+      if (offset > at.from) { attributes = part.attributes ?? {}; break; }
+    }
     at.text.delete(at.from, at.to - at.from);
-    at.text.insert(at.from, replacement);
+    at.text.insert(at.from, replacement, attributes);
     return { start: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(at.text, at.from)), text: replacement };
   },
   revert(receipt, { ydoc }) {
