@@ -156,3 +156,126 @@ test("a damaged history timestamp fails before any data is deleted", async () =>
   await expect(documentsAccount.eraseAccount(subject, deps)).rejects.toThrow();
   expect(await deps.blobs.get("mine.ydoc")).not.toBeNull();
 });
+
+// Regression cases: inherited-only owners on retry; folder children before parents;
+// co-owned and viewer folders; revoked access; legacy keys; delegated creators.
+test("inherited ownership remains valid on repeat and folder-owner erase", async () => {
+  const { deps } = await setup();
+  await deps.store.put("resources", "folder", { type: "folder" });
+  await deps.store.put("grants", "folder:human:bob", { resourceId: "folder", subjectKind: "human", subjectId: "bob", role: "owner" });
+  await deps.store.put("resources", "mine", { ...(await deps.store.get("resources", "mine"))!, parentId: "folder" });
+  await documentsAccount.eraseAccount(subject, deps);
+  expect(Object.values(await documentsAccount.eraseAccount(subject, deps))).toEqual([0, 0, 0, 0, 0]);
+  await documentsAccount.exportAccount({ kind: "human", id: "bob" }, deps);
+  await documentsAccount.eraseAccount({ kind: "human", id: "bob" }, deps);
+  expect(await deps.store.get("resources", "folder")).toBeNull();
+  expect(await deps.blobs.get("mine.ydoc")).toBeNull();
+});
+
+test("exports folder grants and erases empty sole folders after children", async () => {
+  const { deps } = await setup();
+  for (const id of ["parent", "coowned", "viewed"]) {
+    await deps.store.put("resources", id, { type: "folder" });
+    await deps.store.put("grants", `${id}:human:${subject.id}`, { resourceId: id, subjectKind: "human", subjectId: subject.id, role: id === "viewed" ? "viewer" : "owner" });
+    if (id !== "parent") await deps.store.put("grants", `${id}:human:bob`, { resourceId: id, subjectKind: "human", subjectId: "bob", role: "owner" });
+  }
+  await deps.store.put("resources", "mine", { ...(await deps.store.get("resources", "mine"))!, parentId: "parent" });
+  const out = await documentsAccount.exportAccount(subject, deps);
+  expect(out.grants).toHaveLength(5);
+  expect(out.sharing).toContainEqual(expect.objectContaining({ collection: "resources", id: "parent" }));
+  expect(out.documents).toHaveLength(2);
+  await documentsAccount.eraseAccount(subject, deps);
+  expect(await deps.store.get("resources", "parent")).toBeNull();
+  for (const id of ["coowned", "viewed"]) {
+    expect(await deps.store.get("resources", id)).not.toBeNull();
+    expect(await deps.store.get("grants", `${id}:human:${subject.id}`)).toBeNull();
+  }
+  expect(Object.values(await documentsAccount.eraseAccount(subject, deps))).toEqual([0, 0, 0, 0, 0]);
+});
+
+test("authored export excludes later private records and snapshots without access", async () => {
+  const deps = { store: createMemoryStore(), blobs: createMemoryBlobs() };
+  const service = new DocsService(deps);
+  await service.create("private", "Private content", bob);
+  await service.write("private", d => {
+    const t = new Threads(d);
+    const id = t.add({ text: "Private" }, "my comment", ada);
+    t.reply(id, "secret reply", bob);
+    t.resolve(id, ada);
+    t.add({ text: "content" }, "secret thread", bob);
+    new Suggestions(d).add({ text: "Private" }, "my proposal", ada);
+  });
+  const out = await documentsAccount.exportAccount(subject, deps);
+  expect(JSON.stringify(out)).toContain("my comment");
+  expect(JSON.stringify(out)).toContain("my proposal");
+  expect(JSON.stringify(out)).not.toContain("secret");
+  expect(out.authored.every(r => !(r as { encoding?: string }).encoding)).toBe(true);
+});
+
+test("legacy grant keys export and erase without blocking other accounts", async () => {
+  const { deps } = await setup();
+  const key = `mine:human:${subject.id}`;
+  await deps.store.put("grants", `mine:${subject.id}`, (await deps.store.get("grants", key))!);
+  await deps.store.delete("grants", key);
+  expect((await documentsAccount.exportAccount(subject, deps)).grants).toHaveLength(2);
+  await documentsAccount.eraseAccount(subject, deps);
+  await documentsAccount.exportAccount({ kind: "human", id: "bob" }, deps);
+});
+
+test("a delegated catalog creator cannot claim or delete a legacy document", async () => {
+  const deps = { store: createMemoryStore(), blobs: createMemoryBlobs() };
+  const author = { kind: "agent_of_human", name: "scribe" } as const;
+  await new DocsService(deps).create("legacy", "Human work", author);
+  const who = { kind: author.kind, id: author.name };
+  expect((await documentsAccount.exportAccount(who, deps)).documents).toHaveLength(0);
+  expect((await documentsAccount.eraseAccount(who, deps)).documents).toBe(0);
+  expect(await deps.blobs.get("legacy.ydoc")).not.toBeNull();
+});
+
+
+test("a retained child permits export but refuses folder erase before any write", async () => {
+  const { deps } = await setup();
+  await deps.store.put("resources", "folder", { type: "folder" });
+  await deps.store.put("grants", `folder:human:${subject.id}`, { resourceId: "folder", subjectKind: "human", subjectId: subject.id, role: "owner" });
+  await deps.store.put("resources", "shared", { ...(await deps.store.get("resources", "shared"))!, parentId: "folder" });
+  expect((await documentsAccount.exportAccount(subject, deps)).blobs).toHaveLength(2);
+  await expect(documentsAccount.eraseAccount(subject, deps)).rejects.toThrow("damaged");
+  expect(await deps.blobs.get("mine.ydoc")).not.toBeNull();
+  expect(await deps.store.get("grants", `folder:human:${subject.id}`)).not.toBeNull();
+});
+
+
+test("a co-owner grant with a damaged resource id cannot hide ownership", async () => {
+  for (const resourceId of [undefined, null, "mine"]) {
+    const { deps } = await setup();
+    const grant = (await deps.store.get("grants", "shared:human:bob"))!;
+    const damaged = { ...grant, resourceId };
+    if (resourceId === undefined) delete damaged.resourceId;
+    await deps.store.put("grants", "shared:human:bob", damaged as never);
+    for (const run of [documentsAccount.exportAccount, documentsAccount.eraseAccount]) await expect(run(subject, deps)).rejects.toThrow("damaged");
+    expect(await deps.blobs.get("mine.ydoc")).not.toBeNull();
+    expect(await deps.blobs.get("shared.ydoc")).not.toBeNull();
+  }
+});
+
+
+test("folders use the identity resource id format", async () => {
+  const { deps } = await setup();
+  const id = "Folder_" + "a".repeat(80);
+  await deps.store.put("resources", id, { type: "folder" });
+  await deps.store.put("grants", `${id}:human:${subject.id}`, { resourceId: id, subjectKind: "human", subjectId: subject.id, role: "owner" });
+  expect((await documentsAccount.exportAccount(subject, deps)).grants).toHaveLength(3);
+  await documentsAccount.eraseAccount(subject, deps);
+  expect(await deps.store.get("resources", id)).toBeNull();
+});
+
+
+test("a legacy creator with an invalid grant name cannot claim the document", async () => {
+  const deps = { store: createMemoryStore(), blobs: createMemoryBlobs() };
+  const author = { kind: "human", name: "A Person" } as const;
+  await new DocsService(deps).create("legacy", "Legacy work", author);
+  const who = { kind: author.kind, id: author.name };
+  expect((await documentsAccount.exportAccount(who, deps)).documents).toHaveLength(0);
+  expect((await documentsAccount.eraseAccount(who, deps)).documents).toBe(0);
+  expect(await deps.blobs.get("legacy.ydoc")).not.toBeNull();
+});
