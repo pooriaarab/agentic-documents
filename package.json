@@ -1,6 +1,6 @@
 {
   "name": "agentic-documents",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "description": "Write documents with people and agents in real time.",
   "keywords": [
     "documents",
@@ -72,6 +72,10 @@
     "./live-worker": {
       "types": "./dist/live-worker.d.ts",
       "import": "./dist/live-worker.js"
+    },
+    "./account": {
+      "types": "./dist/account.d.ts",
+      "import": "./dist/account.js"
     }
   },
   "scripts": {

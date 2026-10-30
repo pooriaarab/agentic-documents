@@ -7,7 +7,7 @@
 
 Write documents with people and agents in real time.
 
-> Status: early, version 0.12.0. The document model, the text operations, the CLI, the MCP server,
+> Status: early, version 0.13.0. The document model, the text operations, the CLI, the MCP server,
 > the Worker API, live editing in a room, and a small web UI work. See [UI](#ui).
 
 ## Install
@@ -809,6 +809,78 @@ Run `npm run dev:smoke` to check this path. It starts the dev server on port 879
 npm ci
 npm run ci:local
 ```
+
+## Account export and erase
+
+Use `documentsAccount` from `agentic-documents/account` with the identity account
+registry that exposes `AccountPackage`, or call it directly. Identity 0.9 uses
+the older `AccountApp` contract and needs a host adapter.
+The subject is `{ id, kind }`. Call once for each principal, including delegated
+agents. Kinds keep people and agents distinct.
+The host authenticates the subject and authorizes the account operation.
+
+```ts
+import { documentsAccount } from "agentic-documents/account";
+const subject = { id: "ada", kind: "human" } as const;
+const data = await documentsAccount.exportAccount(subject, { store, blobs });
+const counts = await documentsAccount.eraseAccount(subject, { store, blobs });
+```
+
+The export returns plain JSON collections:
+
+- `documents` holds owned catalog rows and Markdown.
+- `blobs` holds their full Yjs state as base64. This includes history, comments,
+  suggestions, inline images, and collaborators' content.
+- `grants` holds the subject's roles on documents and folders.
+- `sharing` holds sharing rows for owned resources and invites the subject made.
+- `authored` holds the subject's own author records on other documents.
+  It does not include document snapshots or other people's messages.
+
+The package stores no separate attachment or version files.
+Image URLs refer to external data.
+
+Erase deletes sole-owned documents and their sharing records.
+It deletes sole-owned folders after their children. A folder with a child that
+must stay stops the operation before any change.
+Shared resources keep other owners and their content.
+The contributor handles documents and their parent folders.
+It also handles empty folders on which the subject holds a grant.
+Other apps' resources stay outside the export and erase.
+The subject's grants and invites go. A grant counted in `grants` is also counted
+in `sharing` when it goes. Author names become `(erased)` in catalog rows,
+edits, comments, suggestions, and acceptance records.
+The kind stays, so machine-made work stays labeled.
+Shared text stays, including personal data within text.
+A second erase counts zero. A failed erase throws. Retry to finish it.
+Damaged blobs, catalog rows, grants, and owner paths stop the operation.
+Legacy grant keys with a valid kind work without migration.
+Run `migrateGrants` first for older grants.
+A grant with no kind on a document or its folder stops the operation.
+
+Stop writes before export and keep them stopped until erase ends.
+Pass `saveRoom(id)` to flush live rooms before reads.
+Pass `eraseRoom(id)` to clear rooms before deletion or anonymization.
+Without these hooks the host must stop and clear rooms itself.
+Run this contributor before identity account erasure.
+The host exports identity audit rows before erase.
+This contributor deletes audit rows for each resource it deletes.
+It does not export or count audit rows.
+The host handles the other identity audit rows.
+
+The contributor scans catalog and sharing rows. For legacy blobs with neither
+row, pass `documentIds: async () => ids` from a complete storage inventory. The
+Blobs port cannot list keys. A legacy document without an owner record uses its
+catalog creator as owner only for a person or independent agent with a valid
+grant name.
+A delegated agent cannot claim it. A blob without either record can only be
+matched by its author records.
+Migrate old file blobs before account operations.
+Backups and external image hosts need their own retention and erase steps.
+
+Invites keep a creator id with no kind. Use unique ids across principal kinds.
+Invites with the subject's creator id are exported and deleted. Invite recipients
+cannot be matched to an account. Links have no creator record and leave with
+the document.
 
 ## License
 

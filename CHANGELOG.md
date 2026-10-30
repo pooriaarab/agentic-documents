@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.13.0
+
+### Added
+
+- Add the `./account` contributor for account export and repeatable erase.
+- Export full document state and history. Preserve co-owners and machine labels.
 
 ### Changed
 
