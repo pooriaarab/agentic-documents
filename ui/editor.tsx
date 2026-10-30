@@ -14,6 +14,7 @@ import { isMachine } from "../src/kinds.js";
 import { MAX_LIVE_BYTES } from "../src/limits.js";
 import type { LiveSession } from "./live.js";
 import { BubbleMenu } from "./bubble.js";
+import { CodeBlock } from "./code.js";
 import { DocImage, ImageDialog } from "./image.js";
 import { AgentText } from "./marks.js";
 import { defaultSlashItems, SlashMenu } from "./slash.js";
@@ -102,9 +103,9 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
       // editor.css has the base rules, so a page that forbids inline styles still shows the editor right.
       injectCSS: false,
       extensions: [
-        StarterKit.configure({ undoRedo: false, underline: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
+        StarterKit.configure({ undoRedo: false, underline: false, codeBlock: false, link: { openOnClick: false, autolink: true, defaultProtocol: "https", isAllowedUri: (url) => /^(https?:\/\/|mailto:)\S+$/i.test(url) } }),
         // The same rules as the engine schema (src/schema.ts): an image sits in a line, and a task item can hold a list.
-        DocImage, TaskList, TaskItem.configure({ nested: true }), Table, TableRow, TableCell, TableHeader,
+        CodeBlock, DocImage, TaskList, TaskItem.configure({ nested: true }), Table, TableRow, TableCell, TableHeader,
         Collaboration.configure({ document: live.doc, field: "default" }),
         ...(live.sync ? [carets(live.sync)] : []),
         AgentText,

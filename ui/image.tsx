@@ -9,7 +9,7 @@ const SOURCE = /^(https?:\/\/\S+|data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+
 
 /** The whole document has a 1 MB limit, and an embedded image counts against it. This keeps one image small, and room is checked too. */
 const MAX_SOURCE = 256_000;
-const DOCUMENT_LIMIT = 900_000;
+export const DOCUMENT_LIMIT = 900_000;
 const TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 /** A source the editor keeps from pasted HTML: the same rule as the dialog, so a copy and paste inside the text keeps it. */
