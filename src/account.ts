@@ -72,6 +72,10 @@ async function plan(subject: DocumentsAccountSubject, deps: DocumentsAccountDeps
       }
       const copy: Record<string, unknown> = {};
       for (const [key, v] of Object.entries(obj)) {
+        if (["createdAt", "updatedAt", "resolvedAt", "decidedAt"].includes(key) || (key === "at" && ("op" in obj || "body" in obj))) {
+          const numeric = key === "updatedAt" || (key === "createdAt" && "createdBy" in obj);
+          if (numeric ? typeof v !== "number" || !Number.isFinite(v) : typeof v !== "string" || !Number.isFinite(Date.parse(v))) bad();
+        }
         if (["author", "createdBy", "updatedBy", "decidedBy", "resolvedBy", "by"].includes(key)) {
           if (mine(v) && collect) authored.push(plain({ documentId: id, field: key, record: obj }));
         }

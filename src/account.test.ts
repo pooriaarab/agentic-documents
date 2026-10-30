@@ -145,3 +145,14 @@ test("a failed catalog delete keeps ownership for retry even with another creato
   expect(await deps.store.get("documents", "mine")).toBeNull();
   expect(await deps.store.get("resources", "mine")).toBeNull();
 });
+
+test("a damaged history timestamp fails before any data is deleted", async () => {
+  const { deps, service } = await setup();
+  await service.write("shared", d => {
+    const log = d.ydoc.getArray("edits");
+    const entry = log.get(0) as Record<string, unknown>;
+    log.delete(0, 1); log.insert(0, [{ ...entry, at: "invalid time" }]);
+  });
+  await expect(documentsAccount.eraseAccount(subject, deps)).rejects.toThrow();
+  expect(await deps.blobs.get("mine.ydoc")).not.toBeNull();
+});
