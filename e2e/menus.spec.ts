@@ -87,6 +87,33 @@ test("the slash menu filters, moves with the arrow keys, and puts in the block",
   await page.context().close();
 });
 
+test("Escape releases the slash menu keys before the next render", async ({ browser }) => {
+  const { page } = await open(browser, "Intro");
+  const text = textbox(page);
+  await text.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/");
+  await expect(page.getByRole("listbox", { name: "Insert a block" })).toBeVisible();
+
+  // Deliver both keys in one browser task, before React can render the closed menu.
+  const intercepted = await text.evaluate((element) => {
+    element.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    const up = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true });
+    element.dispatchEvent(up);
+    return up.defaultPrevented;
+  });
+  expect(intercepted).toBe(false);
+  await expect(page.getByRole("listbox", { name: "Insert a block" })).toHaveCount(0);
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Shift+End");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe("Intro");
+  await expect(page.getByRole("toolbar", { name: "Selection" })).toBeVisible();
+  await page.context().close();
+});
+
 test("on a short window the slash menu shows a part of the list, and the arrow keys reach the rest", async ({ browser }) => {
   const { page } = await open(browser, "");
   await page.setViewportSize({ width: 800, height: 420 });
