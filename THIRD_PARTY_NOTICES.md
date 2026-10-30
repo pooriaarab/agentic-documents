@@ -5,9 +5,9 @@ This package reuses code and patterns from the projects below. Each is under the
 ## gitmarkdown
 
 - Source: https://github.com/pooriaarab/gitmarkdown, `src/components/editor/` and `src/lib/editor/`
-- Used in: `ui/toolbar.tsx`, `ui/editor.tsx`, `ui/slash.tsx`, and `ui/bubble.tsx`. The editor is a port: the tool
-  set, the Tiptap setup, the slash menu (its items and how it finds the slash), and the bubble menu (its placement over
-  the selection).
+- Used in: `ui/toolbar.tsx`, `ui/editor.tsx`, `ui/slash.tsx`, `ui/bubble.tsx`, and `ui/code.ts`. The editor is a port:
+  the tool set, the Tiptap setup with lowlight code blocks, the slash menu (its items and how it finds the slash), and
+  the bubble menu (its placement over the selection).
 - License: MIT
 
 ```

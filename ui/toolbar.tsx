@@ -1,8 +1,10 @@
 // The formatting toolbar. Ported from the gitmarkdown editor toolbar (MIT, see THIRD_PARTY_NOTICES.md), on the
 // agentic-design toolbar: one tab stop, arrow keys move between the buttons.
 import type { Editor } from "@tiptap/core";
+import { selectedRect } from "@tiptap/pm/tables";
 import { Menu, Toolbar, ToolbarButton, ToolbarGroup, type MenuItem } from "agentic-design/react";
 import type { ReactNode } from "react";
+import { LANGUAGES, languageId, languageName } from "./code.js";
 import { glyph, icons } from "./icons.js";
 
 /** The text styles of a block, in the order the menu shows them. */
@@ -33,6 +35,29 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
   const on = (name: string, attrs?: object) => editor.isActive(name, attrs);
   // A block that is not a paragraph or a heading, such as a code block, or a selection over several kinds, is "Other".
   const style = STYLES.find((s) => s.active(editor));
+  // In a table, the Table tool opens the table changes. Elsewhere it puts in a new table. Markdown makes the first row
+  // the header, so in the header row there is no row above it to add, and the row is not deleted.
+  // The rows and columns the selection covers: a cell selection can span the header row and the rows under it.
+  const rect = on("table") ? selectedRect(editor.state) : undefined;
+  const header = rect?.top === 0;
+  // prosemirror-tables does not delete every column at once: Delete table does that.
+  const allColumns = rect !== undefined && rect.left === 0 && rect.right === rect.map.width;
+  const tables: MenuItem[] = [
+    ...(header ? [] : [{ label: "Add row above", onSelect: () => chain().addRowBefore().run() }]),
+    { label: "Add row below", onSelect: () => chain().addRowAfter().run() },
+    { label: "Add column before", onSelect: () => chain().addColumnBefore().run() },
+    { label: "Add column after", onSelect: () => chain().addColumnAfter().run() },
+    "separator",
+    ...(header ? [] : [{ label: "Delete row", onSelect: () => chain().deleteRow().run() }]),
+    ...(allColumns ? [] : [{ label: "Delete column", onSelect: () => chain().deleteColumn().run() }]),
+    "separator",
+    { label: "Delete table", danger: true, onSelect: () => chain().deleteTable().run() },
+  ];
+  const language = editor.getAttributes("codeBlock").language as string | null | undefined;
+  const languages: MenuItem[] = [["", "Plain text"] as const, ...LANGUAGES].map(([id, name]) => ({
+    label: languageId(language) === id ? `${name} (in use)` : name,
+    onSelect: () => chain().updateAttributes("codeBlock", { language: id || null }).run(),
+  }));
   const styles: MenuItem[] = STYLES.map((s) => ({ label: s.name, icon: glyph(s.short), onSelect: () => (editor.view.focus(), s.run(editor)) }));
 
   return (
@@ -53,8 +78,15 @@ export function FormatBar({ editor, editable, onLink, onImage }: FormatBarProps)
       <ToolbarGroup label="Blocks">
         {tool("Quote", icons.quote, () => chain().toggleBlockquote().run(), on("blockquote"))}
         {tool("Code block", icons.codeBlock, () => chain().toggleCodeBlock().run(), on("codeBlock"))}
+        {on("codeBlock") && (
+          <Menu trigger={<ToolbarButton label={`Code language: ${languageName(language)}`} icon={<span className="agd-style">{glyph(languageName(language))}{icons.chevronDown}</span>} className="agd-style-button" disabled={!editable} />} items={languages} />
+        )}
         {tool("Divider", icons.divider, () => chain().setHorizontalRule().run())}
-        {tool("Table", icons.table, () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), on("table"))}
+        {on("table") ? (
+          <Menu trigger={<ToolbarButton label="Table changes" icon={<>{icons.table}{icons.chevronDown}</>} className="agd-style-button" disabled={!editable} />} items={tables} />
+        ) : (
+          tool("Table", icons.table, () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())
+        )}
         {tool("Image", icons.image, onImage)}
       </ToolbarGroup>
       <ToolbarGroup label="History">
