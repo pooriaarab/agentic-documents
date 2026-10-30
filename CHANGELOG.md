@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0
+
+- Add the typed `agentic-documents/review` entry for host editor review.
+- Add search text, selection and quote anchors, and a review controller.
+- Apply suggestions to the shared document and refuse agent self decisions.
+
 ## 0.13.2
 
 ### Changed

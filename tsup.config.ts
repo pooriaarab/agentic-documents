@@ -1,7 +1,15 @@
 import { defineConfig } from "tsup";
 
-// `npm run build` empties dist first. The two builds write side by side.
+// `npm run build` empties dist first. The builds write side by side.
 export default defineConfig([
+  {
+    entry: { review: "src/editor-review.ts" },
+    format: ["esm"],
+    dts: true,
+    // Drop the dependency's unused Node version import for browser hosts.
+    noExternal: ["agentic-comments"],
+    treeshake: { moduleSideEffects: false },
+  },
   {
     // Named entries, so `ui/entry.ts` lands next to the others as `dist/embed.js`.
     entry: {
