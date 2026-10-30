@@ -281,6 +281,23 @@ test("a legacy creator with an invalid grant name cannot claim the document", as
 });
 
 // Account packages share identity resources. Foreign app state must stay intact.
+test("a folder with only foreign children stays outside the document contributor", async () => {
+  const { deps } = await setup();
+  await deps.store.put("resources", "sheetsfolder", { type: "folder" });
+  for (const [id, role] of [[subject.id, "owner"], ["bob", "viewer"]] as const) {
+    await deps.store.put("grants", `sheetsfolder:human:${id}`, { resourceId: "sheetsfolder", subjectKind: "human", subjectId: id, role });
+  }
+  await deps.store.put("resources", "sheet1", { type: "sheets", parentId: "sheetsfolder" });
+  const out = await documentsAccount.exportAccount(subject, deps);
+  expect(JSON.stringify(out.sharing)).not.toContain("sheetsfolder");
+  expect(JSON.stringify(out.grants)).not.toContain("sheetsfolder");
+  expect((await documentsAccount.eraseAccount(subject, deps)).documents).toBe(1);
+  expect(await deps.blobs.get("mine.ydoc")).toBeNull();
+  expect(await deps.store.get("resources", "sheetsfolder")).toEqual({ type: "folder" });
+  expect(await deps.store.get("resources", "sheet1")).toEqual({ type: "sheets", parentId: "sheetsfolder" });
+  for (const id of [subject.id, "bob"]) expect(await deps.store.get("grants", `sheetsfolder:human:${id}`)).not.toBeNull();
+});
+
 test("foreign resources, grants and sharing rows stay outside the document contributor", async () => {
   for (const owned of [false, true]) {
     const { deps } = await setup();

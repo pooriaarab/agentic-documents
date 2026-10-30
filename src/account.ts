@@ -59,7 +59,7 @@ async function plan(subject: DocumentsAccountSubject, deps: DocumentsAccountDeps
   const documentIds = new Set([...catalog.map(r => r.id), ...resources.filter(r => r.data.type === "docs").map(r => r.id), ...extra]);
   const ids = new Set(documentIds);
   // Empty folders with this subject's grant also belong in the account operation.
-  for (const r of resources) if (r.data.type === "folder" && grants.some(g =>
+  for (const r of resources) if (r.data.type === "folder" && !resources.some(child => child.data.parentId === r.id) && grants.some(g =>
     (g.data.resourceId === r.id && g.data.subjectKind === subject.kind && g.data.subjectId === subject.id) ||
     g.id === `${r.id}:${subject.kind}:${subject.id}` || g.id === `${r.id}:${subject.id}`)) ids.add(r.id);
   const pathIds = new Set(ids);
