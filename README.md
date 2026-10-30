@@ -433,7 +433,7 @@ const editor = mountEditor(document.getElementById("editor")!, {
   - `extensions`: more Tiptap extensions, read when a document opens: plugins, decorations, and keyboard shortcuts.
     An extension that adds or changes a node, a mark, or an attribute stops the editor with a message that names it,
     since the stored document keeps only the nodes, marks, and attributes of `schema`.
-  - `editorMarkdown(editor)` and `setEditorMarkdown(editor, markdown, remote?)` read and replace the text as Markdown,
+  - `editorMarkdown(editor)` and `setEditorMarkdown(editor, markdown)` read and replace the text as Markdown,
     with the same conversion as the server. `setEditorMarkdown` throws on a read-only editor.
   - The types `SlashItem`, `BubbleAction`, and `EditorExtras` are exported.
 - The carets and the selections of the other people and agents in the room show in the text, each with the name that
