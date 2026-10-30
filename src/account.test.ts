@@ -279,3 +279,44 @@ test("a legacy creator with an invalid grant name cannot claim the document", as
   expect((await documentsAccount.eraseAccount(who, deps)).documents).toBe(0);
   expect(await deps.blobs.get("legacy.ydoc")).not.toBeNull();
 });
+
+// Account packages share identity resources. Foreign app state must stay intact.
+test("foreign resources, grants and sharing rows stay outside the document contributor", async () => {
+  for (const owned of [false, true]) {
+    const { deps } = await setup();
+    await deps.store.put("resources", "sheet1", { type: "sheets" });
+    if (owned) await deps.store.put("grants", `sheet1:human:${subject.id}`, { resourceId: "sheet1", subjectKind: "human", subjectId: subject.id, role: "owner" });
+    for (const collection of ["invites", "links", "audit"]) await deps.store.put(collection, "sheet-row", { resourceId: "sheet1", createdBy: subject.id });
+    const out = await documentsAccount.exportAccount(subject, deps);
+    expect(JSON.stringify(out.sharing)).not.toContain("sheet1");
+    expect(JSON.stringify(out.grants)).not.toContain("sheet1");
+    await documentsAccount.eraseAccount(subject, deps);
+    expect(await deps.store.get("resources", "sheet1")).toEqual({ type: "sheets" });
+    if (owned) expect(await deps.store.get("grants", `sheet1:human:${subject.id}`)).not.toBeNull();
+    for (const collection of ["invites", "links", "audit"]) expect(await deps.store.get(collection, "sheet-row")).not.toBeNull();
+  }
+});
+
+test("a foreign child blocks sole-folder erase before any write", async () => {
+  const { deps } = await setup();
+  await deps.store.put("resources", "folder", { type: "folder" });
+  await deps.store.put("grants", `folder:human:${subject.id}`, { resourceId: "folder", subjectKind: "human", subjectId: subject.id, role: "owner" });
+  await deps.store.put("resources", "mine", { ...(await deps.store.get("resources", "mine"))!, parentId: "folder" });
+  await deps.store.put("resources", "sheet1", { type: "sheets", parentId: "folder" });
+  const out = await documentsAccount.exportAccount(subject, deps);
+  expect(JSON.stringify(out.sharing)).not.toContain("sheet1");
+  await expect(documentsAccount.eraseAccount(subject, deps)).rejects.toThrow("damaged");
+  expect(await deps.blobs.get("mine.ydoc")).not.toBeNull();
+  expect(await deps.store.get("grants", `folder:human:${subject.id}`)).not.toBeNull();
+  expect(await deps.store.get("resources", "sheet1")).not.toBeNull();
+});
+
+test("erase removes audit rows only for resources it deletes", async () => {
+  const { deps } = await setup();
+  for (const id of ["mine", "shared"]) await deps.store.put("audit", id, { resourceId: id });
+  const out = await documentsAccount.exportAccount(subject, deps);
+  expect(out.sharing.some(r => (r as { collection?: string }).collection === "audit")).toBe(false);
+  await documentsAccount.eraseAccount(subject, deps);
+  expect(await deps.store.get("audit", "mine")).toBeNull();
+  expect(await deps.store.get("audit", "shared")).toEqual({ resourceId: "shared" });
+});

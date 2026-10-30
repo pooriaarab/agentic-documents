@@ -54,13 +54,33 @@ async function plan(subject: DocumentsAccountSubject, deps: DocumentsAccountDeps
     resources = await rows(deps.store, "resources");
   }
   const grants = await rows(deps.store, "grants");
-  for (const g of grants) {
-    const d = g.data;
-    if (typeof d.resourceId !== "string" || !RESOURCE_ID.test(d.resourceId) || !["human", "agent"].includes(d.subjectKind as string) || typeof d.subjectId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(d.subjectId) || !["owner", "editor", "commenter", "viewer"].includes(d.role as string) || (g.id !== `${d.resourceId}:${d.subjectKind}:${d.subjectId}` && g.id !== `${d.resourceId}:${d.subjectId}`)) bad();
-  }
   const invites = await rows(deps.store, "invites");
   const byResource = new Map(resources.map(r => [r.id, r.data]));
-  const ids = new Set([...catalog.map(r => r.id), ...resources.map(r => r.id), ...extra]);
+  const documentIds = new Set([...catalog.map(r => r.id), ...resources.filter(r => r.data.type === "docs").map(r => r.id), ...extra]);
+  const ids = new Set(documentIds);
+  // Empty folders with this subject's grant also belong in the account operation.
+  for (const r of resources) if (r.data.type === "folder" && grants.some(g =>
+    (g.data.resourceId === r.id && g.data.subjectKind === subject.kind && g.data.subjectId === subject.id) ||
+    g.id === `${r.id}:${subject.kind}:${subject.id}` || g.id === `${r.id}:${subject.id}`)) ids.add(r.id);
+  const pathIds = new Set(ids);
+  for (const id of [...ids]) {
+    const visited = new Set<string>();
+    for (let current: string | undefined = id; current !== undefined;) {
+      if (visited.has(current) || visited.size >= MAX_FOLDER_DEPTH) bad();
+      visited.add(current); pathIds.add(current);
+      const r = byResource.get(current);
+      if (!r) { if (current !== id) bad(); break; }
+      if (r.type === "folder") ids.add(current);
+      if (r.parentId !== undefined && r.parentId !== null && (typeof r.parentId !== "string" || !r.parentId)) bad();
+      current = r.parentId as string | undefined ?? undefined;
+    }
+  }
+  for (const g of grants) {
+    // Check both the key and the field: a damaged co-owner must not disappear.
+    if (!pathIds.has(g.id.split(":")[0]) && !pathIds.has(g.data.resourceId as string)) continue;
+    const d = g.data;
+    if (typeof d.resourceId !== "string" || !RESOURCE_ID.test(d.resourceId) || !["human", "agent"].includes(d.subjectKind as string) || typeof d.subjectId !== "string" || !RESOURCE_ID.test(d.subjectId) || !["owner", "editor", "commenter", "viewer"].includes(d.role as string) || (g.id !== `${d.resourceId}:${d.subjectKind}:${d.subjectId}` && g.id !== `${d.resourceId}:${d.subjectId}`)) bad();
+  }
   const mine = (v: unknown): boolean => {
     const p = checkAuthor(v as never);
     return p.kind === subject.kind && p.name === subject.id;
@@ -104,7 +124,7 @@ async function plan(subject: DocumentsAccountSubject, deps: DocumentsAccountDeps
     const resource = byResource.get(id);
     if (resource && (typeof resource.type !== "string" || !/^[a-z][a-z0-9_-]*$/.test(resource.type))) bad();
     const isDocument = !resource || resource.type === "docs";
-    if (!(isDocument ? ID : RESOURCE_ID).test(id) || (!isDocument && catalog.some(c => c.id === id))) bad();
+    if (!(isDocument ? ID : RESOURCE_ID).test(id) || (!isDocument && documentIds.has(id))) bad();
     const ownGrants = grants.filter(g => g.data.resourceId === id);
     const madeInvites = invites.filter(i => i.data.resourceId === id && i.data.createdBy === subject.id);
     const held = ownGrants.filter(g => g.data.subjectKind === subject.kind && g.data.subjectId === subject.id);
@@ -164,8 +184,6 @@ async function plan(subject: DocumentsAccountSubject, deps: DocumentsAccountDeps
     }
     entries.push({ isDocument, depth: visited.size, madeInvites, id, info, cleanedInfo, blob, doc, changed, owned, sole, held, resource, authored: authored.length - before });
   }
-  // A grant that cannot be attributed to an app may hide this subject's data.
-  for (const g of grants) if (g.data.subjectId === subject.id && (!["human", "agent"].includes(g.data.subjectKind as string) || typeof g.data.resourceId !== "string" || (!byResource.has(g.data.resourceId) && !ids.has(g.data.resourceId)))) bad();
   entries.sort((a, b) => b.depth - a.depth);
   return { entries, authored, resources };
 }

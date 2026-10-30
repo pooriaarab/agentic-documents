@@ -7,8 +7,6 @@
 - Add the `./account` contributor for account export and repeatable erase.
 - Export full document state and history. Preserve co-owners and machine labels.
 
-## Unreleased
-
 ### Changed
 
 - The web UI opens a document full screen: a top bar with the way back, the title, Share, and a menu with Rename,
@@ -34,7 +32,6 @@
   dialogs (were `.adoc.form` and `.form-actions`). The form rules now apply page-wide, not under `.agd-doc`, since
   the dialogs render in a portal. `.editor-bar` and `.editor-host` are gone: the bar is `.agd-doc__bar` and the text sits in
   `.agd-paper`.
-
 
 ## 0.12.1
 
