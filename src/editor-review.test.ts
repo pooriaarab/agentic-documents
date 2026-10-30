@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Failure cases: ambiguous quotes, detached ranges, concurrent edits and decisions,
 // stale text, self decisions (including changed kinds), and empty/nested blocks.
-import { Editor } from "@tiptap/core";
+import { Editor, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Collaboration from "@tiptap/extension-collaboration";
 import { expect, test } from "vitest";
@@ -166,5 +166,29 @@ test("different overlapping suggestions accepted offline both remain after merge
   expect(bodyText(b)).toBe(bodyText(a));
   expect(ra.suggestions.map(s => s.status)).toEqual(["accepted", "accepted"]);
   expect(ra.problems()).toEqual([]);
+  ra.close(); rb.close();
+});
+
+test("selection mapping stays on the selected paragraph after a custom textblock", () => {
+  const doc = new Y.Doc();
+  const editor = new Editor({ extensions: [StarterKit.configure({ undoRedo: false }), Collaboration.configure({ document: doc }), Node.create({ name: "title", group: "block", content: "inline*", renderHTML: () => ["h2", 0] })] });
+  editor.commands.setContent({ type: "doc", content: ["title", "paragraph", "paragraph"].map(type => ({ type, content: [{ type: "text", text: "same" }] })) });
+  editor.commands.setTextSelection({ from: 7, to: 11 });
+  const result = anchorOf(editor, doc);
+  expect(result).toHaveProperty("anchor");
+  if ("anchor" in result) expect(resolveAnchor(doc, result.anchor)!.text.parent).toBe(doc.getXmlFragment("default").get(1));
+  editor.destroy();
+});
+
+test.each(["moon", ""])("duplicate accepts need no revert after their block is deleted: %j", replacement => {
+  const a = fresh("Hello world\n\nKeep"), ra = createReview(a, person);
+  const s = ra.suggest(anchorForQuote(a, "world")!, replacement, bot);
+  const b = copy(a), c = copy(a), rb = createReview(b, person);
+  ra.decide(s.id, true); rb.decide(s.id, true);
+  c.getXmlFragment("default").delete(0, 1);
+  Y.applyUpdate(a, Y.encodeStateAsUpdate(c)); Y.applyUpdate(b, Y.encodeStateAsUpdate(c));
+  sync(a, b); sync(a, b);
+  expect(bodyText(a)).toBe("Keep"); expect(bodyText(b)).toBe("Keep");
+  expect(ra.problems()).toEqual([]); expect(rb.problems()).toEqual([]);
   ra.close(); rb.close();
 });

@@ -1,6 +1,7 @@
 import { Actor, Comments, CommentsError, Suggestions, authorLabel, textAnchor, textOf } from "agentic-comments";
 import type { Author, RelativePositionJson, SuggestionHost, TextAnchor } from "agentic-comments";
 import type { Editor } from "@tiptap/core";
+import { ySyncPluginKey } from "@tiptap/y-tiptap";
 import * as Y from "yjs";
 
 export { Actor, CommentsError, stamp } from "agentic-comments";
@@ -20,9 +21,6 @@ function textBlocks(doc: Y.Doc): Y.XmlElement[] {
   walk(doc.getXmlFragment("default"));
   return out;
 }
-
-const blocks = (doc: Y.Doc): (Y.XmlText | null)[] => textBlocks(doc).map(block =>
-  block.toArray().find((c): c is Y.XmlText => c instanceof Y.XmlText) ?? null);
 
 const textRuns = (doc: Y.Doc): Y.XmlText[] => textBlocks(doc).flatMap(block =>
   block.toArray().filter((child): child is Y.XmlText => child instanceof Y.XmlText));
@@ -56,13 +54,10 @@ export function anchorOf(editor: Editor, doc: Y.Doc): { anchor: TextAnchor; quot
   if (parent !== $to.parent || !parent.isTextblock || !plain) {
     return { problem: "Select text inside one line of text, with no image or line break." };
   }
-  let index = -1, seen = 0;
-  editor.state.doc.descendants(node => {
-    if (node === parent) index = seen;
-    if (node.isTextblock) seen += 1;
-    return index < 0 && !node.isTextblock;
-  });
-  const text = blocks(doc)[index];
+  const binding = ySyncPluginKey.getState(editor.state)?.binding;
+  const block = binding?.doc === doc ? [...binding.mapping].find(([type, node]) => type instanceof Y.XmlElement && node === parent)?.[0] : null;
+  const text = block instanceof Y.XmlElement && textBlocks(doc).includes(block)
+    ? block.toArray().find((child): child is Y.XmlText => child instanceof Y.XmlText) : null;
   if (!text) return { problem: "That text could not be pinned. Select it again." };
   const start = from - $from.start();
   const quote = textOf(text).slice(start, start + to - from);
@@ -108,8 +103,12 @@ const host: SuggestionHost = {
   },
   revert(receipt, { ydoc }) {
     const { start, text } = (receipt ?? {}) as Partial<Receipt>;
-    const at = start && typeof text === "string" ? Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(start), ydoc) : null;
-    if (!at || !(at.type instanceof Y.XmlText) || !textRuns(ydoc).includes(at.type) || textOf(at.type).slice(at.index, at.index + text!.length) !== text) {
+    if (!start || typeof text !== "string") throw new Error("The receipt is invalid.");
+    if (text === "") return;
+    const at = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(start), ydoc);
+    // The duplicate is already gone when its block was deleted on another replica.
+    if (!at || !(at.type instanceof Y.XmlText) || !textRuns(ydoc).includes(at.type)) return;
+    if (textOf(at.type).slice(at.index, at.index + text.length) !== text) {
       throw new Error("The receipt does not match the document.");
     }
     at.type.delete(at.index, text!.length);

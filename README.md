@@ -927,7 +927,8 @@ the document.
 
 Import `agentic-documents/review` to bind `agentic-comments` to the editor's
 Yjs document. The editor must use the `default` collaboration field. This entry
-has no React runtime dependency. It uses separate review maps from the document
+has no React runtime dependency. Use this entry's exported `stamp` to make actors;
+it bundles the comments engine for browser use. It uses separate review maps from the document
 SDK's `Threads` and `Suggestions`; it does not migrate those records.
 
 ```ts
