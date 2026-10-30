@@ -140,10 +140,14 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(500);
   // A selection scrolled fully out of view has no menu.
-  await page.keyboard.press("Shift+ArrowLeft"); // a selection at the end only
   await page.keyboard.press("Control+End");
   await page.keyboard.press("Shift+ArrowLeft");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(".");
+  // The old menu can still be visible while selectionUpdate queues its next
+  // placement. Let that frame and its render finish before moving the focus.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(bubble).toBeVisible();
+  await expect(textbox(page)).toBeFocused();
   // With the focus in it, it stays, so the focus is not lost.
   await page.keyboard.press("Alt+F10");
   await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
