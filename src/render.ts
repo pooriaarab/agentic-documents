@@ -1,7 +1,7 @@
 import type { AgenticDoc } from "./doc.js";
 import type { PmNode } from "./markdown.js";
 
-export const EXPORT_FORMATS = ["md", "html", "odt"] as const;
+export const EXPORT_FORMATS = ["md", "html", "odt", "docx"] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
 
 export interface ExportOptions {

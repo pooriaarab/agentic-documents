@@ -1,6 +1,6 @@
 {
   "name": "agentic-documents",
-  "version": "0.13.2",
+  "version": "0.14.0",
   "description": "Write documents with people and agents in real time.",
   "keywords": [
     "documents",

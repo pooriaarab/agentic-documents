@@ -222,6 +222,12 @@ export class LiveService implements DocAccess {
     await this.call("/api/v1/docs", { method: "POST", body: { id, markdown } });
   }
 
+  async import(id: string, data: string, format: "odt" | "docx"): Promise<{ id: string; warnings: string[] }> {
+    const result = await (await this.call(`/api/v1/docs/${encodeURIComponent(id)}/import`, { method: "POST", body: { format, encoding: "base64", data } })).json() as { id?: unknown; warnings?: unknown } | null;
+    if (!result || result.id !== id || !Array.isArray(result.warnings) || !result.warnings.every((w) => typeof w === "string")) throw new DocError("INVALID_INPUT", "the server sent an import result that is not valid");
+    return { id, warnings: result.warnings };
+  }
+
   // The catalog lives in the store, not in a room, so these go to the HTTP API.
   async list(): Promise<DocSummary[]> {
     const body: unknown = await (await this.call("/api/v1/docs", { method: "GET" })).json().catch(() => undefined);

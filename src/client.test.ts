@@ -223,3 +223,21 @@ describe("client against the real Worker", () => {
     expect(readFileSync("src/client.ts", "utf8").match(/^import .*$/gm)?.every((l) => l.startsWith("import type"))).toBe(true);
   });
 });
+
+test("ODT and DOCX imports use token authors through HTTP and live forwarding", async () => {
+  const { LiveService } = await import("./live.js");
+  const bot = as(BOT);
+  await bot.create({ id: "file-source", markdown: "# File\n\nKeep **this** text." });
+  const markdown = await bot.read("file-source");
+  for (const format of ["odt", "docx"] as const) {
+    const bytes = await bot.export("file-source", { format });
+    const data = Buffer.from(bytes).toString("base64");
+    expect(await bot.import(`file-${format}`, { format, encoding: "base64", data })).toEqual({ id: `file-${format}`, warnings: [] });
+    expect(await bot.read(`file-${format}`)).toBe(markdown);
+    expect((await bot.edits(`file-${format}`))[0].author).toMatchObject({ kind: "agent_of_human", name: "scribe" });
+    const live = new LiveService({ server: server.url, token: BOT });
+    expect(await live.import(`live-file-${format}`, data, format)).toEqual({ id: `live-file-${format}`, warnings: [] });
+    expect(await bot.read(`live-file-${format}`)).toBe(markdown);
+    await expect(as(VIEWER).import(`denied-file-${format}`, { format, encoding: "base64", data })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  }
+});

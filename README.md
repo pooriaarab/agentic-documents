@@ -810,8 +810,14 @@ Limits of live editing:
   (tokens) and an MCP server that a trusted host starts fix the author for the caller.
 - Suggestions work on text, not on whole sections.
 - A scope on a principal is trusted as given. Nothing here proves who a caller is.
-- The `export` command covers Markdown, HTML, and ODT. DOCX export, and ODT and DOCX import, are in
-  `agentic-documents/formats` only.
+- The `export` command covers Markdown, HTML, ODT, and DOCX. The `import` command creates a new document
+  from ODT or DOCX. Pass `format`, `encoding: "base64"`, and canonical base64 `data` to HTTP, MCP,
+  or `client.import(id, input)`. CLI: `import <id> --format docx --file <path>`. Imports return
+  `{ id, warnings }`. The caller is the author. Existing ids are refused. Files are limited to 8 MiB
+  before base64 encoding; HTTP import JSON is limited to the encoded cap plus 1024 bytes. Archive
+  expansion and XML limits come from `agentic-formats`. Malformed or oversized files fail with
+  `INVALID_INPUT` and create no document. Export warnings use stderr in CLI, `warnings` in MCP,
+  and the `x-export-warnings` JSON header in HTTP. The HTTP client export returns text or bytes.
 - File formats through `agentic-documents/formats`: a quote becomes plain paragraphs, a code block becomes a paragraph
   of code text, a horizontal rule is left out, a numbered list starts at 1, and a task list becomes a list that starts
   each item with `☐` or `☑`. On import, underline, superscript, and subscript are left out, and a footnote becomes

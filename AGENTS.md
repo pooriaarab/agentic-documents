@@ -44,7 +44,8 @@ change it in a call.
 | `doc_grants`, `doc_grant`, `doc_revoke` | List, give, and take away a role (`viewer`, `commenter`, `editor`, `owner`). `to` is `human:<id>` or `agent:<id>`. |
 | `doc_invites`, `doc_invite` | List invites. Invite by `email`, or an agent by `handle`. |
 | `doc_link`, `doc_unlink` | Make a share link token (it shows once), or revoke a link by id. |
-| `doc_export` | Export as `md`, `html`, or `odt` (base64 file). |
+| `doc_export` | Export as `md`, `html`, `odt`, or `docx` (binary files use base64). |
+| `doc_import` | Create from ODT/DOCX: `format`, `encoding: "base64"`, `data`; max 8 MiB decoded. Returns warnings. |
 
 Only an owner shares a document. Over HTTP every caller needs the `docs:admin` scope. In local mode, an agent needs it in the CLI and the MCP server too. A refusal is `FORBIDDEN`. Never try to
 grant yourself a role. Roles are stored, but reads and writes do not check them yet, nothing opens a link token, and

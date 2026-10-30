@@ -2,6 +2,7 @@ import type { PrincipalContext } from "agentic-identity";
 import { z } from "zod";
 import { DocError, type Principal, type Target, type TextTarget } from "./doc.js";
 import { EXPORT_FORMATS, exportDoc } from "./export.js";
+import { MAX_IMPORT_BASE64 } from "./formats.js";
 import { Suggestions, Threads } from "./review.js";
 import type { DocAccess } from "./service.js";
 import { contextOf, INVITE_ROLES, parseSubject, ROLES } from "./share.js";
@@ -83,6 +84,10 @@ export const commands: Command[] = [
     await s.create(i.id, i.markdown ?? "", a, c);
     return { id: i.id };
   }),
+  command("import", "Create a document from an ODT or DOCX file. Pass canonical base64 data (at most 8 MiB decoded). Returns loss warnings. The caller is the author.", false,
+    { id, format: z.enum(["odt", "docx"]), encoding: z.literal("base64"), data: z.string().max(MAX_IMPORT_BASE64) }, async (s, i, a, c) => {
+      return s.import(i.id, i.data, i.format, a, c);
+    }),
   command("list", "List documents with their titles, creators, and last edits.", true, {}, (s) => s.list()),
   command("rename", "Give a document a title. The text stays.", false, { id, title: z.string().describe("1 to 120 characters of plain text.") }, async (s, i, a) => {
     await s.rename(i.id, i.title, a);
@@ -145,7 +150,7 @@ export const commands: Command[] = [
   command("threads", "List comment threads with their messages.", true, { id, status: z.enum(["open", "resolved"]).optional() }, (s, i) =>
     s.read(i.id, (d) => new Threads(d).list({ status: i.status })),
   ),
-  command("export", "Export the document as Markdown (md), self-contained HTML (html), or OpenDocument text (odt, base64). HTML shows no remote image unless remoteImages is true.", true, { id, format: z.enum(EXPORT_FORMATS), remoteImages: z.union([z.boolean(), z.enum(["true", "false"])]).optional() }, (s, i) =>
+  command("export", "Export the document as Markdown (md), self-contained HTML (html), OpenDocument text (odt, base64), or Word (docx, base64). HTML shows no remote image unless remoteImages is true.", true, { id, format: z.enum(EXPORT_FORMATS), remoteImages: z.union([z.boolean(), z.enum(["true", "false"])]).optional() }, (s, i) =>
     s.read(i.id, (d) => exportDoc(d, i.format, { remoteImages: i.remoteImages === true || i.remoteImages === "true" })),
   ),
   command("grants", "List who holds a role on a document." + OWNER_ONLY, true, { id }, (s, i, a, c) => s.sharing.grants(c ?? contextOf(a), i.id)),

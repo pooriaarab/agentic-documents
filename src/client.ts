@@ -151,6 +151,9 @@ export function createClient(options: ClientOptions) {
     me: (call?: CallOptions) => get<Me>("/api/v1/me", {}, (v) => isObject(v) && typeof v.kind === "string" && typeof v.name === "string" && Array.isArray(v.scopes) && (v.role === "editor" || v.role === "viewer"), "the token identity", call),
     /** `POST /api/v1/docs`. */
     create: (input: { id: string; markdown?: string }, call?: CallOptions) => withKey<{ id: string }>("/api/v1/docs", input, "id", call),
+    /** `POST /import`: create from canonical base64 ODT/DOCX, up to 8 MiB decoded. */
+    import: (id: string, input: { format: "odt" | "docx"; encoding: "base64"; data: string }, call?: CallOptions) =>
+      post<{ id: string; warnings: string[] }>(`${doc(id)}/import`, input, (v) => isObject(v) && typeof v.id === "string" && Array.isArray(v.warnings) && v.warnings.every((w) => typeof w === "string"), "{ id, warnings }", call),
     /** `GET /api/v1/docs`: documents with titles, creators, and last edits. */
     list: (call?: CallOptions) => list<DocSummary>("/api/v1/docs", {}, call),
     /** `POST /rename`: give a document a title. */
@@ -177,12 +180,12 @@ export function createClient(options: ClientOptions) {
     resolve: (id: string, input: { thread: string }, call?: CallOptions) => ok(`${doc(id)}/resolve`, input, call),
     reopen: (id: string, input: { thread: string }, call?: CallOptions) => ok(`${doc(id)}/reopen`, input, call),
     threads: (id: string, input: { status?: Thread["status"] } = {}, call?: CallOptions) => list<Thread>(`${doc(id)}/threads`, input, call),
-    /** `GET /export`. `md` and `html` return text. `odt` returns the file bytes. */
+    /** `GET /export`. `md` and `html` return text. `odt` and `docx` return the file bytes. */
     export: (async (id: string, input: { format: ExportFormat; remoteImages?: boolean }, call?: CallOptions) => {
-      const response = await send(`${doc(id)}/export`, { method: "GET", query: input }, call, { md: "text/markdown", html: "text/html", odt: "application/vnd.oasis.opendocument.text" }[input.format]);
-      return input.format === "odt" ? new Uint8Array(await response.arrayBuffer()) : response.text();
+      const response = await send(`${doc(id)}/export`, { method: "GET", query: input }, call, { md: "text/markdown", html: "text/html", odt: "application/vnd.oasis.opendocument.text", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }[input.format]);
+      return (input.format === "odt" || input.format === "docx") ? new Uint8Array(await response.arrayBuffer()) : response.text();
     }) as {
-      (id: string, input: { format: "odt"; remoteImages?: boolean }, call?: CallOptions): Promise<Uint8Array>;
+      (id: string, input: { format: "odt" | "docx"; remoteImages?: boolean }, call?: CallOptions): Promise<Uint8Array>;
       (id: string, input: { format: "md" | "html"; remoteImages?: boolean }, call?: CallOptions): Promise<string>;
       (id: string, input: { format: ExportFormat; remoteImages?: boolean }, call?: CallOptions): Promise<string | Uint8Array>;
     },

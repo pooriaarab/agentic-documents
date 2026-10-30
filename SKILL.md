@@ -30,7 +30,7 @@ Tools are named `doc_<command>`: `doc_read`, `doc_outline`, `doc_replace`, `doc_
 ## Use the library exports
 
 - `commands` is the command table that the CLI, MCP, and HTTP API read. Each command runs over a `new DocsService({ blobs, store })`, built from `createFileBlobs(join(dir, "blobs"))` and `createFileStore(join(dir, "store"))`, as the CLI does.
-- `exportDoc(doc, "md" | "html" | "odt")` returns `{ encoding, data, warnings }`. `exportOdt(blocks)` returns the bytes of an `.odt` file.
+- `exportDoc(doc, "md" | "html" | "odt" | "docx")` returns `{ encoding, data, warnings }`. `exportOdt(blocks)` returns the bytes of an `.odt` file.
 - `Threads` holds comments. `Suggestions` holds suggested edits. Nobody accepts their own suggestion.
 - The README section "Library API" lists every root export with an example.
 
@@ -41,3 +41,5 @@ Tools are named `doc_<command>`: `doc_read`, `doc_outline`, `doc_replace`, `doc_
 - Read the outline, then the section, before you edit.
 - On an ambiguous match, pass `occurrence`.
 - Report errors as failures.
+
+`doc_import` creates a document from ODT/DOCX. Pass `id`, `format`, `encoding: "base64"`, and canonical base64 `data`. The decoded file cap is 8 MiB. Read the returned `warnings`. The caller is the author.

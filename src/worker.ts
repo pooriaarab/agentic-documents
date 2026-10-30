@@ -5,6 +5,7 @@ import { D1_SCHEMA, createD1Store, createR2Blobs, type D1Like, type R2Like } fro
 import type { Realtime, Role } from "agentic-realtime";
 import { commands, type Command } from "./commands.js";
 import { DocError, parseAuthor, type DocErrorCode, type Principal } from "./doc.js";
+import { MAX_IMPORT_BASE64 } from "./formats.js";
 import type { ExportResult } from "./export.js";
 import { DocsService, MAX_LIVE_BYTES } from "./service.js";
 import { safeContextOf } from "./share.js";
@@ -275,7 +276,7 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
       if (command.name === "export") {
         const { data, contentType, encoding, format, warnings } = result as ExportResult;
         const images = input.remoteImages === true || input.remoteImages === "true" ? "data: https:" : "data:";
-        const disposition: Record<string, string> = format === "odt" ? { "content-disposition": `attachment; filename="${input.id}.odt"` } : {};
+        const disposition: Record<string, string> = encoding === "base64" ? { "content-disposition": `attachment; filename="${input.id}.${format}"` } : {};
         // A JSON list with non-ASCII escaped, so the value is a legal header.
         const lost: Record<string, string> = warnings.length ? { "x-export-warnings": JSON.stringify(warnings).replace(/[^\x20-\x7e]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`) } : {};
         const headers = { ...disposition, ...lost, "content-type": contentType, "content-security-policy": `default-src 'none'; style-src 'unsafe-inline'; img-src ${images}; sandbox` };
@@ -290,7 +291,13 @@ export function createApp(source: ServiceSource, options: AppOptions = {}): Hono
   }
 
   async function body(c: Context): Promise<Record<string, unknown>> {
-    const parsed: unknown = await c.req.json().catch(() => undefined);
+    const parsed: unknown = c.req.path.endsWith("/import")
+      ? await (async () => {
+        const bytes = await readCapped(c.req.raw, MAX_IMPORT_BASE64 + 1024);
+        try { return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); }
+        catch { throw new DocError("INVALID_INPUT", "the body must be JSON"); }
+      })()
+      : await c.req.json().catch(() => undefined);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       throw new DocError("INVALID_INPUT", "the body must be a JSON object");
     }

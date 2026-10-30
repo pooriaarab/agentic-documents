@@ -1,14 +1,30 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { createFileBlobs, createFileStore } from "./adapters/file-store.js";
 import { commands } from "./commands.js";
+import { MAX_IMPORT_BYTES } from "./formats.js";
 import { DocError, parseAuthor } from "./doc.js";
 import type { ExportResult } from "./export.js";
 import { LiveService, whoAmI } from "./live.js";
 import { DocsService, type DocAccess } from "./service.js";
 import { VERSION } from "./version.js";
+
+function readImportFile(path: string): Buffer {
+  const fd = openSync(path, "r");
+  try {
+    const bytes = Buffer.alloc(MAX_IMPORT_BYTES + 1);
+    let size = 0;
+    while (size < bytes.length) {
+      const count = readSync(fd, bytes, size, bytes.length - size, null);
+      if (count === 0) break;
+      size += count;
+    }
+    if (size > MAX_IMPORT_BYTES) throw new DocError("INVALID_INPUT", "the file is too large");
+    return bytes.subarray(0, size);
+  } finally { closeSync(fd); }
+}
 
 const NAME = "agentic-documents";
 const flagNames = [...new Set(commands.flatMap((c) => Object.keys(c.shape)))].filter((k) => k !== "id");
@@ -121,7 +137,11 @@ export async function main(argv: string[], env = process.env): Promise<number> {
   const { as: _as, scopes: _scopes, dir: _dir, live: _live, file, out, help: _help, version: _version, ...fields } = values;
   const input: Record<string, unknown> = { ...(command.shape.id ? { id } : {}), ...fields };
   try {
-    if (file !== undefined) {
+    if (file !== undefined && name === "import") {
+      if (input.data !== undefined || input.encoding !== undefined) throw new DocError("INVALID_INPUT", "pass --file or --data with --encoding, not both");
+      input.data = readImportFile(file).toString("base64");
+      input.encoding = "base64";
+    } else if (file !== undefined) {
       const key = "content" in command.shape ? "content" : "markdown" in command.shape ? "markdown" : undefined;
       if (!key) throw new DocError("INVALID_INPUT", `"${name}" takes no --file`);
       if (key in input) throw new DocError("INVALID_INPUT", `pass --file or --${key}, not both`);

@@ -39,7 +39,8 @@ const until = async (check: () => boolean, what: string) => {
   if (!check()) throw new Error(`timed out waiting for ${what}`);
 };
 
-describe("sharing from the CLI and the MCP server in live mode", { timeout: 30_000 }, () => {
+// This flow starts more than 30 CLI processes against the Worker.
+describe("sharing from the CLI and the MCP server in live mode", { timeout: 90_000 }, () => {
   test("the owner shares through the server, and others get FORBIDDEN", async () => {
     expect((await cli(["new", "share-live", "--markdown", "# S"], ADA)).code).toBe(0);
     expect((await cli(["grant", "share-live", "--to", "agent:robot", "--role", "viewer"], ADA)).code).toBe(0);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0
+
+### Added
+
+- Export DOCX and import ODT/DOCX through CLI, MCP, HTTP, and the HTTP client.
+- Refuse malformed files, noncanonical base64, and files above 8 MiB. Return import loss warnings.
+
 ## 0.13.2
 
 ### Changed

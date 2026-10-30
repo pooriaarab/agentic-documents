@@ -1,4 +1,5 @@
 import * as Y from "yjs";
+import { decodeImport, importFile, MAX_IMPORT_BYTES } from "./formats.js";
 import { AgenticDoc, DocError, PRINCIPAL_KINDS, type DocOptions, type Principal, type PrincipalKind } from "./doc.js";
 import type { Blobs, PrincipalContext, Store } from "agentic-identity";
 import { isPerson, Suggestions, Threads } from "./review.js";
@@ -57,6 +58,8 @@ export interface DocsPorts {
 export interface DocAccess {
   /** `context` is the sign-in of the author. Without it, the author alone sets who owns the document. */
   create(id: string, markdown: string, author: Principal, context?: PrincipalContext): Promise<void>;
+  /** Create from bounded canonical base64 ODT/DOCX without a Markdown conversion. */
+  import(id: string, data: string, format: "odt" | "docx", author: Principal, context?: PrincipalContext): Promise<{ id: string; warnings: string[] }>;
   read<T>(id: string, run: (doc: AgenticDoc) => T): Promise<T>;
   write<T>(id: string, run: (doc: AgenticDoc) => T, author?: Principal): Promise<T>;
   list(): Promise<DocSummary[]>;
@@ -90,8 +93,18 @@ export class DocsService implements DocAccess {
   }
 
   async create(id: string, markdown: string, author: Principal, context?: PrincipalContext): Promise<void> {
+    return this.createDoc(id, AgenticDoc.fromMarkdown(markdown, author, this.options), author, context);
+  }
+
+  async import(id: string, data: string, format: "odt" | "docx", author: Principal, context?: PrincipalContext): Promise<{ id: string; warnings: string[] }> {
+    const imported = importFile(decodeImport(data), format, author, { limits: { maxInputBytes: MAX_IMPORT_BYTES }, doc: this.options });
+    await this.createDoc(id, imported.doc, author, context);
+    return { id, warnings: imported.warnings };
+  }
+
+  private async createDoc(id: string, doc: AgenticDoc, author: Principal, context?: PrincipalContext): Promise<void> {
     const key = this.key(id);
-    const created = await this.blobs.put(key, AgenticDoc.fromMarkdown(markdown, author, this.options).encode(), { ifNoneMatch: "*" });
+    const created = await this.blobs.put(key, doc.encode(), { ifNoneMatch: "*" });
     if (!created) throw new DocError("DOCUMENT_EXISTS", `document "${id}" already exists`);
     await this.catalog(id, author);
     await this.registered(id, key, author, context);

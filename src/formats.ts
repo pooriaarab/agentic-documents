@@ -7,6 +7,19 @@ import type { PmNode } from "./markdown.js";
 import { DATA_IMAGE, fromBase64, toBase64 } from "./package.js";
 import { safeHref } from "./xml.js";
 
+/** The command surfaces accept at most 8 MiB before base64 encoding. */
+export const MAX_IMPORT_BYTES = 8 * 1024 * 1024;
+export const MAX_IMPORT_BASE64 = 4 * Math.ceil(MAX_IMPORT_BYTES / 3);
+
+/** Decode bounded canonical base64 before the archive reader allocates memory. */
+export function decodeImport(data: string): Uint8Array {
+  if (typeof data !== "string" || !data || data.length > MAX_IMPORT_BASE64 || data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new DocError("INVALID_INPUT", "data must be canonical base64 within the 8 MiB file cap");
+  const bytes = fromBase64(data);
+  if (bytes.length > MAX_IMPORT_BYTES) throw new DocError("INVALID_INPUT", "the file is too large");
+  if (toBase64(bytes) !== data) throw new DocError("INVALID_INPUT", "data must be canonical base64");
+  return bytes;
+}
+
 const IMPORT_FORMATS = ["md", "odt", "docx"] as const;
 export type ImportFormat = (typeof IMPORT_FORMATS)[number];
 const FILE_FORMATS = ["md", "html", "odt", "docx"] as const;
