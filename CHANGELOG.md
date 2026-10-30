@@ -23,7 +23,7 @@
   dialogs (were `.adoc.form` and `.form-actions`). The form rules now apply page-wide, not under `.agd-doc`, since
   the dialogs render in a portal. `.editor-bar` and `.editor-host` are gone: the bar is `.agd-doc__bar` and the text sits in
   `.agd-paper`.
-- `agentic-design` moves from `^0.6.0` to `^0.9.0`, so an app that uses `agentic-design` 0.9.0 shares one copy with this package, instead of nesting a second copy. `agentic-design` 0.7.0 adds a `secondary` prop to `AppShell`, fixes the top bar on small screens, and keeps the remote cursor name tag inside the screen. 0.7.1 makes `agentic-design-mcp mcp --help` and `--version` exit instead of hanging. 0.8.0 adds `DataTable`. 0.9.0 adds search, filters, grouping, ordering, and hidden columns to `DataTable`, with an announcement of the new row count, and an `AppSidebar`. This package uses none of these new props or components. Its type check, unit tests, and end-to-end tests pass with 0.9.0, including the WCAG 2.2 AA checks on every view. The lockfile has one copy of `agentic-design`, at 0.9.0.
+- `agentic-design` moves from `^0.6.0` to `^0.9.0`, so apps can share one copy at 0.9.0. This package does not use the new props or components.
 
 ## 0.12.1
 

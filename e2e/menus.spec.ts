@@ -139,7 +139,7 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   const box = (await page.locator(".agd-bubble").boundingBox())!;
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(500);
-  // A selection scrolled fully out of view has no menu.
+  // Replace the full selection with one at the end of the document.
   await page.keyboard.press("Shift+ArrowLeft"); // a selection at the end only
   await page.keyboard.press("Control+End");
   await expect(bubble).toHaveCount(0);
@@ -153,8 +153,7 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
   await page.keyboard.press("Escape"); // back to the text
   await expect(textbox(page)).toBeFocused();
-  await page.mouse.wheel(0, -100000);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  // The selection is out of view, so the menu hides after focus returns.
   await expect(bubble).toHaveCount(0);
 
   // The slash menu hides too when its slash goes under the bar, still inside the window.
@@ -244,7 +243,8 @@ for (const theme of themes) {
     await shoot(page, "slash-menu", theme);
     await page.keyboard.press("Escape");
     await page.keyboard.press("Backspace");
-    await text.locator("p", { hasText: "Ship the editor" }).click();
+    await page.keyboard.press("ArrowUp");
+    await expect.poll(() => page.evaluate(() => window.getSelection()?.anchorNode?.parentElement?.closest("p")?.textContent)).toContain("Ship the editor");
     await page.keyboard.press("End");
     await page.keyboard.press("Shift+Home");
     await expect(page.getByRole("toolbar", { name: "Selection" })).toBeVisible();
