@@ -28,7 +28,7 @@ const keepImages = (nodes: PmNode[]): PmNode[] =>
  */
 export function setEditorMarkdown(editor: Editor, markdown: string): void {
   // A read-only editor never saves, so text put in it would only differ from the room.
-  if (!editor.isEditable) throw new TypeError("the editor is read only, so its text cannot be replaced");
+  if (!editor.isEditable) throw new TypeError("The editor is read only, so its text cannot be replaced");
   const content = keepImages(markdownToBlocks(markdown));
   const doc = { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
   const room = ySyncPluginKey.getState(editor.state) as { doc?: Y.Doc } | undefined;
