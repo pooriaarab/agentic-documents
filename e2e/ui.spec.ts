@@ -126,7 +126,7 @@ test("create a document, type, reload, and a second browser sees the edit live",
   await ada.keyboard.press("Control+b");
   await ada.keyboard.type(" see docs");
   await ada.keyboard.press("Control+Shift+ArrowLeft");
-  await ada.getByRole("button", { name: "Link" }).click();
+  await ada.getByRole("toolbar", { name: "Formatting" }).getByRole("button", { name: "Link" }).click(); // the bubble menu has one too
   await ada.getByLabel("Address").fill("https://example.com/docs");
   await ada.getByRole("button", { name: "Apply" }).click();
   await expect(ada.getByRole("dialog")).toHaveCount(0);

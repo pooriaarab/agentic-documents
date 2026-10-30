@@ -5,7 +5,9 @@ This package reuses code and patterns from the projects below. Each is under the
 ## gitmarkdown
 
 - Source: https://github.com/pooriaarab/gitmarkdown, `src/components/editor/` and `src/lib/editor/`
-- Used in: `ui/toolbar.tsx` and `ui/editor.tsx`. The editor is a port: the tool set and the Tiptap setup.
+- Used in: `ui/toolbar.tsx`, `ui/editor.tsx`, `ui/slash.tsx`, and `ui/bubble.tsx`. The editor is a port: the tool
+  set, the Tiptap setup, the slash menu (its items and how it finds the slash), and the bubble menu (its placement over
+  the selection).
 - License: MIT
 
 ```
@@ -36,7 +38,8 @@ SOFTWARE.
 
 - Source: https://github.com/aboard-io/tinylittleoffice, `src/apps/write/style.css` and `src/styles/kit.css`
 - Used in: `ui/editor.css`. The page layout (the text as a page at the measure of a printed page, centered), the type
-  size and line height of the text, and a bar whose labels stay on one line and scroll sideways when narrow.
+  size and line height of the text, a bar whose labels stay on one line and scroll sideways when narrow, and the menu
+  item highlight.
 - License: MIT
 
 ```

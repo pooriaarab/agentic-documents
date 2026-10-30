@@ -67,6 +67,12 @@ whose images would take the document past the 1,000,000 byte limit of a live roo
 Delete, the theme, and Sign out. The tests check each main view with axe (WCAG 2.2 AA rules) in the light and the dark theme: sign in, list, empty and error list, new-document dialog, editor, share dialog, link, rename and delete dialogs, the actions menu, and the read-only view. Axe finds only part of the faults, so it does not replace a test with a screen reader. Screenshots of
 every view are in [docs/screenshots](docs/screenshots).
 
+Type `/` at the start of a line, or after a space, to add a block: a list box under the slash shows text, headings,
+lists, quote, code block, divider, table, and image. A word after the slash filters it. The arrow keys move in it,
+Enter or Tab picks, and Escape closes it. The text keeps the focus and names the active item for a screen reader.
+Select text to get a bubble menu with bold, italic, strikethrough, inline code, and link. Alt+F10 moves the focus
+into it, and Escape gives the focus back to the text. An empty document says how to start.
+
 Run it on your machine:
 
 ```sh
