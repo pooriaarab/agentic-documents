@@ -175,7 +175,7 @@ test("the slash menu opens the image dialog", async ({ browser }) => {
   await page.keyboard.press("Enter");
   await page.keyboard.type("/ima");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "Image" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Insert image" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(textbox(page)).not.toContainText("/ima");
   await page.context().close();
