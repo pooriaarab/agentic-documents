@@ -17,3 +17,7 @@ Keywords: documents, editor, rich-text, tiptap, yjs, collaboration, agents.
 
 - README: https://github.com/pooriaarab/agentic-documents
 - License: MIT
+
+- Review UI: import { ReviewPanel, CommentAnchor } from "agentic-documents/ui". Render with { doc: AgenticDoc, principal, writable: true, mode: "review" | "suggest", onAnchor? }. Use the editor host's same doc.ydoc; the host saves and syncs it. Default is read only. Both decisions require a different principal; agents also need docs:accept. Stale suggestions cannot be accepted. Machine authors are labeled. onAnchor reveals comment text in the host editor.
+- Assistant proposals: import { createAssistantSuggestions, type AssistantProposal, type AssistantSuggestions } from "agentic-documents". createAssistantSuggestions(doc, machinePrincipal).propose({ target: { text, occurrence? } | { anchor }, replacement }) returns a pending suggestion id. target.at inserts; empty replacement deletes. The port has no edit or decision methods and no provider calls. Errors throw. Agents never accept or reject their own proposals.
+- Browser hosts can import AgenticDoc, Anchor, Principal, createAssistantSuggestions, AssistantProposal, and AssistantSuggestions from agentic-documents/ui to avoid the root Node adapters.

@@ -24,3 +24,4 @@ export { createFileBlobs, createFileStore, type FileBlobsOptions } from "./adapt
 export { DocsService, type DocInfo, type DocsPorts } from "./service.js";
 export { exportOdt } from "./formats.js";
 export { contextOf, parseSubject, INVITE_ROLES, ROLES, SHARE_SCOPE, StoreSharing, type DocSharing, type GrantInput, type InviteInput, type LinkInput } from "./share.js";
+export { createAssistantSuggestions, type AssistantProposal, type AssistantSuggestions } from "./assistant.js";
