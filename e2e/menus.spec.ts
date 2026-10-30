@@ -245,9 +245,14 @@ for (const theme of themes) {
     await page.keyboard.press("Control+End");
     await page.keyboard.press("Escape");
     await page.keyboard.press("Backspace");
-    await text.locator("p").filter({ hasText: "Ship the editor" }).click();
+    // Target the known line: ArrowUp from an empty paragraph depends on the
+    // browser's remembered caret column and can leave the selection empty.
+    const sentence = "Ship the editor on Friday, then write the release notes.";
+    await text.locator("p", { hasText: sentence }).click();
+    await expect(text).toBeFocused();
     await page.keyboard.press("Home");
     await page.keyboard.press("Shift+End");
+    await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(sentence);
     await expect(page.getByRole("toolbar", { name: "Selection" })).toBeVisible();
     await expectAccessible(page);
     await shoot(page, "bubble-menu", theme);
