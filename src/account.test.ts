@@ -8,10 +8,10 @@ import { fromBase64 } from "./package.js";
 import { DocsService } from "./service.js";
 import { documentsAccount } from "./account.js";
 import { Threads, Suggestions } from "./review.js";
-const subject = { kind: "human", id: "ada" } as const;
-const ada = { kind: "human", name: "ada" } as const;
+const subject = { kind: "human", id: "account-subject-ada" } as const;
+const ada = { kind: "human", name: "account-subject-ada" } as const;
 const bob = { kind: "human", name: "bob" } as const;
-const ctx = { principalId: "ada", kind: "human", chain: [{ kind: "human", id: "ada" }], scopes: ["docs:admin"] } as const;
+const ctx = { principalId: "account-subject-ada", kind: "human", chain: [{ kind: "human", id: "account-subject-ada" }], scopes: ["docs:admin"] } as const;
 async function setup() {
   const deps = { store: createMemoryStore(), blobs: createMemoryBlobs() };
   const service = new DocsService(deps);
@@ -38,7 +38,7 @@ test("exports full blobs and history, deletes sole ownership, preserves shared o
   expect(await deps.store.get("grants", "shared:human:bob")).not.toBeNull();
   expect((await deps.store.query("invites")).items).toHaveLength(0);
   const bytes = (await deps.blobs.get("shared.ydoc"))!.data;
-  expect(new TextDecoder().decode(bytes)).not.toContain('ada');
+  expect(new TextDecoder().decode(bytes)).not.toContain('account-subject-ada');
   expect(await service.read("shared", d => d.toMarkdown())).toContain("Shared");
   expect(Object.values(await documentsAccount.eraseAccount(subject, deps)).every(n => n === 0)).toBe(true);
 });
@@ -75,15 +75,15 @@ test("host inventory finds uncataloged authored blobs and bad subjects fail", as
   const all = { ...deps, documentIds: async () => ["legacy"] };
   expect((await documentsAccount.exportAccount(subject, all)).authored.length).toBeGreaterThan(0);
   await documentsAccount.eraseAccount(subject, all);
-  expect(new TextDecoder().decode((await deps.blobs.get("legacy.ydoc"))!.data)).not.toContain("ada");
-  for (const kind of [undefined, "unknown"]) await expect(documentsAccount.exportAccount({ id: "ada", kind } as never, deps)).rejects.toThrow("subject");
+  expect(new TextDecoder().decode((await deps.blobs.get("legacy.ydoc"))!.data)).not.toContain("account-subject-ada");
+  for (const kind of [undefined, "unknown"]) await expect(documentsAccount.exportAccount({ id: "account-subject-ada", kind } as never, deps)).rejects.toThrow("subject");
 });
 
 test("an independent agent owns data and a person with the same id does not", async () => {
   const deps = { store: createMemoryStore(), blobs: createMemoryBlobs() };
-  await new DocsService(deps).create("agent-doc", "Agent data", { kind: "agent", name: "ada", scopes: ["docs:admin"] });
+  await new DocsService(deps).create("agent-doc", "Agent data", { kind: "agent", name: "account-subject-ada", scopes: ["docs:admin"] });
   expect((await documentsAccount.exportAccount(subject, deps)).documents).toHaveLength(0);
-  const agent = { id: "ada", kind: "agent" } as const;
+  const agent = { id: "account-subject-ada", kind: "agent" } as const;
   expect((await documentsAccount.exportAccount(agent, deps)).documents).toHaveLength(1);
   await documentsAccount.eraseAccount(agent, deps);
   expect(await deps.blobs.get("agent-doc.ydoc")).toBeNull();
@@ -97,7 +97,7 @@ test("an inherited co-owner prevents deletion", async () => {
   await deps.store.put("resources", "mine", { ...resource, parentId: "folder" });
   await documentsAccount.eraseAccount(subject, deps);
   expect(await deps.blobs.get("mine.ydoc")).not.toBeNull();
-  expect(await deps.store.get("grants", "mine:human:ada")).toBeNull();
+  expect(await deps.store.get("grants", "mine:human:account-subject-ada")).toBeNull();
   expect(await deps.store.get("grants", "folder:human:bob")).not.toBeNull();
 });
 
@@ -127,5 +127,5 @@ test("scrubs resolvers and acceptance records while preserving other authors", a
     expect(accepted.author).toEqual(bob);
     expect(accepted.decidedBy).toEqual({ kind: "human", name: "(erased)" });
   });
-  expect(new TextDecoder().decode((await deps.blobs.get("shared.ydoc"))!.data)).not.toContain("ada");
+  expect(new TextDecoder().decode((await deps.blobs.get("shared.ydoc"))!.data)).not.toContain("account-subject-ada");
 });
