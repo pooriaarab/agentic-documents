@@ -3,7 +3,7 @@
 import type { Editor } from "@tiptap/core";
 import { Button, Dialog, DialogClose, Input } from "agentic-design/react";
 import { useEffect, useState, type FormEvent } from "react";
-import { prosemirrorJSONToYDoc, ySyncPluginKey } from "@tiptap/y-tiptap";
+import { prosemirrorJSONToYXmlFragment, ySyncPluginKey } from "@tiptap/y-tiptap";
 import * as Y from "yjs";
 import { blocksToMarkdown, markdownToBlocks, type PmNode } from "../src/markdown.js";
 import { allowedSource, DOCUMENT_LIMIT } from "./image.js";
@@ -29,13 +29,24 @@ const keepImages = (nodes: PmNode[]): PmNode[] =>
 export function setEditorMarkdown(editor: Editor, markdown: string): void {
   const content = keepImages(markdownToBlocks(markdown));
   const doc = { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
-  // Many small blocks make a Yjs document much larger than its Markdown, so measure the document itself. The import
-  // deletes the old text and adds the new to the live document, and undo keeps what is deleted, so both count. Together
-  // they must stay within the room the image dialog allows, as a paste must.
-  const size = Y.encodeStateAsUpdate(prosemirrorJSONToYDoc(editor.schema, doc, "default")).byteLength;
   const room = ySyncPluginKey.getState(editor.state) as { doc?: Y.Doc } | undefined;
-  const now = room?.doc ? Y.encodeStateAsUpdate(room.doc).byteLength : 0;
-  if (size + now > DOCUMENT_LIMIT) throw new Error(`As a document it is about ${Math.ceil(size / 1024)} KB. With the ${Math.ceil(now / 1024)} KB this document has now, that is more than the ${Math.floor(DOCUMENT_LIMIT / 1024)} KB a live room keeps.`);
+  if (!room?.doc) throw new TypeError("The editor has no sync document, so its text cannot be replaced.");
+  const current = Y.encodeStateAsUpdate(room.doc);
+  // Keep deleted content as undo does. Reuse the live client id and clock, since new items can cost more than
+  // the same content built as a fresh document. Deleting all content gives a conservative replacement budget.
+  const scratch = new Y.Doc({ gc: false });
+  let size: number;
+  try {
+    Y.applyUpdate(scratch, current);
+    scratch.clientID = room.doc.clientID;
+    const fragment = scratch.getXmlFragment("default");
+    fragment.delete(0, fragment.length);
+    prosemirrorJSONToYXmlFragment(editor.schema, doc, fragment);
+    size = Y.encodeStateAsUpdate(scratch).byteLength;
+  } finally {
+    scratch.destroy();
+  }
+  if (size + 1024 > DOCUMENT_LIMIT) throw new Error(`The import would use about ${Math.ceil(size / 1024)} KB, including the ${Math.ceil(current.byteLength / 1024)} KB this document has now. That is more than the ${Math.floor(DOCUMENT_LIMIT / 1024)} KB a live room keeps.`);
   editor.chain().focus().setContent(doc.content).run();
 }
 
