@@ -4,7 +4,8 @@
 
 ### Changed
 
-- Allow agentic dependencies below version 1.0.0 and test with their latest releases.
+- Allow `agentic-design` >=0.9.0, `agentic-formats` >=0.4.2, `agentic-identity` >=0.9.0, and `agentic-realtime` >=0.4.4, all below 1.0.0. Test with versions 0.10.1, 0.4.4, 0.12.0, and 0.6.0, respectively.
+- Realtime 0.6.0 installs its own identity 0.10.0 because its range does not yet include 0.12.0.
 
 ## 0.13.1
 
