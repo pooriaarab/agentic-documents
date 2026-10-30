@@ -244,7 +244,11 @@ for (const theme of themes) {
     await page.keyboard.press("Escape");
     await page.keyboard.press("Backspace");
     await page.keyboard.press("ArrowUp");
-    await expect.poll(() => page.evaluate(() => window.getSelection()?.anchorNode?.parentElement?.closest("p")?.textContent)).toContain("Ship the editor");
+    await expect.poll(() => page.evaluate(() => {
+      const node = window.getSelection()?.anchorNode;
+      const element = node instanceof Element ? node : node?.parentElement;
+      return element?.closest("p")?.textContent ?? "";
+    })).toContain("Ship the editor");
     await page.keyboard.press("End");
     await page.keyboard.press("Shift+Home");
     await expect(page.getByRole("toolbar", { name: "Selection" })).toBeVisible();
