@@ -142,15 +142,19 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   // A selection scrolled fully out of view has no menu.
   await page.keyboard.press("Shift+ArrowLeft"); // a selection at the end only
   await page.keyboard.press("Control+End");
+  await expect(bubble).toHaveCount(0);
   await page.keyboard.press("Shift+ArrowLeft");
   await expect(bubble).toBeVisible();
   // With the focus in it, it stays, so the focus is not lost.
   await page.keyboard.press("Alt+F10");
   await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
   await page.mouse.wheel(0, -100000);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
   await page.keyboard.press("Escape"); // back to the text
+  await expect(textbox(page)).toBeFocused();
   await page.mouse.wheel(0, -100000);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(bubble).toHaveCount(0);
 
   // The slash menu hides too when its slash goes under the bar, still inside the window.
@@ -202,6 +206,7 @@ test("the bubble menu formats a selection, and Alt+F10 reaches it from the keybo
   await page.keyboard.press("Enter");
   await expect(text.locator("em")).toHaveText("Friday");
   await page.keyboard.press("Alt+F10");
+  await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(text).toBeFocused();
   await expect(bubble).toBeVisible(); // the selection is still there
@@ -239,7 +244,7 @@ for (const theme of themes) {
     await shoot(page, "slash-menu", theme);
     await page.keyboard.press("Escape");
     await page.keyboard.press("Backspace");
-    await page.keyboard.press("ArrowUp");
+    await text.locator("p", { hasText: "Ship the editor" }).click();
     await page.keyboard.press("End");
     await page.keyboard.press("Shift+Home");
     await expect(page.getByRole("toolbar", { name: "Selection" })).toBeVisible();
