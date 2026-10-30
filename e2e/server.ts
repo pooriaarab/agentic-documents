@@ -11,7 +11,7 @@ export default async function setup(): Promise<() => void> {
   const assets = mkdtempSync(join(tmpdir(), "agentic-documents-assets-"));
   cpSync("dist/ui", assets, { recursive: true });
   await build({
-    entryPoints: { "embed/app": "e2e/embed/main.ts", "embed/mount": "e2e/embed/mount.ts", "embed/host": "e2e/embed/host.ts" },
+    entryPoints: { "embed/review": "e2e/embed/review.tsx", "embed/app": "e2e/embed/main.ts", "embed/mount": "e2e/embed/mount.ts", "embed/host": "e2e/embed/host.ts" },
     outdir: assets,
     bundle: true,
     format: "esm",
@@ -24,6 +24,7 @@ export default async function setup(): Promise<() => void> {
   cpSync("e2e/embed/index.html", join(assets, "embed/index.html"));
   cpSync("e2e/embed/mount.html", join(assets, "embed/mount.html"));
   cpSync("e2e/embed/host.html", join(assets, "embed/host.html"));
+  cpSync("e2e/embed/review.html", join(assets, "embed/review.html"));
   const server = await liveServer(TOKENS, { assets });
   await server.start();
   process.env.E2E_URL = server.url;
