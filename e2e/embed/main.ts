@@ -15,7 +15,7 @@ const url = new URL(`/api/v1/docs/${encodeURIComponent(id)}/ws`, location.href);
 url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
 // With `extras`, the host adds a slash item, a bubble tool, and a keyboard shortcut, as an app with comments or an
 // assistant would. With `badext`, it adds a mark and a paragraph attribute, which the editor refuses.
-const seen: { comment?: string; shortcut?: boolean } = {};
+const seen: { comment?: string; shortcut?: boolean; error?: string } = {};
 const slashItems: SlashItem[] = [{ title: "Signature", description: "Sign the text", run: (e) => e.chain().focus().insertContent("Signed, the host").run() }];
 const bubbleActions: BubbleAction[] = [{ label: "Comment", icon: "C", run: (e) => void (seen.comment = e.state.doc.textBetween(e.state.selection.from, e.state.selection.to)) }];
 const extensions = [
@@ -41,6 +41,7 @@ const editor = mountEditor(document.getElementById("editor")!, {
   room: params.has("noroom") ? undefined : { url: url.toString(), token },
   ...(params.has("extras") ? { slashItems, bubbleActions, extensions } : {}),
   onEditor: (e) => void (current = e),
+  onError: (error) => void (seen.error = error instanceof Error ? error.message : String(error)),
 });
 const tryImport = () => {
   try {

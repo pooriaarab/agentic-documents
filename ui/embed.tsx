@@ -37,7 +37,7 @@ export interface DocumentEditorOptions extends EditorExtras {
   host?: HostDocument;
   /** Called with the editor when it is ready, and with null when it goes. The app can read the selection or the JSON, or insert content. */
   onEditor?: (editor: Editor | null) => void;
-  /** Called when the document cannot open, with the error. */
+  /** Called when the document cannot open or the editor stops, with the error. */
   onError?: (error: unknown) => void;
   /** Called when the editor closes a document, with a promise that settles when the last save and the leave are done. It rejects when that save fails. */
   onLeave?: (done: Promise<void>) => void;
@@ -131,7 +131,7 @@ const describe = (error: unknown): string => {
 };
 
 /** The editor on a document the app keeps. */
-function HostedEditor({ host, principal, onEditor, extras }: { host: HostDocument; principal: EmbedPrincipal; onEditor?: (editor: Editor | null) => void; extras: EditorExtras }) {
+function HostedEditor({ host, principal, onEditor, onError, extras }: { host: HostDocument; principal: EmbedPrincipal; onEditor?: (editor: Editor | null) => void; onError?: (error: unknown) => void; extras: EditorExtras }) {
   // The app may make the host object on each render. Only the document and the presence decide when to bind again.
   const latest = useRef(host);
   latest.current = host;
@@ -140,7 +140,7 @@ function HostedEditor({ host, principal, onEditor, extras }: { host: HostDocumen
     [host.doc, host.presence],
   );
   return (
-    <Boundary>
+    <Boundary onError={onError}>
       <Surface live={live} editable={principal.role === "editor"} principal={principal} onEditor={onEditor} extras={extras} />
     </Boundary>
   );
@@ -150,8 +150,8 @@ function HostedEditor({ host, principal, onEditor, extras }: { host: HostDocumen
 export function DocumentEditor(options: DocumentEditorOptions) {
   checkOptions(options);
   const extras: EditorExtras = { slashItems: options.slashItems, bubbleActions: options.bubbleActions, extensions: options.extensions };
-  if (options.host) return <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} extras={extras} />;
-  return <Boundary key={options.id}><StoredEditor {...options} client={options.client!} /></Boundary>;
+  if (options.host) return <HostedEditor host={options.host} principal={options.principal} onEditor={options.onEditor} onError={options.onError} extras={extras} />;
+  return <Boundary key={options.id} onError={options.onError}><StoredEditor {...options} client={options.client!} /></Boundary>;
 }
 
 /** The editor on a document that it loads and saves with the client. */

@@ -79,10 +79,13 @@ function carets(sync: NonNullable<LiveSession["sync"]>) {
 /** A host extension that changes what the stored document keeps. The editor shows its message. */
 export class ExtensionError extends TypeError {}
 
-export class Boundary extends Component<{ children: ReactNode }, { failed: boolean; message?: string }> {
+export class Boundary extends Component<{ children: ReactNode; onError?: (error: unknown) => void }, { failed: boolean; message?: string }> {
   state: { failed: boolean; message?: string } = { failed: false };
   static getDerivedStateFromError(error: unknown) {
     return { failed: true, message: error instanceof ExtensionError ? error.message : undefined };
+  }
+  componentDidCatch(error: unknown) {
+    this.props.onError?.(error);
   }
   render() {
     return this.state.failed ? (

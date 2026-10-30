@@ -435,6 +435,8 @@ const editor = mountEditor(document.getElementById("editor")!, {
     rebuild the editor. To apply new extensions at once, unmount the editor and mount it again.
     An extension that adds or changes a node, a mark, or an attribute stops the editor with a message that names it,
     since the stored document keeps only the nodes, marks, and attributes of `schema`.
+    If an extension stops the editor, `onError` gets the error. Fix the extension, then unmount and mount the editor
+    again. `update()` with the same document id does not clear a stopped editor.
   - `editorMarkdown(editor)` and `setEditorMarkdown(editor, markdown)` read and replace the text as Markdown,
     with the same Markdown conversion as the server. Import drops images that a paste would refuse.
     `setEditorMarkdown` throws if the editor is read only, has no sync document, or the projected Yjs state,

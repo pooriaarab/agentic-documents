@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { Editor } from "@tiptap/core";
+import { Mark, type Editor } from "@tiptap/core";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgenticDoc } from "../src/doc.js";
@@ -189,6 +189,25 @@ describe("mountEditor", () => {
     for (const [key, value] of invalid) expect(() => mounted!.update({ ...options, [key]: value } as never)).toThrow(key);
     expect(host.querySelector('[role="textbox"]')).toBe(box);
     expect(client.state).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a refused extension to the host and recovers after a remount", async () => {
+    const { client } = fakeClient("First");
+    const onError = vi.fn();
+    const options = { id: "plan", client, principal: ada, onError };
+    const bad = Mark.create({ name: "badMark", renderHTML: () => ["mark", 0] });
+    host = document.body.appendChild(document.createElement("div"));
+    await act(async () => void (mounted = mountEditor(host, { ...options, extensions: [bad] })));
+    await vi.waitFor(() => expect(host.querySelector('[role="alert"]')?.textContent).toContain("badMark"));
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("badMark") }));
+    await act(async () => mounted!.update({ ...options, extensions: [] }));
+    expect(host.querySelector('[role="textbox"]')).toBeNull();
+    await act(async () => mounted!.unmount());
+    mounted = undefined;
+    host.remove();
+    const box = await mount({ ...options, extensions: [] });
+    expect(box.textContent).toBe("First");
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 
   it("a missing document shows an error, calls onError, and Try again loads again", async () => {

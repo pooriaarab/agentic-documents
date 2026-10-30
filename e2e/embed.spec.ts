@@ -158,6 +158,7 @@ test("a host adds a slash item, a bubble tool, and a Tiptap extension, and one t
   await expect(bad.getByRole("alert")).toContainText("The editor stopped");
   await expect(bad.getByRole("alert")).toContainText("paragraph, image, hostHighlight"); // the message names what it refused
   await expect(bad.getByRole("textbox")).toHaveCount(0);
+  expect(await bad.evaluate(() => (window as unknown as { seen: { error?: string } }).seen.error)).toContain("hostHighlight");
   // A refused extension must leave its room. A new peer sees Ada, Vic, and itself, without the failed editor.
   const observer = await host(browser, ADA, id);
   await expect(observer.getByText("3 people", { exact: true })).toBeVisible();
