@@ -147,10 +147,13 @@ test("the bubble menu stays in the window when the selection runs past it", asyn
   // With the focus in it, it stays, so the focus is not lost.
   await page.keyboard.press("Alt+F10");
   await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
-  await page.mouse.wheel(0, -100000);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(bubble.getByRole("button", { name: "Bold" })).toBeFocused();
   await page.keyboard.press("Escape"); // back to the text
-  await page.mouse.wheel(0, -100000);
+  await expect(textbox(page)).toBeFocused();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await expect(bubble).toHaveCount(0);
 
   // The slash menu hides too when its slash goes under the bar, still inside the window.
