@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.2
+
+### Changed
+
+- Allow agentic dependencies below version 1.0.0 and test with their latest releases.
+
 ## 0.13.1
 
 ### Changed
