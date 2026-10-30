@@ -1,98 +1,175 @@
-/* The editor that `agentic-documents/ui` renders. Every rule sits under `.adoc`, so it does not touch the page around it.
-   Color, type, and space come from the agentic-design tokens: load `agentic-design/styles.css` first. */
-.adoc.muted, .adoc .muted { color: var(--agd-color-text-muted); font-size: var(--agd-font-size-sm); margin: 0; }
-.adoc.notice, .adoc .notice { max-width: var(--agd-size-content); }
-.adoc.form { display: grid; gap: var(--agd-space-4); }
-.adoc.form .form-actions { display: flex; gap: var(--agd-space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
-.adoc .editor-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--agd-space-4); flex-wrap: wrap; max-width: var(--agd-size-content); margin-block-end: var(--agd-space-3); }
-.adoc .editor-meta { display: flex; align-items: center; gap: var(--agd-space-4); flex-wrap: wrap; }
-.adoc .glyph { font-weight: var(--agd-font-weight-semibold); min-width: 1.25rem; text-align: center; }
-.adoc .glyph--b { font-weight: 800; }
-.adoc .glyph--i { font-style: italic; font-family: serif; }
-.adoc .editor-host { max-width: var(--agd-size-content); background: var(--agd-color-surface); border: 1px solid var(--agd-color-border); border-radius: var(--agd-radius-md); }
-.adoc .editor-host:focus-within { outline: 2px solid var(--agd-color-focus); outline-offset: 2px; }
-.adoc .prose { min-height: 20rem; padding: var(--agd-space-6); outline: none; line-height: var(--agd-line-height-normal); overflow-wrap: anywhere; }
-.adoc .prose > :first-child { margin-top: 0; }
-.adoc .prose h1 { font-size: var(--agd-font-size-2xl); line-height: var(--agd-line-height-tight); }
-.adoc .prose h2 { font-size: var(--agd-font-size-xl); line-height: var(--agd-line-height-tight); }
-.adoc .prose h3 { font-size: var(--agd-font-size-lg); }
-.adoc .prose a { color: var(--agd-color-accent-text); text-decoration: underline; }
-.adoc .prose blockquote { margin-inline: 0; padding-inline-start: var(--agd-space-4); border-inline-start: 3px solid var(--agd-color-border-strong); }
-.adoc .prose code { font-family: var(--agd-font-family-mono); background: var(--agd-color-surface-sunken); padding: 0 0.25em; border-radius: var(--agd-radius-sm); }
-.adoc .prose pre { background: var(--agd-color-surface-sunken); padding: var(--agd-space-3); border-radius: var(--agd-radius-md); overflow-x: auto; }
-.adoc .prose table { border-collapse: collapse; }
-.adoc .prose th, .adoc .prose td { border: 1px solid var(--agd-color-border-strong); padding: var(--agd-space-1) var(--agd-space-2); }
-.adoc .prose img { max-width: 100%; }
-/* A selected image is one node, and the next key replaces it. Show that it is selected. */
-.adoc .prose img.ProseMirror-selectednode { outline: 2px solid var(--agd-color-focus); outline-offset: 2px; }
-.adoc .prose ul[data-type="taskList"] { list-style: none; padding-inline-start: var(--agd-space-2); }
-.adoc .prose ul[data-type="taskList"] li { display: flex; gap: var(--agd-space-2); }
+/* The editor that `agentic-documents/ui` renders. Every rule sits under `.agd-doc`, so it does not touch the page around it,
+   except the `.agd-form` rules of the link and image dialogs, which render in a portal outside the editor.
+   Color, type, and space come from the agentic-design tokens: load `agentic-design/styles.css` first.
+   The page layout follows the Write app of tinylittleoffice (MIT, see THIRD_PARTY_NOTICES.md): the text is the page, not
+   a card on it, at the measure of a printed page, centered. */
+.agd-doc.agd-muted, .agd-doc .agd-muted { color: var(--agd-color-text-muted); font-size: var(--agd-font-size-sm); margin: 0; }
+.agd-doc.agd-notice, .agd-doc .agd-notice { max-width: var(--agd-size-content); }
+.agd-doc { display: flex; flex-direction: column; min-height: 0; }
+.agd-form { display: grid; gap: var(--agd-space-4); }
+.agd-form-actions { display: flex; gap: var(--agd-space-2); align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+
+/* The bar: the tools at the start, who is here and the save state at the end. It stays in view while the text scrolls.
+   A label in the bar is one line. When the window is narrow, the tools scroll sideways. */
+.agd-doc .agd-doc__bar {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--agd-space-3);
+  padding: var(--agd-space-1) var(--agd-space-4);
+  background: var(--agd-color-bg); border-block-end: 1px solid var(--agd-color-border);
+}
+.agd-doc .agd-doc__bar > [role="toolbar"] { min-width: 0; overflow-x: auto; scrollbar-width: thin; flex-wrap: nowrap; }
+.agd-doc .agd-doc__bar > [role="toolbar"] > * { flex: none; }
+/* Quiet tools: no frame around the bar, and a tool that cannot run now is dimmed, not boxed. */
+.agd-doc .agd-doc__bar > [role="toolbar"] { border-color: transparent; background: transparent; padding-inline: 0; }
+.agd-doc .agd-doc__bar [role="toolbar"] button:disabled { --button-bg: transparent; --button-bg-hover: transparent; --button-border: transparent; }
+.agd-doc .agd-doc__bar [role="toolbar"] > [role="group"] { margin-inline-start: var(--agd-space-3); }
+.agd-doc .agd-doc__bar [role="toolbar"] button.agd-style-button { width: auto; padding-inline: var(--agd-space-2); }
+.agd-doc .agd-doc__meta { display: flex; align-items: center; gap: var(--agd-space-3); flex: none; white-space: nowrap; }
+.agd-doc .agd-glyph { font-weight: var(--agd-font-weight-semibold); min-width: 1.25rem; text-align: center; white-space: nowrap; }
+.agd-doc .agd-glyph--b { font-weight: 800; }
+.agd-doc .agd-glyph--i { font-style: italic; font-family: serif; }
+.agd-doc .agd-glyph--s { text-decoration: line-through; }
+.agd-doc .agd-glyph--mono { font-family: var(--agd-font-family-mono); font-size: var(--agd-font-size-xs); }
+.agd-doc .agd-style { display: inline-flex; align-items: center; gap: var(--agd-space-1); min-width: 6.5rem; justify-content: space-between; }
+.agd-doc .agd-style .agd-glyph { font-weight: var(--agd-font-weight-medium); }
+@media (max-width: 720px) {
+  .agd-doc .agd-doc__bar { flex-wrap: wrap; }
+  .agd-doc .agd-doc__bar > [role="toolbar"] { flex-basis: 100%; order: 2; }
+}
+
+/* The page: its color runs the full width, and the words keep the measure of a page with its margin. */
+.agd-doc .agd-paper {
+  --agd-page-w: 51rem;
+  --agd-page-m: 6rem;
+  --agd-page-mx: clamp(1rem, 6vw, var(--agd-page-m));
+  flex: 1;
+  padding: clamp(1.25rem, 5vw, 4rem) max(var(--agd-page-mx), calc((100% - var(--agd-page-w)) / 2 + var(--agd-page-m)));
+  background: var(--agd-color-surface);
+}
+/* While the text has focus, a quiet rule in the margin says so, next to the caret. */
+.agd-doc .agd-paper__text { position: relative; }
+.agd-doc .agd-paper__text:focus-within::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: calc(-1 * min(1.5rem, var(--agd-page-mx) - 0.25rem)); width: 3px; border-radius: 2px; background: var(--agd-color-focus); }
+.agd-doc .agd-prose { min-height: 50dvh; outline: none; font-size: 1.0625rem; line-height: 1.6; overflow-wrap: anywhere; caret-color: var(--agd-color-accent); }
+.agd-doc .agd-prose > :first-child { margin-top: 0; }
+.agd-doc .agd-prose h1 { font-size: 2.25em; line-height: 1.15; letter-spacing: -0.02em; margin: 0.6em 0 0.4em; }
+.agd-doc .agd-prose h2 { font-size: 1.5em; line-height: var(--agd-line-height-tight); margin: 1.2em 0 0.4em; }
+.agd-doc .agd-prose h3 { font-size: 1.2em; line-height: var(--agd-line-height-tight); margin: 1em 0 0.3em; }
+.agd-doc .agd-prose p { margin: 0 0 0.75em; }
+.agd-doc .agd-prose a { color: var(--agd-color-accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.agd-doc .agd-prose blockquote { margin: 0 0 0.75em; padding-inline-start: var(--agd-space-4); border-inline-start: 3px solid var(--agd-color-border-strong); color: var(--agd-color-text-muted); }
+.agd-doc .agd-prose code { font-family: var(--agd-font-family-mono); font-size: 0.9em; background: var(--agd-color-surface-sunken); padding: 0.1em 0.3em; border-radius: var(--agd-radius-sm); }
+.agd-doc .agd-prose pre { background: var(--agd-color-surface-sunken); padding: var(--agd-space-3) var(--agd-space-4); border-radius: var(--agd-radius-md); overflow-x: auto; margin: 0 0 0.75em; }
+.agd-doc .agd-prose pre code { background: none; padding: 0; font-size: 0.875em; }
+.agd-doc .agd-prose hr { border: 0; border-block-start: 1px solid var(--agd-color-border-strong); margin: var(--agd-space-6) 0; }
+.agd-doc .agd-prose hr.ProseMirror-selectednode { border-color: var(--agd-color-focus); }
+.agd-doc .agd-prose table { border-collapse: collapse; width: 100%; margin: 0 0 0.75em; table-layout: fixed; }
+.agd-doc .agd-prose th, .agd-doc .agd-prose td { border: 1px solid var(--agd-color-border-strong); padding: var(--agd-space-1) var(--agd-space-2); vertical-align: top; position: relative; }
+.agd-doc .agd-prose th { background: var(--agd-color-surface-sunken); font-weight: var(--agd-font-weight-semibold); text-align: start; }
+.agd-doc .agd-prose td > p, .agd-doc .agd-prose th > p { margin: 0; }
+.agd-doc .agd-prose .selectedCell::after { content: ""; position: absolute; inset: 0; background: var(--agd-color-accent-subtle); pointer-events: none; opacity: 0.6; }
+.agd-doc .agd-prose .tableWrapper { overflow-x: auto; }
+.agd-doc .agd-prose img { max-width: 100%; height: auto; border-radius: var(--agd-radius-sm); }
+.agd-doc .agd-prose img.ProseMirror-selectednode { outline: 2px solid var(--agd-color-focus); outline-offset: 2px; }
+.agd-doc .agd-prose ul, .agd-doc .agd-prose ol { padding-inline-start: 1.5em; margin: 0 0 0.75em; }
+.agd-doc .agd-prose li > p { margin: 0.15em 0; }
+.agd-doc .agd-prose ul[data-type="taskList"] { list-style: none; padding-inline-start: 0.25em; }
+.agd-doc .agd-prose ul[data-type="taskList"] li { display: flex; gap: var(--agd-space-2); align-items: flex-start; }
+/* The check box of a task: a 16 px box drawn in a 24 px target, so a finger or a pointer hits it. */
+.agd-doc .agd-prose ul[data-type="taskList"] li > label { flex: none; display: flex; margin-block-start: 0.05em; margin-inline-start: -0.25rem; }
+.agd-doc .agd-prose ul[data-type="taskList"] li > label input { appearance: none; position: relative; width: 1.5rem; height: 1.5rem; margin: 0; cursor: pointer; background: none; border: 0; border-radius: var(--agd-radius-sm); }
+.agd-doc .agd-prose ul[data-type="taskList"] li > label input::before { content: ""; position: absolute; inset: 0.25rem; border: 1.5px solid var(--agd-color-border-strong); border-radius: 3px; background: var(--agd-color-surface); }
+.agd-doc .agd-prose ul[data-type="taskList"] li > label input:checked::before { background: var(--agd-color-accent); border-color: var(--agd-color-accent); }
+.agd-doc .agd-prose ul[data-type="taskList"] li > label input:checked::after { content: ""; position: absolute; left: 0.58rem; top: 0.4rem; width: 0.32rem; height: 0.58rem; border: solid var(--agd-color-text-on-accent); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.agd-doc .agd-prose ul[data-type="taskList"] li > label input:focus-visible { outline: 2px solid var(--agd-color-focus); outline-offset: 0; }
+.agd-doc .agd-prose ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
+.agd-doc .agd-prose ul[data-type="taskList"] li[data-checked="true"] > div { color: var(--agd-color-text-muted); text-decoration: line-through; }
+
+/* The empty text says how to start. */
+.agd-doc .agd-prose p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: inline-start; height: 0; color: var(--agd-color-text-muted); pointer-events: none; }
+
+/* The slash menu and the bubble menu float over the text. Their menu item highlight follows tinylittleoffice (MIT). */
+.agd-doc .agd-menu, .agd-doc .agd-bubble { position: fixed; z-index: 3; background: var(--agd-color-surface-raised); color: var(--agd-color-text); border: 1px solid var(--agd-color-border); border-radius: var(--agd-radius-md); box-shadow: var(--agd-shadow-floating); }
+.agd-doc .agd-menu { width: min(18rem, calc(100vw - 1rem)); padding: var(--agd-space-1); }
+.agd-doc .agd-menu ul { list-style: none; margin: 0; padding: 0; }
+.agd-doc .agd-menu__item { display: flex; align-items: center; gap: var(--agd-space-3); height: 2.5rem; padding: var(--agd-space-1) var(--agd-space-2); border-radius: var(--agd-radius-sm); cursor: pointer; }
+.agd-doc .agd-menu__item[aria-selected="true"] { background: var(--agd-color-surface-hover); box-shadow: inset 2px 0 0 var(--agd-color-accent); }
+.agd-doc .agd-menu__icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.75rem; height: 1.75rem; border: 1px solid var(--agd-color-border); border-radius: var(--agd-radius-sm); background: var(--agd-color-surface); }
+.agd-doc .agd-menu__words { display: flex; flex-direction: column; min-width: 0; line-height: var(--agd-line-height-snug); }
+.agd-doc .agd-menu__words > span { font-size: var(--agd-font-size-sm); font-weight: var(--agd-font-weight-medium); }
+.agd-doc .agd-menu__words small { color: var(--agd-color-text-muted); font-size: var(--agd-font-size-xs); }
+.agd-doc .agd-menu__more { margin: 0; padding: var(--agd-space-1) var(--agd-space-2) 0; color: var(--agd-color-text-muted); font-size: var(--agd-font-size-xs); }
+.agd-doc .agd-bubble { padding: 0; }
+.agd-doc .agd-bubble [role="toolbar"] { border: 0; background: transparent; }
+@media (prefers-reduced-motion: no-preference) {
+  .agd-doc .agd-menu, .agd-doc .agd-bubble { animation: agd-pop var(--agd-duration-fast) var(--agd-easing-out); }
+}
+@keyframes agd-pop { from { opacity: 0; transform: translateY(2px); } }
 
 /* Text an agent wrote: a dotted underline in the agent color and a tint. The legend and the title say it in words. */
-.adoc .agent-text { text-decoration: underline dotted 2px var(--agd-color-agent); text-underline-offset: 3px; background: var(--agd-color-agent-subtle); border-radius: 2px; }
-.adoc .legend { margin-block-start: var(--agd-space-3); }
+.agd-doc .agd-agent-text { text-decoration: underline dotted 2px var(--agd-color-agent); text-underline-offset: 3px; background: var(--agd-color-agent-subtle); border-radius: 2px; }
+.agd-doc .agd-legend { margin-block-start: var(--agd-space-8); }
 
 /* The caret of another person or agent. */
-.adoc .caret { position: relative; border-inline-start: 2px solid var(--agd-color-accent); margin-inline: -1px; pointer-events: none; word-break: normal; }
-.adoc .caret--agent { border-inline-start: 2px dashed var(--agd-color-agent); }
-.adoc .caret__tag { position: absolute; top: -1.45em; inset-inline-start: -2px; white-space: nowrap; font-size: var(--agd-font-size-xs); line-height: 1.3; padding: 0 var(--agd-space-1); border-radius: var(--agd-radius-sm) var(--agd-radius-sm) var(--agd-radius-sm) 0; background: var(--agd-color-accent); color: var(--agd-color-text-on-accent); user-select: none; }
-.adoc .caret--agent .caret__tag { background: var(--agd-color-surface); color: var(--agd-color-agent-text); border: 1px solid var(--agd-color-agent); border-radius: 0; }
+.agd-doc .agd-caret { position: relative; border-inline-start: 2px solid var(--agd-color-accent); margin-inline: -1px; pointer-events: none; word-break: normal; }
+.agd-doc .agd-caret--agent { border-inline-start: 2px dashed var(--agd-color-agent); }
+.agd-doc .agd-caret__tag { position: absolute; top: -1.45em; inset-inline-start: -2px; white-space: nowrap; font-size: var(--agd-font-size-xs); line-height: 1.3; padding: 0 var(--agd-space-1); border-radius: var(--agd-radius-sm) var(--agd-radius-sm) var(--agd-radius-sm) 0; background: var(--agd-color-accent); color: var(--agd-color-text-on-accent); user-select: none; }
+.agd-doc .agd-caret--agent .agd-caret__tag { background: var(--agd-color-surface); color: var(--agd-color-agent-text); border: 1px solid var(--agd-color-agent); border-radius: 0; }
 
 /* The base rules of the editor. The editor does not add them in an inline style, so a page whose content security policy
-   forbids inline styles can show it. Long words wrap by the `overflow-wrap: anywhere` of `.prose` above, so a long word
+   forbids inline styles can show it. Long words wrap by the `overflow-wrap: anywhere` of `.agd-prose` above, so a long word
    in a table cell does not widen the page. */
-.adoc .ProseMirror {
+.agd-doc .ProseMirror {
   position: relative;
   white-space: pre-wrap;
   white-space: break-spaces;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0;
 }
-.adoc .ProseMirror [contenteditable="false"] {
+.agd-doc .ProseMirror [contenteditable="false"] {
   white-space: normal;
 }
-.adoc .ProseMirror [contenteditable="false"] [contenteditable="true"],
-.adoc .ProseMirror pre {
+.agd-doc .ProseMirror [contenteditable="false"] [contenteditable="true"],
+.agd-doc .ProseMirror pre {
   white-space: pre-wrap;
 }
-.adoc img.ProseMirror-separator {
+.agd-doc img.ProseMirror-separator {
   display: inline !important;
   border: none !important;
   margin: 0 !important;
   width: 0 !important;
   height: 0 !important;
 }
-.adoc .ProseMirror-gapcursor {
+.agd-doc .ProseMirror-gapcursor {
   display: none;
   pointer-events: none;
   position: absolute;
   margin: 0;
 }
-.adoc .ProseMirror-gapcursor::after {
+.agd-doc .ProseMirror-gapcursor::after {
   content: "";
   display: block;
   position: absolute;
   top: -2px;
   width: 20px;
   border-top: 1px solid currentColor;
-  animation: adoc-gapcursor-blink 1.1s steps(2, start) infinite;
+  animation: agd-gapcursor-blink 1.1s steps(2, start) infinite;
 }
-@keyframes adoc-gapcursor-blink {
+@keyframes agd-gapcursor-blink {
   to {
     visibility: hidden;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .adoc .ProseMirror-gapcursor::after {
+  .agd-doc .ProseMirror-gapcursor::after {
     animation: none;
   }
 }
-.adoc .ProseMirror-focused .ProseMirror-gapcursor {
+.agd-doc .ProseMirror-focused .ProseMirror-gapcursor {
   display: block;
 }
-.adoc .ProseMirror-hideselection *::selection {
+.agd-doc .ProseMirror-hideselection *::selection {
   background: transparent;
 }
-.adoc .ProseMirror-hideselection * {
+.agd-doc .ProseMirror-hideselection * {
   caret-color: transparent;
 }

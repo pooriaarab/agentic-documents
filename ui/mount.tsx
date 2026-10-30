@@ -90,7 +90,7 @@ function App({ baseUrl, getToken, documentId, onError }: MountOptions) {
     go(link.getAttribute("href")!);
   };
   return (
-    <div className="adoc-app" onClick={route}>
+    <div className="agd-app" onClick={route}>
       {auth.state === "checking" && <p role="status" className="muted">Signing in…</p>}
       {auth.state === "error" && (
         <div role="alert" className="notice">

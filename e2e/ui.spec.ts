@@ -126,14 +126,16 @@ test("create a document, type, reload, and a second browser sees the edit live",
   await ada.keyboard.press("Control+b");
   await ada.keyboard.type(" see docs");
   await ada.keyboard.press("Control+Shift+ArrowLeft");
-  await ada.getByRole("button", { name: "Link" }).click();
+  await ada.getByRole("toolbar", { name: "Formatting" }).getByRole("button", { name: "Link" }).click(); // the bubble menu has one too
   await ada.getByLabel("Address").fill("https://example.com/docs");
   await ada.getByRole("button", { name: "Apply" }).click();
   await expect(ada.getByRole("dialog")).toHaveCount(0);
   await expect(textbox(ada)).toBeFocused(); // writing goes on in the text after the dialog closes
   await ada.keyboard.press("Control+End"); // the caret goes to the end of the text, whatever is selected
   await ada.keyboard.press("Enter");
-  await ada.getByRole("button", { name: "H2 heading" }).click();
+  await ada.getByRole("button", { name: "Text style: Paragraph" }).click();
+  await ada.getByRole("menuitem", { name: "Heading 2" }).click();
+  await expect(textbox(ada)).toBeFocused();
   await ada.keyboard.type("Risks");
   await ada.keyboard.press("Enter");
   await ada.getByRole("button", { name: "Bulleted list" }).click();
@@ -176,21 +178,21 @@ test("text an agent wrote is marked, and the agent shows as an agent", async ({ 
   const ada = await newPage(await browser.newContext(), ADA);
   await ada.goto(`${url()}/#/d/${id}`);
   await expect(textbox(ada)).toContainText("Person text.");
-  await expect(textbox(ada).locator(".agent-text")).toHaveCount(0);
+  await expect(textbox(ada).locator(".agd-agent-text")).toHaveCount(0);
 
   const agent = await LiveDoc.join({ server: url(), id, token: BOT, name: "Scribe" });
   await agent.edit((doc, author) => doc.append("Agent paragraph.", author));
   await agent.save();
   await expect(textbox(ada)).toContainText("Agent paragraph.");
-  await expect(textbox(ada).locator(".agent-text")).toContainText("Agent paragraph.");
-  await expect(textbox(ada).locator(".agent-text")).not.toContainText("Person text.");
+  await expect(textbox(ada).locator(".agd-agent-text")).toContainText("Agent paragraph.");
+  await expect(textbox(ada).locator(".agd-agent-text")).not.toContainText("Person text.");
   await expect(ada.getByText("Dotted text was written by an agent.")).toBeVisible();
   await expect(ada.getByText(/1 agent/)).toBeVisible();
   await agent.leave();
 
   // The mark comes from the document, so it is still there after a reload.
   await ada.reload();
-  await expect(textbox(ada).locator(".agent-text")).toContainText("Agent paragraph.");
+  await expect(textbox(ada).locator(".agd-agent-text")).toContainText("Agent paragraph.");
   await ada.context().close();
 });
 
@@ -210,7 +212,8 @@ test("deleting from the editor stays deleted, and a bad edit log entry does not 
   await peer.leave();
   await expect(textbox(page)).toContainText("Gone soon.");
 
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Documents", level: 1 })).toBeFocused();
   await page.waitForTimeout(3000); // longer than the save delay
@@ -385,7 +388,7 @@ for (const theme of themes) {
     await page.goto(`${url()}/#/d/${id}`);
     await page.reload();
     await expect(textbox(page)).toContainText("Agent note");
-    await expect(textbox(page).locator(".agent-text")).toContainText("Agent note");
+    await expect(textbox(page).locator(".agd-agent-text")).toContainText("Agent note");
     await expect(page.locator(".agd-stack__summary")).toContainText("1 agent");
     await textbox(page).click();
     await expectAccessible(page);
@@ -409,7 +412,8 @@ for (const theme of themes) {
     await expectAccessible(page);
     await page.keyboard.press("Escape");
     for (const [open, dialog] of [["Rename", "Rename document"], ["Delete", "Delete document"]]) {
-      await page.getByRole("button", { name: open, exact: true }).click();
+      await page.getByRole("button", { name: "More actions" }).click();
+      await page.getByRole("menuitem", { name: open }).click();
       await expect(page.getByRole("dialog", { name: dialog })).toBeVisible();
       await expectAccessible(page);
       await page.keyboard.press("Escape");

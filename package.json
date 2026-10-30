@@ -31,6 +31,7 @@
   "files": [
     "dist",
     "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md",
     "SKILL.md",
     "CHANGELOG.md",
     "llms.txt"
@@ -92,6 +93,7 @@
     "@tiptap/extension-image": "^3.32.1",
     "@tiptap/extension-list": "^3.32.1",
     "@tiptap/extension-table": "^3.32.1",
+    "@tiptap/extensions": "^3.32.1",
     "@tiptap/pm": "^3.32.1",
     "@tiptap/starter-kit": "^3.32.1",
     "@tiptap/y-tiptap": "^3.0.11",

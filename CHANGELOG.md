@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The web UI opens a document full screen: a top bar with the way back, the title, Share, and a menu with Rename,
+  Delete, the theme, and Sign out, then the editor with the text as a page. The side bar shows on the list only. The editor is a port of gitmarkdown (MIT).
+- The editor toolbar has text style, strikethrough, inline code, task lists, quote, code block, divider, table,
+  image, undo, and redo, as well as bold, italic, link, and lists. The image dialog also takes a PNG, JPEG, GIF, or
+  WebP file, stored in the document, and a chosen file can be removed. Pasted HTML keeps an image only when its source
+  passes the same check as the dialog. A paste or a drop whose images would take the document past the 1,000,000 byte
+  limit of a live room is refused, and a save that fails on that limit says so.
+- A slash menu (type `/`) adds a block, and a bubble menu over a selection formats it. Alt+F10 reaches the bubble
+  menu from the keyboard. An empty document shows a hint. Both menus are ports of gitmarkdown.
+- `@tiptap/extensions` is a direct dependency, for the placeholder.
+- The editor classes use the `agd-` prefix. Update any style that targets the old names: `.agd-doc` (was `.adoc`),
+  `.agd-app` (was `.adoc-app`), `.agd-prose` (was `.prose`), `.agd-agent-text` (was `.agent-text`), `.agd-caret`,
+  `.agd-caret--agent`, and `.agd-caret__tag` (were `.caret`, `.caret--agent`, and `.caret__tag`), and `.agd-muted`,
+  `.agd-notice`, and `.agd-legend` (were `.muted`, `.notice`, and `.legend` under `.adoc`), `.agd-glyph`,
+  `.agd-glyph--b`, and `.agd-glyph--i` (were `.glyph`, `.glyph--b`, and `.glyph--i`), `.agd-doc__meta` (was
+  `.editor-meta`), and `.agd-form` and `.agd-form-actions` for the link and image
+  dialogs (were `.adoc.form` and `.form-actions`). The form rules now apply page-wide, not under `.agd-doc`, since
+  the dialogs render in a portal. `.editor-bar` and `.editor-host` are gone: the bar is `.agd-doc__bar` and the text sits in
+  `.agd-paper`.
+
 ## 0.12.2
 
 ### Changed
