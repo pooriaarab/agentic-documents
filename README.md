@@ -62,8 +62,9 @@ editor toolbar has text style (paragraph, headings 1 to 3), bold, italic, strike
 numbered, and task lists, quote, code block, divider, table, image, undo, and redo. The Image tool inserts an image, or changes the selected one, with alt text or
 the Decorative choice. It takes a web address, an embedded image, or a PNG, JPEG, GIF, or WebP file of up to about 180
 KB, stored in the document. The page's content security policy blocks images from other hosts, so a web address shows
-only in an app that allows it. A pasted image is kept only when its source passes the same check. A paste or a drop
-whose images would take the document past the 1,000,000 byte limit of a live room is refused. The menu at the top end of a document has Rename,
+only in an app that allows it. A pasted image is kept only when its source passes the same check, so a relative address
+from Markdown is dropped from a paste. A paste or a drop whose images would take the document past the room the dialog
+allows (90% of the 1,000,000 byte limit of a live room) is refused. The menu at the top end of a document has Rename,
 Delete, the theme, and Sign out. The tests check each main view with axe (WCAG 2.2 AA rules) in the light and the dark theme: sign in, list, empty and error list, new-document dialog, editor, share dialog, link, rename and delete dialogs, the actions menu, and the read-only view. Axe finds only part of the faults, so it does not replace a test with a screen reader. Screenshots of
 every view are in [docs/screenshots](docs/screenshots).
 

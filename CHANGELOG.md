@@ -6,11 +6,14 @@
 
 - The web UI opens a document full screen: a top bar with the way back, the title, Share, and a menu with Rename,
   Delete, the theme, and Sign out, then the editor with the text as a page. The side bar shows on the list only. The editor is a port of gitmarkdown (MIT).
-- The editor toolbar has text style, strikethrough, inline code, task lists, quote, code block, divider, table,
-  image, undo, and redo, as well as bold, italic, link, and lists. The image dialog also takes a PNG, JPEG, GIF, or
-  WebP file, stored in the document, and a chosen file can be removed. Pasted HTML keeps an image only when its source
-  passes the same check as the dialog. A paste or a drop whose images would take the document past the 1,000,000 byte
-  limit of a live room is refused, and a save that fails on that limit says so.
+- The editor toolbar has text style, strikethrough, inline code, task lists, quote, code block, divider, table, undo,
+  and redo, next to bold, italic, link, lists, and the Image button. The "H1 heading" and "H2 heading" buttons are now
+  the "Text style" menu, and on a document page the Rename and Delete buttons are now items of the "More actions"
+  menu: update a script that clicks them by name.
+- The image dialog also takes a PNG, JPEG, GIF, or WebP file, stored in the document, and a chosen file can be
+  removed. Pasted HTML keeps an image only when its source passes the same check as the dialog, so a relative address
+  is dropped from a paste. A paste or a drop whose images would take the document past the room the dialog allows is
+  refused, and a save that fails on the 1,000,000 byte limit of a live room says so.
 - The editor classes use the `agd-` prefix. Update any style that targets the old names: `.agd-doc` (was `.adoc`),
   `.agd-app` (was `.adoc-app`), `.agd-prose` (was `.prose`), `.agd-agent-text` (was `.agent-text`), `.agd-caret`,
   `.agd-caret--agent`, and `.agd-caret__tag` (were `.caret`, `.caret--agent`, and `.caret__tag`), and `.agd-muted`,

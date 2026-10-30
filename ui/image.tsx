@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import * as Y from "yjs";
+import { MAX_LIVE_BYTES } from "../src/limits.js";
 import { Button, Checkbox, Dialog, DialogClose, Input } from "agentic-design/react";
 
 /** The sources the engine renders: web addresses, and small embedded pictures. */
@@ -9,10 +10,14 @@ const SOURCE = /^(https?:\/\/\S+|data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+
 
 /** The whole document has a 1 MB limit, and an embedded image counts against it. This keeps one image small, and room is checked too. */
 const MAX_SOURCE = 256_000;
-const DOCUMENT_LIMIT = 900_000;
+/** The room an image may take: the room limit, less some for the text around it. The paste check uses the same value. */
+export const DOCUMENT_LIMIT = Math.floor(MAX_LIVE_BYTES * 0.9);
 const TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
-/** A source the editor keeps from pasted HTML: the same rule as the dialog, so a copy and paste inside the text keeps it. */
+/**
+ * A source the editor keeps from pasted HTML: the same rule as the dialog, so a copy and paste inside the text keeps it.
+ * Anything else, such as a relative address from Markdown, is dropped from a paste: the README says so.
+ */
 export const allowedSource = (src: string): boolean => SOURCE.test(src) && src.length <= MAX_SOURCE;
 
 /** The image of the editor: inline, as the engine schema has it. Pasted HTML keeps an image only when its source is allowed. */
@@ -37,8 +42,11 @@ export function ImageDialog({ editor, doc, open, onOpenChange }: { editor: Edito
   const [alt, setAlt] = useState("");
   const [decorative, setDecorative] = useState(false);
   const [opened, setOpened] = useState("");
-  const [error, setError] = useState<{ src?: string; alt?: string }>({});
+  const [error, setError] = useState<{ src?: string; file?: string; alt?: string }>({});
   const [file, setFile] = useState<File>();
+  const [busy, setBusy] = useState(false); // reading a file: a second Insert waits
+  const live = useRef(open);
+  live.current = open;
   const picker = useRef<HTMLInputElement>(null);
   const refocus = useRef(false);
   const editing = open && editor?.isActive("image") === true;
@@ -69,22 +77,28 @@ export function ImageDialog({ editor, doc, open, onOpenChange }: { editor: Edito
   }, [open, editor]);
 
   async function apply() {
-    if (!editor) return;
+    if (!editor || busy) return;
     let address = src.trim();
-    // A chosen file is read into an embedded image, which then passes the same checks as a typed one.
+    // A chosen file is read into an embedded image, which then passes the same checks as a typed one. Its errors show
+    // on the file field.
     if (file) {
-      if (!TYPES.includes(file.type)) return setError({ src: "Use a PNG, JPEG, GIF, or WebP image file." });
+      if (!TYPES.includes(file.type)) return setError({ file: "Use a PNG, JPEG, GIF, or WebP image file." });
+      setBusy(true);
       try {
         address = await read(file);
       } catch {
-        return setError({ src: "The file could not be read. Try another file." });
+        return setError({ file: "The file could not be read. Try another file." });
+      } finally {
+        setBusy(false);
       }
+      if (!live.current) return; // closed while the file was read
     }
     const text = alt.trim();
     // An image the engine took from Markdown can have a source this dialog would not accept. Its alt text can still change.
-    const problem: { src?: string; alt?: string } = { src: (editing && address === opened) || (SOURCE.test(address) && address.length <= MAX_SOURCE) ? undefined : "Use a web address that starts with https:// or http://, or an embedded PNG, JPEG, GIF, or WebP image of up to about 180 KB.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
+    const problem: { src?: string; file?: string; alt?: string } = { src: (editing && address === opened) || (SOURCE.test(address) && address.length <= MAX_SOURCE) ? undefined : "Use a web address that starts with https:// or http://, or an embedded PNG, JPEG, GIF, or WebP image of up to about 180 KB.", alt: decorative || text ? undefined : "Describe the image, or mark it as decorative." };
     if (!problem.src && address !== opened && address.length > 1000 && Y.encodeStateAsUpdate(doc).length + address.length > DOCUMENT_LIMIT) problem.src = "The document has no room for this image. Use a smaller image or a web address.";
-    if (problem.src || problem.alt) return setError(problem);
+    if (file && problem.src) [problem.file, problem.src] = [problem.src, undefined];
+    if (problem.src || problem.file || problem.alt) return setError(problem);
     const attrs = { src: address, alt: decorative ? "" : text };
     if (editor.isActive("image")) editor.chain().focus().updateAttributes("image", attrs).run();
     else editor.chain().focus().insertContentAt(editor.state.selection.to, { type: "image", attrs }).run(); // after the selection, so no text is replaced
@@ -98,13 +112,13 @@ export function ImageDialog({ editor, doc, open, onOpenChange }: { editor: Edito
     <Dialog open={open} onOpenChange={onOpenChange} title={editing ? "Image" : "Insert image"} description="Alt text tells people who cannot see the image what it shows.">
       <form className="agd-form" onSubmit={(e) => (e.preventDefault(), void apply())}>
         <Input label="Image address" value={src} onChange={(e) => setSrc(e.target.value)} error={error.src} placeholder="https://" hint="A page can block web images. An embedded image always shows." autoComplete="off" disabled={file !== undefined} />
-        <Input ref={picker} label="Or image file" type="file" accept={TYPES.join(",")} hint="A PNG, JPEG, GIF, or WebP file of up to about 180 KB, stored in the document." onChange={(e) => (setFile(e.target.files?.[0]), setError((now) => ({ ...now, src: undefined })))} />
+        <Input ref={picker} label="Or image file" type="file" accept={TYPES.join(",")} hint="A PNG, JPEG, GIF, or WebP file of up to about 180 KB, stored in the document." error={error.file} onChange={(e) => (setFile(e.target.files?.[0]), setError((now) => ({ ...now, file: undefined })))} />
         {file && <div><Button type="button" variant="secondary" size="sm" onClick={() => (setFile(undefined), picker.current && (picker.current.value = ""))}>Remove file</Button></div>}
         <Input label="Alt text" value={decorative ? "" : alt} onChange={(e) => setAlt(e.target.value)} error={error.alt} disabled={decorative} autoComplete="off" />
         <Checkbox label="Decorative image, with no description" checked={decorative} onChange={(e) => (setDecorative(e.target.checked), setError((now) => ({ ...now, alt: undefined })))} />
         <div className="agd-form-actions">
           <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
-          <Button type="submit">{editing ? "Apply" : "Insert"}</Button>
+          <Button type="submit" loading={busy}>{editing ? "Apply" : "Insert"}</Button>
         </div>
       </form>
     </Dialog>

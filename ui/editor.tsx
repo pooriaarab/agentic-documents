@@ -12,7 +12,7 @@ import * as Y from "yjs";
 import { isMachine } from "../src/kinds.js";
 import { MAX_LIVE_BYTES } from "../src/limits.js";
 import type { LiveSession } from "./live.js";
-import { DocImage, ImageDialog } from "./image.js";
+import { DocImage, DOCUMENT_LIMIT, ImageDialog } from "./image.js";
 import { AgentText } from "./marks.js";
 import { FormatBar } from "./toolbar.js";
 
@@ -86,10 +86,9 @@ export function Surface({ live, editable, principal: me, onEditor }: { live: Liv
 
   useEffect(() => {
     const fits = (slice: Slice): boolean => {
-      if (live.hosted) return true;
       let bytes = 0;
       slice.content.descendants((node) => void (node.type.name === "image" && (bytes += String(node.attrs.src ?? "").length)));
-      const ok = bytes === 0 || bytes + 1024 <= MAX_LIVE_BYTES - Y.encodeStateAsUpdate(live.doc).byteLength;
+      const ok = bytes === 0 || Y.encodeStateAsUpdate(live.doc).byteLength + bytes <= DOCUMENT_LIMIT; // as the image dialog
       setRefused(!ok);
       return ok;
     };
