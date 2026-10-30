@@ -24,6 +24,9 @@ function textBlocks(doc: Y.Doc): Y.XmlElement[] {
 const blocks = (doc: Y.Doc): (Y.XmlText | null)[] => textBlocks(doc).map(block =>
   block.toArray().find((c): c is Y.XmlText => c instanceof Y.XmlText) ?? null);
 
+const textRuns = (doc: Y.Doc): Y.XmlText[] => textBlocks(doc).flatMap(block =>
+  block.toArray().filter((child): child is Y.XmlText => child instanceof Y.XmlText));
+
 /** Plain text for search indexing: one line per paragraph, heading or code block. */
 export const bodyText = (doc: Y.Doc): string => textBlocks(doc).map(block => block.toArray().map(child =>
   child instanceof Y.XmlText ? textOf(child) : child instanceof Y.XmlElement && child.nodeName === "hardBreak" ? "\n" : ""
@@ -33,7 +36,7 @@ export const bodyText = (doc: Y.Doc): string => textBlocks(doc).map(block => blo
 export function anchorForQuote(doc: Y.Doc, quote: string): TextAnchor | null {
   if (quote === "") return null;
   let found: { text: Y.XmlText; at: number } | null = null;
-  for (const text of blocks(doc)) {
+  for (const text of textRuns(doc)) {
     const own = text ? textOf(text) : "";
     for (let at = own.indexOf(quote); text && at >= 0; at = own.indexOf(quote, at + 1)) {
       if (found) return null;
@@ -72,7 +75,7 @@ export function resolveAnchor(doc: Y.Doc, anchor: TextAnchor): { text: Y.XmlText
   try {
     const a = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(anchor.start), doc);
     const b = Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(anchor.end), doc);
-    if (!a || !b || a.type !== b.type || !(a.type instanceof Y.XmlText) || a.index >= b.index || !blocks(doc).includes(a.type)) return null;
+    if (!a || !b || a.type !== b.type || !(a.type instanceof Y.XmlText) || a.index >= b.index || !textRuns(doc).includes(a.type)) return null;
     return { text: a.type, from: a.index, to: b.index };
   } catch { return null; }
 }
@@ -106,7 +109,7 @@ const host: SuggestionHost = {
   revert(receipt, { ydoc }) {
     const { start, text } = (receipt ?? {}) as Partial<Receipt>;
     const at = start && typeof text === "string" ? Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(start), ydoc) : null;
-    if (!at || !(at.type instanceof Y.XmlText) || !blocks(ydoc).includes(at.type) || textOf(at.type).slice(at.index, at.index + text!.length) !== text) {
+    if (!at || !(at.type instanceof Y.XmlText) || !textRuns(ydoc).includes(at.type) || textOf(at.type).slice(at.index, at.index + text!.length) !== text) {
       throw new Error("The receipt does not match the document.");
     }
     at.type.delete(at.index, text!.length);

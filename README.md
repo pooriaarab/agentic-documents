@@ -955,7 +955,12 @@ review.close();
 selections across blocks and over inline images or hard breaks.
 `resolveAnchor(ydoc, anchor)` returns `{ text, from, to }` or `null`. A resolved
 range can contain changed text. Accept checks the original quote and refuses
-stale suggestions. Quotes must occur once in one block. `bodyText` joins
+stale suggestions against the local document state. If different, overlapping
+suggestions are accepted on separate replicas before they sync, both replacements
+remain after merge. Both decisions show as accepted; `problems()` does not report
+this conflict. Hosts that need one winner must serialize these decisions.
+Quotes must occur once within one text run. Quote search includes text after hard
+breaks and inline images, but a quote cannot span an inline node. `bodyText` joins
 paragraphs, headings and code blocks with newlines, including empty blocks. Hard breaks also add newlines. Accepted replacements keep
 the marks of the first replaced character.
 

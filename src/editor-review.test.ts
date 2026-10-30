@@ -144,3 +144,27 @@ test.each(["**world**", "[world](https://example.com)"])("accept preserves the f
   expect(AgenticDoc.fromUpdate(Y.encodeStateAsUpdate(doc)).toMarkdown().trim()).toBe(`Hello ${marked.replace("world", "moon")} end`);
   review.close();
 });
+
+test("quote matching checks every text run and can review text after a hard break", () => {
+  expect(anchorForQuote(fresh("same  \nsame"), "same")).toBeNull();
+  const doc = fresh("one  \ntarget"), review = createReview(doc, person);
+  const anchor = anchorForQuote(doc, "target")!;
+  expect(resolveAnchor(doc, anchor)).not.toBeNull();
+  review.decide(review.suggest(anchor, "moon", bot).id, true);
+  expect(bodyText(doc)).toBe("one\nmoon");
+  review.close();
+});
+
+test("different overlapping suggestions accepted offline both remain after merge", () => {
+  const a = fresh(), ra = createReview(a, person);
+  const anchor = anchorForQuote(a, "world")!;
+  const first = ra.suggest(anchor, "moon", bot), second = ra.suggest(anchor, "earth", bot);
+  const b = copy(a), rb = createReview(b, person);
+  ra.decide(first.id, true); rb.decide(second.id, true);
+  sync(a, b); sync(a, b);
+  expect(["Hello moonearth", "Hello earthmoon"]).toContain(bodyText(a));
+  expect(bodyText(b)).toBe(bodyText(a));
+  expect(ra.suggestions.map(s => s.status)).toEqual(["accepted", "accepted"]);
+  expect(ra.problems()).toEqual([]);
+  ra.close(); rb.close();
+});
