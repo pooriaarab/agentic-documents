@@ -138,7 +138,7 @@ export class DocsService implements DocAccess {
         // A client that only saves, such as the web UI, must not bring back a document that someone removed.
         if (options.create === false) throw new DocError("NO_DOCUMENT", `no document with id "${id}"`);
         const created = AgenticDoc.fromUpdate(update, this.options);
-        const fresh = this.checked(id, created);
+        const fresh = this.checkedState(id, created);
         this.fits(id, fresh);
         if (!(await this.blobs.put(key, fresh, { ifNoneMatch: "*" }))) continue;
         await this.catalog(id, author);
@@ -147,7 +147,7 @@ export class DocsService implements DocAccess {
       }
       const doc = AgenticDoc.fromUpdate(found.data, this.options);
       doc.applyUpdate(update);
-      const merged = this.checked(id, doc);
+      const merged = this.checkedState(id, doc);
       this.fits(id, merged);
       if (await this.blobs.put(key, merged, { ifMatch: found.version })) {
         await this.touch(id, author);
@@ -162,7 +162,7 @@ export class DocsService implements DocAccess {
    * check types, so an update can put text where the editor expects blocks, or a thread with no messages, and then a
    * command fails on every later call.
    */
-  private checked(id: string, doc: AgenticDoc): Uint8Array {
+  checkedState(id: string, doc: AgenticDoc): Uint8Array {
     const refuse = (what: string) => new DocError("INVALID_INPUT", `the update would leave document "${id}" unreadable: ${what}`);
     try {
       doc.toMarkdown();

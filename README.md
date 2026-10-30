@@ -791,8 +791,58 @@ npm ci
 npm run ci:local
 ```
 
+## Account export and erase
+
+Use `documentsAccount` from `agentic-documents/account` with the identity account
+registry that exposes `AccountPackage`, or call it directly. Identity 0.9 uses
+the older `AccountApp` contract and needs a host adapter. The subject is `{ id, kind }`. Call once for each
+principal, including delegated agents. Kinds keep people and agents distinct.
+
+```ts
+import { documentsAccount } from "agentic-documents/account";
+const subject = { id: "ada", kind: "human" } as const;
+const data = await documentsAccount.exportAccount(subject, { store, blobs });
+const counts = await documentsAccount.eraseAccount(subject, { store, blobs });
+```
+
+The export returns plain JSON collections: `documents` holds owned catalog rows
+and Markdown; `blobs` holds their full Yjs state as base64, including edit history,
+comments, suggestions, and inline images; `grants` holds the subject's roles;
+`sharing` holds the sharing rows of owned documents;
+`authored` holds records the subject made on other documents and a full Yjs
+snapshot of each such document. These snapshots include collaborators' content
+to keep the document and its history readable. The package stores
+no separate attachment or version files. Image URLs refer to external data.
+
+Erase deletes sole-owned documents and their sharing records. Shared documents
+keep other owners and their content. The subject's grants and invites go. Author names in
+catalog rows, edits, comments, suggestions, and acceptance records become
+`(erased)`. The kind stays, so machine-made work stays labeled. Shared content
+stays; this is author anonymization, not removal of text that contains personal
+data. A second erase counts zero. A failed erase throws; retry to finish it.
+Damaged blobs, catalog rows, grants, and owner paths stop the operation.
+
+Stop writes before export and keep them stopped until erase ends. Pass
+`saveRoom(id)` to flush live rooms before reads and `eraseRoom(id)` to clear rooms
+before deletion or anonymization. Without these hooks the host must stop and
+clear rooms itself. Run this contributor before identity account erasure; the
+host exports and erases identity audit records in its own account step.
+
+The contributor scans catalog and sharing rows. For legacy blobs with neither
+row, pass `documentIds: async () => ids` from a complete storage inventory. The
+Blobs port cannot list keys. A legacy document without an owner record uses its
+catalog creator as owner; a blob without either record can only be matched by
+its author records. Migrate old file blobs before account operations. Backups
+and external image hosts need their own retention and erase steps.
+
+Invites keep a creator id with no kind. Use unique ids across principal kinds;
+invites with the subject's creator id are exported and deleted. Invite recipients
+cannot be matched to an account. Links have no creator record and leave with
+the document. Identity audit rows need the host's identity account step.
+
 ## License
 
 MIT. The editor is a port of [gitmarkdown](https://github.com/pooriaarab/gitmarkdown) (MIT), and its page layout
 follows [tinylittleoffice](https://github.com/aboard-io/tinylittleoffice) (MIT). See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
