@@ -425,6 +425,25 @@ const editor = mountEditor(document.getElementById("editor")!, {
   image dialogs (`.agd-form`, `.agd-form-actions`), which apply page-wide because the dialogs render
   in a portal. Load `agentic-design/styles.css` first.
 - File import and export are in `agentic-documents/formats` (see [File formats](#file-formats)).
+- Extension points for an app, such as comments or an assistant:
+  - `slashItems`: more slash menu items, after the built-in ones. Each is `{ title, description, keywords?, icon?, run(editor) }`.
+  - `bubbleActions`: more tools in the bubble menu over a selection, after the built-in ones. Each is
+    `{ label, icon, run(editor) }`. `run` gets the editor with the selection in place. They show where the built-in
+    tools show: for a person who can edit, over text that is not code, an image, or a cell selection.
+  - `extensions`: more Tiptap extensions: plugins, decorations, and keyboard shortcuts. Keep this array stable.
+    The editor reads it when it is built, including after a role or room change. Updating the array alone does not
+    rebuild the editor. To apply new extensions at once, unmount the editor and mount it again.
+    An extension that adds or changes a node, a mark, or an attribute stops the editor with a message that names it,
+    since the stored document keeps only the nodes, marks, and attributes of `schema`.
+  - `editorMarkdown(editor)` and `setEditorMarkdown(editor, markdown)` read and replace the text as Markdown,
+    with the same Markdown conversion as the server. Import drops images that a paste would refuse.
+    `setEditorMarkdown` throws if the editor is read only, has no sync document, or the projected Yjs state,
+    including text kept for Undo, exceeds the room budget.
+  - Invalid host options throw a `TypeError` before the editor opens or updates.
+  - The types `SlashItem`, `BubbleAction`, and `EditorExtras` are exported.
+- The carets and the selections of the other people and agents in the room show in the text, each with the name that
+  the server stamped for that peer. A person's selection is a tint. An agent's caret and selection are dashed, so its
+  selection does not look like agent-written text.
 - `onEditor` gets the Tiptap editor when it is ready, and `null` when it goes. Use it to read the selection or the
   JSON, or to insert content. The editor sets `injectCSS: false`, and `ui.css` has the base rules, so a page whose
   content security policy forbids inline styles shows it right.

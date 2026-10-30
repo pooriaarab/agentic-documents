@@ -121,3 +121,60 @@ test("the embedded editor takes an image from a web address or a file, a chosen 
   await expect(textbox(ada).locator('img[alt="dropped"]')).toHaveCount(0);
   await ada.context().close();
 });
+
+test("a host adds a slash item, a bubble tool, and a Tiptap extension, and one that adds a mark is refused", async ({ browser }) => {
+  const id = `embed-extras-${Date.now()}`;
+  await sdk(ADA).create({ id, markdown: "Shared plan for the week." });
+  const ada = await host(browser, ADA, id, "&extras");
+  await typeAtEnd(ada, " ");
+  await ada.keyboard.type("/sign");
+  await ada.getByRole("listbox", { name: "Insert a block" }).getByRole("option", { name: /^Signature/ }).click();
+  await expect(textbox(ada)).toContainText("Signed, the host");
+  await ada.keyboard.press("Control+Shift+y");
+  expect(await ada.evaluate(() => (window as unknown as { seen: { shortcut?: boolean } }).seen.shortcut)).toBe(true);
+
+  // The host's tool comes after the built-in ones, and runs with the selection in place. Alt+F10 reaches it.
+  await ada.keyboard.press("Shift+Home");
+  const bubble = ada.getByRole("toolbar", { name: "Selection" });
+  await expect(bubble.getByRole("button", { name: "Comment" })).toBeVisible();
+  await ada.keyboard.press("Alt+F10");
+  await ada.keyboard.press("End"); // the last tool of the toolbar
+  await expect(bubble.getByRole("button", { name: "Comment" })).toBeFocused();
+  await ada.keyboard.press("Enter");
+  expect(await ada.evaluate(() => (window as unknown as { seen: { comment?: string } }).seen.comment)).toContain("Signed, the host");
+  await expect(textbox(ada)).toBeFocused(); // a host tool gives the focus back to the text, as the built-in ones do
+
+  // A viewer gets no bubble menu, and the host cannot replace a read-only editor's text.
+  const vic = await host(browser, VIC, id, "&extras");
+  await expect(textbox(vic)).toContainText("Shared plan");
+  await textbox(vic).dblclick();
+  await expect(vic.getByRole("toolbar", { name: "Selection" })).toHaveCount(0);
+  expect(await vic.evaluate(() => (window as unknown as { tryImport: () => string }).tryImport())).toContain("read only");
+
+  // A host extension that adds a mark, or an attribute to a node, stops the editor with a message that names them, rather
+  // than writing what the store cannot keep.
+  const bad = await (await browser.newContext()).newPage();
+  await bad.goto(`${url()}/embed/#token=${encodeURIComponent(ADA)}&id=${encodeURIComponent(id)}&extras&badext`);
+  await expect(bad.getByRole("alert")).toContainText("The editor stopped");
+  await expect(bad.getByRole("alert")).toContainText("paragraph, image, hostHighlight"); // the message names what it refused
+  await expect(bad.getByRole("textbox")).toHaveCount(0);
+  // A refused extension must leave its room. A new peer sees Ada, Vic, and itself, without the failed editor.
+  const observer = await host(browser, ADA, id);
+  await expect(observer.getByText("3 people", { exact: true })).toBeVisible();
+  await ada.context().close();
+  await vic.context().close();
+  await bad.context().close();
+  await observer.context().close();
+});
+
+for (const property of ["excludes", "inclusive"]) {
+  test(`a host cannot change an inline-code mark's ${property} rule`, async ({ browser }) => {
+    const id = `embed-mark-${property}-${Date.now()}`;
+    await sdk(ADA).create({ id, markdown: "Shared plan." });
+    const page = await (await browser.newContext()).newPage();
+    await page.goto(`${url()}/embed/#token=${encodeURIComponent(ADA)}&id=${id}&extras&badmark=${property}`);
+    await expect(page.getByRole("alert")).toContainText("it adds or changes code");
+    await expect(page.getByRole("textbox")).toHaveCount(0);
+    await page.context().close();
+  });
+}

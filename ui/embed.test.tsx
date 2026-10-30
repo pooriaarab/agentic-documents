@@ -167,6 +167,30 @@ describe("mountEditor", () => {
     expect(el.childElementCount).toBe(0);
   });
 
+  it("rejects invalid host options before loading, and keeps the open editor on a bad update", async () => {
+    const { client } = fakeClient("First");
+    const options = { id: "plan", client, principal: ada };
+    const invalid = [
+      ["extensions", {}], ["extensions", [{}]],
+      ["extensions", [{ type: "extension", name: "Fake" }]], ["slashItems", {}],
+      ["slashItems", [{ title: "Bad", description: "Text" }]],
+      ["slashItems", [{ title: "", description: "Text", run() {} }]],
+      ["slashItems", [{ title: "Bad", description: "Text", keywords: [3], run() {} }]],
+      ["bubbleActions", {}], ["bubbleActions", [{ label: " ", run() {} }]],
+      ["bubbleActions", [{ label: "Bad" }]],
+    ] as const;
+    host = document.body.appendChild(document.createElement("div"));
+    for (const [key, value] of invalid) {
+      expect(() => (mounted = mountEditor(host, { ...options, [key]: value } as never))).toThrow(key);
+    }
+    expect(client.state).not.toHaveBeenCalled();
+    host.remove();
+    const box = await mount(options);
+    for (const [key, value] of invalid) expect(() => mounted!.update({ ...options, [key]: value } as never)).toThrow(key);
+    expect(host.querySelector('[role="textbox"]')).toBe(box);
+    expect(client.state).toHaveBeenCalledTimes(1);
+  });
+
   it("a missing document shows an error, calls onError, and Try again loads again", async () => {
     const { client } = fakeClient(noDocument);
     const onError = vi.fn();

@@ -23,10 +23,12 @@ const keepImages = (nodes: PmNode[]): PmNode[] =>
 
 /**
  * Replace the text of the editor with Markdown. An image is dropped when the editor would not keep it from a paste. It
- * throws an error with a message when the Markdown has a part the document cannot keep, or when the old and the new
- * text together would pass the room limit.
+ * throws an error when the Markdown has a part the document cannot keep, when the old and new text together
+ * pass the room limit, or when the editor is read only.
  */
 export function setEditorMarkdown(editor: Editor, markdown: string): void {
+  // A read-only editor never saves, so text put in it would only differ from the room.
+  if (!editor.isEditable) throw new TypeError("The editor is read only, so its text cannot be replaced");
   const content = keepImages(markdownToBlocks(markdown));
   const doc = { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
   const room = ySyncPluginKey.getState(editor.state) as { doc?: Y.Doc } | undefined;
