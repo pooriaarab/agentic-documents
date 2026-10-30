@@ -928,3 +928,45 @@ the document.
 MIT. The editor is a port of [gitmarkdown](https://github.com/pooriaarab/gitmarkdown) (MIT), and its page layout
 follows [tinylittleoffice](https://github.com/aboard-io/tinylittleoffice) (MIT). See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+### Review in a host editor
+
+Import `agentic-documents/review` to bind `agentic-comments` to the editor's
+Yjs document. The editor must use the `default` collaboration field. This entry
+has no React runtime dependency. It uses separate review maps from the document
+SDK's `Threads` and `Suggestions`; it does not migrate those records.
+
+```ts
+import { anchorForQuote, bodyText, createReview, stamp } from "agentic-documents/review";
+
+// Use the principal your host authenticated, not a name from request input.
+const review = createReview(ydoc, stamp({ kind: "human", name: principalId }));
+const machine = stamp({ kind: "agent", name: "Writer" });
+const anchor = anchorForQuote(ydoc, "text to review");
+if (anchor) {
+  review.comment(anchor, "Check this text.");
+  const proposal = review.suggest(anchor, "replacement text", machine);
+  review.decide(proposal.id, true); // false rejects without changing the text
+}
+const unsubscribe = review.subscribe(() => {
+  renderReview(review.threads, review.suggestions);
+  indexText(bodyText(ydoc));
+});
+// On host teardown:
+unsubscribe();
+review.close();
+```
+
+`anchorOf(editor, ydoc)` pins a selection or returns `{ problem }`. It refuses
+selections across blocks and over inline images or hard breaks.
+`resolveAnchor(ydoc, anchor)` returns `{ text, from, to }` or `null`. A resolved
+range can contain changed text. Accept checks the original quote and refuses
+stale suggestions. Quotes must occur once in one block. `bodyText` joins
+paragraphs, headings and code blocks with newlines, including empty blocks.
+
+The controller also has `reply`, `setResolved`, and `problems`. Call `close` to
+remove its Yjs listener. An agent needs `comments:accept` to decide another
+principal's suggestion. An agent author cannot accept or reject its own proposal,
+even if the decision uses another kind with the same name. Hosts must bind names
+and scopes to authenticated identities. `explainReview` gives a safe error message;
+`labelOf` preserves machine labels for a host's known machine names.

@@ -1,6 +1,6 @@
 {
   "name": "agentic-documents",
-  "version": "0.13.2",
+  "version": "0.14.0",
   "description": "Write documents with people and agents in real time.",
   "keywords": [
     "documents",
@@ -76,6 +76,10 @@
     "./account": {
       "types": "./dist/account.d.ts",
       "import": "./dist/account.js"
+    },
+    "./review": {
+      "types": "./dist/review.d.ts",
+      "import": "./dist/review.js"
     }
   },
   "scripts": {
@@ -103,6 +107,7 @@
     "@tiptap/pm": "^3.32.1",
     "@tiptap/starter-kit": "^3.32.1",
     "@tiptap/y-tiptap": "^3.0.11",
+    "agentic-comments": "^0.3.0",
     "agentic-design": ">=0.9.0 <1.0.0",
     "agentic-formats": ">=0.4.2 <1.0.0",
     "agentic-identity": ">=0.9.0 <1.0.0",
